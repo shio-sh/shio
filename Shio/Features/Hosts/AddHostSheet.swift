@@ -103,7 +103,7 @@ private struct TailscaleAddView: View {
                     .padding(.top, ShioSpace.xs)
                 }
             }
-            Section("Your Mac") {
+            Section {
                 TextField(
                     useIPInstead ? "100.x.y.z" : "e.g. studio.tail-scale.ts.net",
                     text: $hostname
@@ -117,9 +117,10 @@ private struct TailscaleAddView: View {
                         displayName = inferDisplayName(from: newValue)
                     }
                 }
-                TextField("Username (the macOS account name on this Mac)", text: $username)
+                TextField("Username", text: $username)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                    .font(ShioFont.Mono.inline)
                 TextField("Display name", text: $displayName)
                     .textInputAutocapitalization(.words)
                     .onChange(of: displayName) { _, _ in
@@ -132,6 +133,12 @@ private struct TailscaleAddView: View {
                         // right keyboard / placeholder for the new mode.
                         hostname = ""
                     }
+            } header: {
+                Text("Your Mac")
+            } footer: {
+                Text("Username is your macOS short username — run `whoami` in Terminal on your Mac to see it. Usually lowercase, no spaces (e.g. `amrith`). Not your Apple ID, not your full name.")
+                    .font(ShioFont.footnote)
+                    .foregroundStyle(ShioColor.Text.tertiary)
             }
             Section {
                 ShioButton("Save") {
