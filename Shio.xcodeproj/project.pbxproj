@@ -87,7 +87,7 @@
 		33B72A8ADFDE67AFA134C6D8 /* Color+Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Tokens.swift"; sourceTree = "<group>"; };
 		3F89D8C4EFEC60A2A351A08A /* SessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionViewModel.swift; sourceTree = "<group>"; };
 		44077486EAF143FDBB8589B4 /* ConnectToHostIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectToHostIntent.swift; sourceTree = "<group>"; };
-		46960C8EA115590778B0C873 /* ShioWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ShioWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		46960C8EA115590778B0C873 /* ShioWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShioWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E77EC55C2AD2DA66202935C /* Typography+Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Typography+Tokens.swift"; sourceTree = "<group>"; };
 		4FF8FF5E0A127A90E9547135 /* HostListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostListView.swift; sourceTree = "<group>"; };
 		567F28A90C774F3180D2DE2F /* TmuxResume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TmuxResume.swift; sourceTree = "<group>"; };
@@ -100,7 +100,7 @@
 		7AB4EFEAE71D7E4D3E64E07A /* TailscaleDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TailscaleDetector.swift; sourceTree = "<group>"; };
 		7BAA9BBF8C8DC7160C462FCF /* ShioLiveActivitiesBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShioLiveActivitiesBundle.swift; sourceTree = "<group>"; };
 		7FE85FB3551844A1C1823B2A /* TerminalWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalWebView.swift; sourceTree = "<group>"; };
-		8D6C7DED738E2DA27E61D97A /* ShioLiveActivities.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ShioLiveActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D6C7DED738E2DA27E61D97A /* ShioLiveActivities.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShioLiveActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		90C2E699CF63F0C27E7FA5EF /* ShioWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShioWidgets.entitlements; sourceTree = "<group>"; };
 		91F90A20D155A5D522E2F434 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		99B937BDF51C3B7B8E2DD435 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -114,7 +114,7 @@
 		D3DE2E30940F3A7469316ABF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D6E88C52CBC9770017318631 /* Shio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Shio.entitlements; sourceTree = "<group>"; };
 		D835D1A28A4A1C398F3CED60 /* TerminalScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalScene.swift; sourceTree = "<group>"; };
-		D9DBF112035D6ECED87D5F7C /* Shio.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Shio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9DBF112035D6ECED87D5F7C /* Shio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Shio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA823F70080E5EF448721EFA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		EB5F148D85C26B3112DE83DC /* terminal */ = {isa = PBXFileReference; lastKnownFileType = folder; name = terminal; path = Shio/Resources/terminal; sourceTree = SOURCE_ROOT; };
 		F506F05A8EB5EF0D3350D7CE /* TerminalTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTheme.swift; sourceTree = "<group>"; };
@@ -431,7 +431,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					5A94B44C2D3EFF9BD3F655F9 = {
 						DevelopmentTeam = "";
@@ -588,6 +588,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -645,6 +646,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -660,6 +662,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -710,6 +713,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_COMPILATION_MODE = wholemodule;

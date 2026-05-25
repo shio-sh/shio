@@ -4,20 +4,22 @@ The icon is the brand. It will be the only thing many people see before they dec
 
 ---
 
-## ✅ LOCKED — Direction E: Kanji 塩 in DotGothic16
+## ✅ LOCKED — Direction E: Kanji 塩 in DotGothic16 (inverted)
 
 After exploring the four directions below plus a fifth (kanji + display type), the icon is locked as:
 
 - **Glyph**: 塩 (Japanese for *salt*, the word's etymology)
 - **Typeface**: DotGothic16 (Google Fonts) — pixel-grid Japanese font, terminal-coded
-- **Background**: `#F4EEDF` (diluted bone — new `chrome.background.light` token)
-- **Foreground**: `#0E0E10` (`ink.800`)
+- **Background**: `#0E0E10` (`ink.800`)
+- **Foreground**: `#F4EEDF` (diluted bone — `salt.bone.diluted` token)
 - **Size**: ~52% of canvas. Deliberately gives the character breathing room — not all icons need to fill the safe area; a 13-stroke kanji has its own visual density.
-- **Composition**: geometric center on a 1024×1024 canvas.
+- **Composition**: geometric center on a 2048×2048 master canvas.
 
-Master at `/assets/icon/master.svg`. PNG exports at all required Apple sizes in `/assets/icon/shio-*.png`.
+Master at `/assets/icon/master.svg`. PNG exports at all required Apple sizes in `/assets/icon/shio-*.png`. The 1024 export is the only one Xcode actually consumes — iOS 17+ auto-derives smaller sizes from it.
 
-**Known trade-off**: at 29×29 raw (@1x Settings), the character degrades to "a complex CJK glyph" without holding identity. Accepted because modern iPhones (XS+) use @2x (58px) and @3x (87px) where the character reads beautifully — @1x is a corner case not worth diluting the home-screen impression for.
+**Why inverted from the original bone-on-ink draft**: dark-on-light works as a wordmark on a marketing page, but for an app icon the dark ground reads as more confident and premium on a typical iOS home screen. Bone-on-ink also gives better contrast at small sizes — the character has stronger visual punch against pure ink (`#0E0E10`) than ink had against bone (`#F4EEDF`). The 29pt @1x Settings degradation concern from the original draft is meaningfully reduced as a result.
+
+**Color note**: the foreground uses `salt.bone.diluted` (`#F4EEDF`) rather than the full `salt.bone` (`#E8DCC4`). Both work; the diluted version is slightly lighter and has a hair more contrast on ink, which matters more at small sizes than the marginal richness of the full bone. The full bone remains the marketing-surface / hero-block accent.
 
 ---
 

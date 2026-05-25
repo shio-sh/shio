@@ -34,12 +34,14 @@ Colors live in two layers:
 
 #### Salt — brand identity colors
 
-`salt.bone` is the **brand identity color** — reserved for the icon, marketing/hero surfaces, and special-accent moments. It is *not* used as a default app background (the diluted `chrome.background.light` token covers that).
+`salt.bone` and its diluted variant are the **brand identity colors** — used on the icon, marketing/hero surfaces, and special-accent moments. They are *not* used directly as default app backgrounds in dark mode (the chrome uses `ink.*` there).
 
 | Token | Hex | Use |
 |---|---|---|
-| `salt.bone` | `#E8DCC4` | **LOCKED** — app icon background, hero/marketing, special identity moments |
-| `salt.bone.diluted` | `#F4EEDF` | Light-mode app background (see `chrome.background.light` below) |
+| `salt.bone` | `#E8DCC4` | Marketing/hero surfaces, identity moments, marketing-surface accents (not used in the app icon itself). |
+| `salt.bone.diluted` | `#F4EEDF` | Light-mode app background (`chrome.background.light`) **and** the foreground character in the app icon. Slightly lighter than full bone → better contrast at small icon sizes against ink. |
+
+The locked app icon is `salt.bone.diluted` (`#F4EEDF`) on `ink.800` (`#0E0E10`) — see `app-icon-concepts.md`. Full bone is reserved for hero/marketing where the warmer cast pays off at large sizes.
 
 Other accent candidates explored and rejected during Brick 0: `salt.amber` (#E8B968) — too warm/saturated; `salt.coral` (#E47A6B) — too playful; `salt.teal` (#5BA4A4) — too technical/cold. Bone won because it carries the premium-considered vibe without any color-coded emotion. We don't ship a brand accent in v1.0; if we need an accent later, it'll be derived from `salt.bone` (a darker/saturated shift), not from a separate palette.
 
