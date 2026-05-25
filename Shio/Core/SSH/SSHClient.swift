@@ -64,15 +64,22 @@ final class SSHClient {
         let bootstrap = ClientBootstrap(group: eventLoopGroup)
             .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .channelInitializer { channel in
-                let clientConfig = SSHClientConfiguration(
-                    userAuthDelegate: auth,
-                    serverAuthDelegate: host
-                )
-                return channel.pipeline.addHandlers([
-                    NIOSSHHandler(role: .client(clientConfig),
-                                  allocator: channel.allocator,
-                                  inboundChildChannelInitializer: nil)
-                ])
+                // syncOperations.addHandler avoids the upstream-NIO Sendable
+                // warning on NIOSSHHandler — it runs synchronously on the
+                // event-loop thread, no cross-thread escape, no Sendable check.
+                channel.eventLoop.makeCompletedFuture {
+                    let clientConfig = SSHClientConfiguration(
+                        userAuthDelegate: auth,
+                        serverAuthDelegate: host
+                    )
+                    try channel.pipeline.syncOperations.addHandler(
+                        NIOSSHHandler(
+                            role: .client(clientConfig),
+                            allocator: channel.allocator,
+                            inboundChildChannelInitializer: nil
+                        )
+                    )
+                }
             }
 
         do {
@@ -95,12 +102,16 @@ final class SSHClient {
         }
 
         let promise = parent.eventLoop.makePromise(of: (any Channel).self)
-        let handler = try await parent.pipeline.handler(type: NIOSSHHandler.self).get()
-        handler.createChannel(promise, channelType: .session) { childChannel, _ in
-            childChannel.pipeline.addHandlers([
-                dataHandler
-            ])
-        }
+        try await parent.eventLoop.submit {
+            // Fetch the NIOSSHHandler on the event-loop thread (no cross-thread
+            // escape → no Sendable warning) and request a session child channel.
+            let sshHandler = try parent.pipeline.syncOperations.handler(type: NIOSSHHandler.self)
+            sshHandler.createChannel(promise, channelType: .session) { childChannel, _ in
+                childChannel.eventLoop.makeCompletedFuture {
+                    try childChannel.pipeline.syncOperations.addHandler(dataHandler)
+                }
+            }
+        }.get()
         let child = try await promise.futureResult.get()
         self.childChannel = child
 
