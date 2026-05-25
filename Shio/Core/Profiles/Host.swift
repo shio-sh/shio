@@ -91,13 +91,15 @@ final class Host {
 
 extension Host {
     /// Build an `SSHClient.Configuration` from this profile.
+    /// Until Brick 7 second pass wires Keychain-backed key auth, a host with
+    /// no password configured is `.unconfigured` so SSHClient surfaces a clear
+    /// "no auth configured" error instead of attempting a doomed handshake.
     func makeClientConfiguration(password: String? = nil) -> SSHClient.Configuration {
         let auth: SSHClient.Authentication
         if let password {
             auth = .password(password)
         } else {
-            // Brick 7 hooks Keychain-backed key auth in; Brick 3 stub for now.
-            auth = .privateKey(PEM: "", passphrase: nil)
+            auth = .unconfigured
         }
         return SSHClient.Configuration(
             host: hostname,

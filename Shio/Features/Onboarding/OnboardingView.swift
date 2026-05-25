@@ -17,6 +17,7 @@ struct OnboardingView: View {
 
     enum Step: Hashable {
         case initial
+        case welcome
         case introduceTailscale
         case installOnMac
         case installOnIPhone
@@ -37,6 +38,7 @@ struct OnboardingView: View {
             .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
         }
         .onAppear { advanceFromInitial() }
+        .animation(ShioMotion.standard, value: step)
         .sheet(isPresented: $showingAddSheet) {
             AddHostSheet(proModeEnabled: false)
         }
@@ -62,6 +64,20 @@ struct OnboardingView: View {
         switch step {
         case .initial:
             EmptyView()
+
+        case .welcome:
+            stepLayout(
+                title: "Your Mac, in your pocket.",
+                body: "Shio is a clean, minimal SSH client. Tap to add the Mac you want to reach.",
+                primary: "Add my Mac",
+                primaryAction: {
+                    if TailscaleDetector.isInstalled {
+                        showingAddSheet = true
+                    } else {
+                        step = .introduceTailscale
+                    }
+                }
+            )
 
         case .introduceTailscale:
             stepLayout(
@@ -131,11 +147,8 @@ struct OnboardingView: View {
 
     private func advanceFromInitial() {
         guard step == .initial else { return }
-        // Fast path — skip everything if Tailscale is already installed.
-        if TailscaleDetector.isInstalled {
-            showingAddSheet = true
-        } else {
-            withAnimation { step = .introduceTailscale }
-        }
+        // Always show the welcome step — it's the first impression. From
+        // there, branch based on Tailscale presence.
+        withAnimation { step = .welcome }
     }
 }
