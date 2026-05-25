@@ -44,6 +44,6 @@ private struct PlaceholderEntryView: View {
     let entry: PlaceholderEntry
     var body: some View {
         Text("塩")
-            .font(.system(size: 32))
+            .font(.custom("DotGothic16-Regular", size: 32))
     }
 }

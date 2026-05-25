@@ -140,8 +140,12 @@ Used for overlays, disabled states, dividers.
 | `font.chrome` | SF Pro | All UI chrome (titles, body, buttons, settings) |
 | `font.mono` | SF Mono | Terminal, code, hostnames, command previews |
 | `font.display` | SF Pro Display | Hero / large titles (≥34pt) only |
+| `font.wordmark` | **Departure Mono** (bundled, OFL) | The `shio` wordmark — only for the literal wordmark, nowhere else |
+| `font.kanji` | **DotGothic16** (bundled, OFL) | The 塩 kanji — only for the literal kanji, nowhere else |
 
-We never ship a third typeface. No Inter, no IBM Plex, no JetBrains Mono in v1. SF Mono in the terminal is non-negotiable — it matches the user's expectation from macOS Terminal.
+Departure Mono and DotGothic16 are bundled with the app (OFL-licensed; redistribution permitted). They are **identity-only** — never used for body, headings, or any other chrome. Mixing them into general UI would make the brand feel themed-to-death; reserving them for the two wordmark/kanji elements keeps them iconic.
+
+We never ship more typefaces. No Inter, no IBM Plex, no JetBrains Mono in v1. SF Mono in the terminal is non-negotiable — it matches the user's expectation from macOS Terminal.
 
 ### 2.2 Type scale
 

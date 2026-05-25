@@ -42,6 +42,10 @@ targets:
       - path: Shio/Resources/terminal
         type: folder
         buildPhase: resources
+      - path: Shio/Resources/fonts/DepartureMono-Regular.otf
+        buildPhase: resources
+      - path: Shio/Resources/fonts/DotGothic16-Regular.ttf
+        buildPhase: resources
     dependencies:
       - package: swift-nio-ssh
         product: NIOSSH
@@ -77,6 +81,9 @@ targets:
         NSSupportsLiveActivities: true
         NSSupportsLiveActivitiesFrequentUpdates: true
         ITSAppUsesNonExemptEncryption: false
+        UIAppFonts:
+          - DepartureMono-Regular.otf
+          - DotGothic16-Regular.ttf
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app

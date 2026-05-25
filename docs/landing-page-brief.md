@@ -129,7 +129,12 @@ Use the design tokens from `design-tokens.md`:
 - Type: SF Pro Display for the hero, SF Pro for everything else, SF Mono nowhere on the landing.
 - Spacing: respect the 4-point grid from `design-tokens.md`.
 
-The wordmark below the icon should be set in **DotGothic16** (Google Fonts) — same font as the icon — and sized to match the visual weight of the icon above it. This is the one place we use DotGothic16 on the page; everything else is SF Pro.
+Two custom fonts are used as **identity-only** elements on the page. Both are pixel-grid monospace, both free / OFL.
+
+- **Departure Mono** (`departuremono.com`) — set the `shio` wordmark below the icon. Sized to match the visual weight of the icon.
+- **DotGothic16** (Google Fonts) — set the 塩 kanji inside the icon if the page recreates the icon mark in CSS, or anywhere the kanji appears on its own.
+
+Everything else on the page is SF Pro (system font stack). Resist the urge to use Departure Mono for body or headings — these fonts are reserved for the wordmark and kanji only, the same rule the app follows.
 
 **Theme toggle**: a small sun/moon button in the footer. Persists to localStorage. Default to system preference. Same pattern as `pasture.sh` — feel free to crib that pattern.
 

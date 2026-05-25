@@ -25,6 +25,7 @@
 		88372AAE9AD89D9D1C6E4278 /* KeyboardAccessoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1B77D2CE66838834DA139FC /* KeyboardAccessoryView.swift */; };
 		92E14576D50A54DC82996370 /* ShioLiveActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BAA9BBF8C8DC7160C462FCF /* ShioLiveActivitiesBundle.swift */; };
 		944D066DE50A75D85E42B4F2 /* terminal in Resources */ = {isa = PBXBuildFile; fileRef = EB5F148D85C26B3112DE83DC /* terminal */; };
+		9537AF48FC935AC5A5FA3E81 /* DotGothic16-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1E5E40EE99AA1C05BB3C7A9C /* DotGothic16-Regular.ttf */; };
 		958CB7A2286554B1F5323CA7 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7FF0F5C4EC32BF6817C9D9DD /* NIOCore */; };
 		97C8C659C8F472579175245A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 99B937BDF51C3B7B8E2DD435 /* Assets.xcassets */; };
 		985FE020F020EEA25AD19715 /* ConnectToHostIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44077486EAF143FDBB8589B4 /* ConnectToHostIntent.swift */; };
@@ -41,6 +42,7 @@
 		E8BD207392E159382A936E68 /* TerminalWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FE85FB3551844A1C1823B2A /* TerminalWebView.swift */; };
 		E9006A57FBB199DAE6A16EB6 /* Spacing+Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 671F13D490F4E8B6D78DF558 /* Spacing+Tokens.swift */; };
 		E919EB0368C79A62703148A3 /* ShioLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D6C7DED738E2DA27E61D97A /* ShioLiveActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		EA0131454C9B787445BB9D65 /* DepartureMono-Regular.otf in Resources */ = {isa = PBXBuildFile; fileRef = 2861701A60DC2AA68658677E /* DepartureMono-Regular.otf */; };
 		EAD8F1375A208489ADE57E84 /* ShioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C53739129691296BFBFE39B /* ShioApp.swift */; };
 		F05330F4639EB7387F11DD9F /* ShioWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 46960C8EA115590778B0C873 /* ShioWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		F17C86D47B944F92F87DC8E6 /* TailscaleDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB4EFEAE71D7E4D3E64E07A /* TailscaleDetector.swift */; };
@@ -83,11 +85,13 @@
 		0283DD10B1846724BA76085E /* ShioWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShioWidgetsBundle.swift; sourceTree = "<group>"; };
 		03E706C3877DB0E1A7403767 /* Host.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Host.swift; sourceTree = "<group>"; };
 		0A91562F5C01FE5253DD6888 /* TerminalInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalInputView.swift; sourceTree = "<group>"; };
+		1E5E40EE99AA1C05BB3C7A9C /* DotGothic16-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DotGothic16-Regular.ttf"; sourceTree = "<group>"; };
+		2861701A60DC2AA68658677E /* DepartureMono-Regular.otf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "DepartureMono-Regular.otf"; sourceTree = "<group>"; };
 		3262798B7E89142B9299F915 /* ShioButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShioButton.swift; sourceTree = "<group>"; };
 		33B72A8ADFDE67AFA134C6D8 /* Color+Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Tokens.swift"; sourceTree = "<group>"; };
 		3F89D8C4EFEC60A2A351A08A /* SessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionViewModel.swift; sourceTree = "<group>"; };
 		44077486EAF143FDBB8589B4 /* ConnectToHostIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectToHostIntent.swift; sourceTree = "<group>"; };
-		46960C8EA115590778B0C873 /* ShioWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShioWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		46960C8EA115590778B0C873 /* ShioWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ShioWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4E77EC55C2AD2DA66202935C /* Typography+Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Typography+Tokens.swift"; sourceTree = "<group>"; };
 		4FF8FF5E0A127A90E9547135 /* HostListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostListView.swift; sourceTree = "<group>"; };
 		567F28A90C774F3180D2DE2F /* TmuxResume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TmuxResume.swift; sourceTree = "<group>"; };
@@ -100,7 +104,7 @@
 		7AB4EFEAE71D7E4D3E64E07A /* TailscaleDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TailscaleDetector.swift; sourceTree = "<group>"; };
 		7BAA9BBF8C8DC7160C462FCF /* ShioLiveActivitiesBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShioLiveActivitiesBundle.swift; sourceTree = "<group>"; };
 		7FE85FB3551844A1C1823B2A /* TerminalWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalWebView.swift; sourceTree = "<group>"; };
-		8D6C7DED738E2DA27E61D97A /* ShioLiveActivities.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShioLiveActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D6C7DED738E2DA27E61D97A /* ShioLiveActivities.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ShioLiveActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		90C2E699CF63F0C27E7FA5EF /* ShioWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShioWidgets.entitlements; sourceTree = "<group>"; };
 		91F90A20D155A5D522E2F434 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		99B937BDF51C3B7B8E2DD435 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -114,7 +118,7 @@
 		D3DE2E30940F3A7469316ABF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		D6E88C52CBC9770017318631 /* Shio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Shio.entitlements; sourceTree = "<group>"; };
 		D835D1A28A4A1C398F3CED60 /* TerminalScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalScene.swift; sourceTree = "<group>"; };
-		D9DBF112035D6ECED87D5F7C /* Shio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Shio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D9DBF112035D6ECED87D5F7C /* Shio.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Shio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA823F70080E5EF448721EFA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		EB5F148D85C26B3112DE83DC /* terminal */ = {isa = PBXFileReference; lastKnownFileType = folder; name = terminal; path = Shio/Resources/terminal; sourceTree = SOURCE_ROOT; };
 		F506F05A8EB5EF0D3350D7CE /* TerminalTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTheme.swift; sourceTree = "<group>"; };
@@ -138,9 +142,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		18EA14FC73160DFAB52E18CF /* fonts */ = {
+			isa = PBXGroup;
+			children = (
+				2861701A60DC2AA68658677E /* DepartureMono-Regular.otf */,
+				1E5E40EE99AA1C05BB3C7A9C /* DotGothic16-Regular.ttf */,
+			);
+			path = fonts;
+			sourceTree = "<group>";
+		};
 		1AEC3C6E14B24D4BAF1AA3EF /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				18EA14FC73160DFAB52E18CF /* fonts */,
 				99B937BDF51C3B7B8E2DD435 /* Assets.xcassets */,
 			);
 			path = Resources;
@@ -431,7 +445,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 1600;
 				TargetAttributes = {
 					5A94B44C2D3EFF9BD3F655F9 = {
 						DevelopmentTeam = "";
@@ -475,6 +489,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				97C8C659C8F472579175245A /* Assets.xcassets in Resources */,
+				EA0131454C9B787445BB9D65 /* DepartureMono-Regular.otf in Resources */,
+				9537AF48FC935AC5A5FA3E81 /* DotGothic16-Regular.ttf in Resources */,
 				944D066DE50A75D85E42B4F2 /* terminal in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -588,7 +604,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -646,7 +661,6 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
@@ -662,7 +676,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -713,7 +726,6 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_COMPILATION_MODE = wholemodule;

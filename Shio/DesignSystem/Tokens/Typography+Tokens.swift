@@ -5,9 +5,29 @@ enum ShioFont {
 
     // MARK: - Families
 
-    private static let chromeFamily  = "SF Pro"
-    private static let monoFamily    = "SF Mono"
-    private static let displayFamily = "SF Pro Display"
+    private static let chromeFamily   = "SF Pro"
+    private static let monoFamily     = "SF Mono"
+    private static let displayFamily  = "SF Pro Display"
+    /// Bundled custom — pixel-grid monospace, used for the `shio` wordmark
+    /// and other identity moments. PostScript name resolved from the
+    /// bundled DepartureMono-Regular.otf.
+    static let wordmarkFamily = "DepartureMono-Regular"
+    /// Bundled custom — pixel-grid Japanese, used for the 塩 character and
+    /// any other CJK glyphs that appear as identity moments. PostScript
+    /// name resolved from DotGothic16-Regular.ttf.
+    static let kanjiFamily    = "DotGothic16-Regular"
+
+    // MARK: - Wordmark / kanji presets
+
+    /// The `shio` wordmark at a given point size.
+    static func wordmark(size: CGFloat) -> Font {
+        .custom(wordmarkFamily, size: size)
+    }
+
+    /// The 塩 kanji at a given point size.
+    static func kanji(size: CGFloat) -> Font {
+        .custom(kanjiFamily, size: size)
+    }
 
     // MARK: - Chrome scale
 

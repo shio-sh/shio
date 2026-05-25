@@ -67,12 +67,12 @@ struct SettingsView: View {
 
 private struct AboutView: View {
     var body: some View {
-        VStack(spacing: ShioSpace.lg) {
+        VStack(spacing: ShioSpace.md) {
             Text("塩")
-                .font(.system(size: 96))
+                .font(ShioFont.kanji(size: 96))
                 .foregroundStyle(ShioColor.Text.primary)
             Text("shio")
-                .font(ShioFont.title1)
+                .font(ShioFont.wordmark(size: 32))
                 .foregroundStyle(ShioColor.Text.primary)
             Text("Your Mac, in your pocket.")
                 .font(ShioFont.callout)

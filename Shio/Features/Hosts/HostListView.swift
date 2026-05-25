@@ -65,7 +65,7 @@ struct HostListView: View {
         VStack(spacing: ShioSpace.lg) {
             Spacer().frame(height: 60)
             Text("塩")
-                .font(.system(size: 64))
+                .font(ShioFont.kanji(size: 64))
                 .foregroundStyle(ShioColor.Text.primary)
             Text("Add your Mac")
                 .font(ShioFont.title2)

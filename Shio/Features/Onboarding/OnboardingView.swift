@@ -47,12 +47,12 @@ struct OnboardingView: View {
     // MARK: - Wordmark
 
     private var wordmark: some View {
-        VStack(spacing: ShioSpace.sm) {
+        VStack(spacing: ShioSpace.md) {
             Text("塩")
-                .font(.system(size: 84))
+                .font(ShioFont.kanji(size: 84))
                 .foregroundStyle(ShioColor.Text.primary)
             Text("shio")
-                .font(ShioFont.title1)
+                .font(ShioFont.wordmark(size: 28))
                 .foregroundStyle(ShioColor.Text.primary)
         }
     }

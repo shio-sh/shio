@@ -89,7 +89,7 @@ struct IPadRootView: View {
     private var placeholder: some View {
         VStack(spacing: ShioSpace.lg) {
             Text("塩")
-                .font(.system(size: 84))
+                .font(ShioFont.kanji(size: 84))
                 .foregroundStyle(ShioColor.Text.primary)
             Text("Pick a Mac to begin.")
                 .font(ShioFont.title2)
