@@ -12,6 +12,18 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let reason = ShioModelContainer.loadFailureReason {
+                    Section {
+                        VStack(alignment: .leading, spacing: ShioSpace.xs) {
+                            Label("Storage issue", systemImage: "exclamationmark.triangle.fill")
+                                .font(ShioFont.bodyEmphasis)
+                                .foregroundStyle(ShioColor.State.warning)
+                            Text(reason)
+                                .font(ShioFont.callout)
+                                .foregroundStyle(ShioColor.Text.secondary)
+                        }
+                    }
+                }
                 Section {
                     NavigationLink {
                         AboutView()
