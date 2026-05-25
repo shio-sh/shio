@@ -16,15 +16,21 @@ The app is an iOS + iPadOS SSH client that's Tailscale-native. Pre-launch — no
 
 The user was on the fence on a few things. These are decided now so the next session can just execute.
 
-### 1. Wordmark capitalization → **always lowercase: `shio`**
+### 1. Capitalization → **lowercase wordmark, sentence-case in prose**
 
-- The H1, hero text, footer, every visible instance: `shio` (lowercase).
-- The HTML `<title>` tag: `shio — your Mac, in your pocket.` (still lowercase — yes, even in the browser tab).
-- Open Graph / Twitter meta titles: `shio — your Mac, in your pocket.`
-- The only place "Shio" (sentence case) appears is in prose body copy *if* it starts a sentence (e.g., "Shio is a..."), per the brand voice guide. On the landing page there should be very little prose — so in practice the page is all-lowercase wordmark.
-- Domain: `shio.sh` (lowercase, of course).
+This follows the brand doc rules exactly (`brand.md`), with the landing page applied:
 
-Reason: the wordmark **is** the brand identity. Sentence-casing it in the title would split brain across the icon (lowercase), the app (lowercase), and the page (mixed). One canonical form. Lowercase wins.
+| Context | Form | Examples |
+|---|---|---|
+| Wordmark (logo, H1, hero, footer mark) | `shio` (lowercase) | The H1 reads `shio`. The footer mark reads `shio`. |
+| HTML `<title>`, OG meta titles | `shio — your Mac, in your pocket.` (lowercase wordmark + sentence prose) | Browser tab shows `shio — your Mac, in your pocket.` |
+| Body prose if it starts a sentence | `Shio` (sentence case) | *"Shio is a clean, minimal SSH client."* |
+| Body prose mid-sentence | `Shio` or `shio` — match the surrounding case rhythm | Prefer `Shio` mid-sentence in body copy for readability. |
+| Domain | `shio.sh` (always lowercase) | — |
+
+The pattern: **the wordmark is always lowercase; the word "Shio" follows normal English capitalization rules in prose**, exactly like iPhone, Adobe, or eBay. This was the explicit decision after considering the more aggressive "lowercase everywhere even at sentence starts" approach (bell hooks / allbirds style). Rejected because it starts feeling like a stylistic tic, which clashes with the "quiet, never clever for its own sake" voice principle.
+
+The landing page has very little prose, so in practice the page reads as mostly-lowercase wordmark with one or two sentence-case "Shio" mentions in the positioning sentence and footer.
 
 ### 2. Hosting → **Cloudflare Pages, with `shio.sh` as the custom domain**
 
