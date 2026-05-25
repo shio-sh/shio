@@ -14,9 +14,8 @@ struct ConnectToHostIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         // Brick 11 second pass: post a notification the app picks up to
         // route into the right TerminalScene. For now we just bring Shio to
-        // the front; the user lands on the host list with the selection
-        // ready.
-        await NotificationCenter.default.post(
+        // the front; the user lands on the host list with the selection ready.
+        NotificationCenter.default.post(
             name: .shioConnectToHost,
             object: nil,
             userInfo: ["hostId": host.id]

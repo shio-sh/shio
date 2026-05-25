@@ -38,11 +38,11 @@ final class SSHClient {
     /// Called whenever the remote shell produces output.
     var onOutput: ((Data) -> Void)?
     /// Called when the session closes (cleanly or otherwise).
-    var onDisconnect: ((Error?) -> Void)?
+    var onDisconnect: (((any Error)?) -> Void)?
 
-    private let eventLoopGroup: EventLoopGroup
-    private var channel: Channel?
-    private var childChannel: Channel?
+    private let eventLoopGroup: any EventLoopGroup
+    private var channel: (any Channel)?
+    private var childChannel: (any Channel)?
     private let configuration: Configuration
 
     init(configuration: Configuration) {
@@ -94,7 +94,7 @@ final class SSHClient {
             self?.onDisconnect?(error)
         }
 
-        let promise = parent.eventLoop.makePromise(of: Channel.self)
+        let promise = parent.eventLoop.makePromise(of: (any Channel).self)
         let handler = try await parent.pipeline.handler(type: NIOSSHHandler.self).get()
         handler.createChannel(promise, channelType: .session) { childChannel, _ in
             childChannel.pipeline.addHandlers([
@@ -155,7 +155,7 @@ final class SSHClient {
 
 // MARK: - User auth delegate
 
-private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDelegate {
+private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDelegate, @unchecked Sendable {
     let configuration: SSHClient.Configuration
 
     init(configuration: SSHClient.Configuration) {
@@ -194,7 +194,7 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
 
 // MARK: - Host key delegate (TOFU stub — Brick 7 hardens this)
 
-private final class SSHHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate {
+private final class SSHHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate, @unchecked Sendable {
     func validateHostKey(
         hostKey: NIOSSHPublicKey,
         validationCompletePromise: EventLoopPromise<Void>
@@ -217,9 +217,9 @@ private final class ShellDataHandler: ChannelInboundHandler, @unchecked Sendable
     typealias InboundIn = SSHChannelData
 
     private let onData: (Data) -> Void
-    private let onClose: (Error?) -> Void
+    private let onClose: ((any Error)?) -> Void
 
-    init(onData: @escaping (Data) -> Void, onClose: @escaping (Error?) -> Void) {
+    init(onData: @escaping (Data) -> Void, onClose: @escaping ((any Error)?) -> Void) {
         self.onData = onData
         self.onClose = onClose
     }
@@ -231,7 +231,7 @@ private final class ShellDataHandler: ChannelInboundHandler, @unchecked Sendable
         onData(Data(bytes))
     }
 
-    func errorCaught(context: ChannelHandlerContext, error: Error) {
+    func errorCaught(context: ChannelHandlerContext, error: any Error) {
         onClose(error)
         context.close(promise: nil)
     }

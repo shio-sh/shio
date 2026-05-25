@@ -24,6 +24,7 @@ enum ANSI {
     /// Translate a hardware UIKey + tracked modifiers into a byte sequence.
     /// Returns nil if the key has no meaningful translation (e.g. Cmd-only
     /// chords, which should be left alone for system shortcuts).
+    @MainActor
     static func bytes(for key: UIKey, modifiers: KeyModifiers) -> String? {
 
         // Cmd-only or Cmd+letter: let UIKit handle these as system shortcuts.

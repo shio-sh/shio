@@ -129,28 +129,27 @@ final class TerminalWebViewController {
 private final class ScriptBridge: NSObject, WKScriptMessageHandler {
     weak var controller: TerminalWebViewController?
 
-    nonisolated func userContentController(
+    func userContentController(
         _ userContentController: WKUserContentController,
         didReceive message: WKScriptMessage
     ) {
-        let name = message.name
-        let body = message.body
-        Task { @MainActor [weak self] in
-            guard let self, let controller = self.controller else { return }
-            switch name {
-            case "shioInput":
-                if let str = body as? String { controller.didReceiveInput(str) }
-            case "shioResize":
-                if let dict = body as? [String: Any],
-                   let cols = dict["cols"] as? Int,
-                   let rows = dict["rows"] as? Int {
-                    controller.didResize(cols: cols, rows: rows)
-                }
-            case "shioReady":
-                controller.didBecomeReady()
-            default:
-                break
+        // WKScriptMessageHandler is @MainActor in iOS 17+, so this method
+        // already runs on MainActor and we can read message properties
+        // directly.
+        guard let controller = self.controller else { return }
+        switch message.name {
+        case "shioInput":
+            if let str = message.body as? String { controller.didReceiveInput(str) }
+        case "shioResize":
+            if let dict = message.body as? [String: Any],
+               let cols = dict["cols"] as? Int,
+               let rows = dict["rows"] as? Int {
+                controller.didResize(cols: cols, rows: rows)
             }
+        case "shioReady":
+            controller.didBecomeReady()
+        default:
+            break
         }
     }
 }
