@@ -158,8 +158,47 @@ final class SSHClient: @unchecked Sendable {
         } catch let error as SSHError {
             throw error
         } catch {
-            throw SSHError.connectionFailed(error.localizedDescription)
+            throw SSHError.connectionFailed(translateConnectError(error, host: cfg.host, port: cfg.port))
         }
+    }
+
+    /// Translates NIO's raw error types into something the user can act on.
+    /// NIOConnectionError surfaces as "the operation couldn't be completed
+    /// (NIOPosix.NIOConnectionError error 1)" by default — that's hostile
+    /// and tells the user nothing useful.
+    private func translateConnectError(_ error: any Error, host: String, port: Int) -> String {
+        let raw = String(describing: error)
+
+        // NIOConnectionError aggregates resolution + per-address connect failures.
+        // We can't reliably introspect it without depending on NIO internals, so
+        // pattern-match on the typename in the description.
+        if raw.contains("NIOConnectionError") {
+            return [
+                "Tried \(host):\(port) but couldn't get through. Common causes:",
+                "• Your Mac is asleep or off — wake it.",
+                "• Tailscale isn't running on both devices — open the Tailscale app.",
+                "• Remote Login isn't enabled on the Mac — System Settings → General → Sharing → Remote Login.",
+                "• The hostname is wrong — check your Mac's name on tailscale.com.",
+            ].joined(separator: "\n")
+        }
+
+        // POSIX errors leak through with names like "Connection refused" /
+        // "No route to host" / "Operation timed out". Surface them verbatim
+        // since they're already user-readable, just decorated.
+        if raw.contains("Connection refused") {
+            return "\(host) refused the connection on port \(port). Remote Login is probably off — turn it on under System Settings → General → Sharing on your Mac."
+        }
+        if raw.contains("No route to host") || raw.contains("Network is unreachable") {
+            return "Can't route to \(host). Make sure Tailscale is running on both your iPhone and your Mac."
+        }
+        if raw.contains("Operation timed out") || raw.contains("timeout") {
+            return "\(host) didn't respond within \(configuration.connectTimeoutSeconds)s. The Mac may be asleep, or Tailscale may not be connecting."
+        }
+
+        // Fallback: NIO's localized description is opaque ("the operation
+        // couldn't be completed"). Strip it to the raw `String(describing:)`
+        // form which at least names the error type.
+        return raw
     }
 
     /// Open a shell channel with a PTY.

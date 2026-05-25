@@ -37,7 +37,7 @@ struct TerminalScene: View {
 
     @ViewBuilder
     private func disconnectedOverlay(reason: String?) -> some View {
-        VStack(spacing: ShioSpace.md) {
+        VStack(alignment: .leading, spacing: ShioSpace.md) {
             Text("Disconnected")
                 .font(ShioFont.title2)
                 .foregroundStyle(ShioColor.Text.primary)
@@ -45,16 +45,17 @@ struct TerminalScene: View {
                 Text(reason)
                     .font(ShioFont.callout)
                     .foregroundStyle(ShioColor.Text.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             ShioButton("Reconnect", style: .primary) {
                 Task { await viewModel.start() }
             }
-            .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
             .padding(.top, ShioSpace.sm)
         }
         .padding(ShioSpace.xl)
+        .frame(maxWidth: 480)
         .background(ShioColor.Chrome.surface)
         .clipShape(RoundedRectangle(cornerRadius: ShioRadius.lg, style: .continuous))
         .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
