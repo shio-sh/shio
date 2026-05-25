@@ -7,6 +7,9 @@ xcuserdata/
 *.xcscmblueprint
 *.xccheckout
 
+# XcodeGen-generated project — regenerate via ./scripts/bootstrap.sh
+Shio.xcodeproj/
+
 # Swift Package Manager
 .swiftpm/
 Package.resolved
