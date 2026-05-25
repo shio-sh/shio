@@ -164,7 +164,7 @@ struct PublicKeyView: View {
     /// for display. Runs the (potentially blocking) Keychain operations on
     /// a background task so SwiftUI's main thread stays responsive.
     private func ensureKeyAndLoad() async {
-        let result: Result<Curve25519.Signing.PublicKey, Error> = await Task.detached(priority: .userInitiated) {
+        let result: Result<Curve25519.Signing.PublicKey, any Error> = await Task.detached(priority: .userInitiated) {
             do {
                 let privateKey = try KeyManager.generateIfNeeded()
                 return .success(privateKey.publicKey)
@@ -184,7 +184,7 @@ struct PublicKeyView: View {
     }
 
     private func regenerate() async {
-        let result: Result<Curve25519.Signing.PublicKey, Error> = await Task.detached(priority: .userInitiated) {
+        let result: Result<Curve25519.Signing.PublicKey, any Error> = await Task.detached(priority: .userInitiated) {
             do {
                 let pk = try KeyManager.regenerate()
                 return .success(pk.publicKey)
