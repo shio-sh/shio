@@ -32,18 +32,16 @@ Colors live in two layers:
 | `ink.800` | `#0E0E10` | Dark mode app background |
 | `ink.900` | `#000000` | Pure black — used only for OLED-true Dynamic Island / Live Activity contexts |
 
-#### Accent — "Salt" (single warm-cool neutral that reads premium)
+#### Salt — brand identity colors
 
-We pick one accent. Candidates to A/B in Figma:
+`salt.bone` is the **brand identity color** — reserved for the icon, marketing/hero surfaces, and special-accent moments. It is *not* used as a default app background (the diluted `chrome.background.light` token covers that).
 
-| Token | Hex | Vibe |
+| Token | Hex | Use |
 |---|---|---|
-| `salt.amber` | `#E8B968` | Warm, "salt under candlelight" — *recommended for first mock* |
-| `salt.coral` | `#E47A6B` | Warm, slightly playful — alternative |
-| `salt.teal` | `#5BA4A4` | Cool, technical — alternative |
-| `salt.bone` | `#E8DCC4` | Off-white accent — alternative, very subtle |
+| `salt.bone` | `#E8DCC4` | **LOCKED** — app icon background, hero/marketing, special identity moments |
+| `salt.bone.diluted` | `#F4EEDF` | Light-mode app background (see `chrome.background.light` below) |
 
-The accent is used *sparingly* — connection-state indicators, focused borders, the brand mark. Never on body chrome.
+Other accent candidates explored and rejected during Brick 0: `salt.amber` (#E8B968) — too warm/saturated; `salt.coral` (#E47A6B) — too playful; `salt.teal` (#5BA4A4) — too technical/cold. Bone won because it carries the premium-considered vibe without any color-coded emotion. We don't ship a brand accent in v1.0; if we need an accent later, it'll be derived from `salt.bone` (a darker/saturated shift), not from a separate palette.
 
 #### Semantic states (not in accent — separate scale)
 
@@ -62,13 +60,21 @@ State colors are calibrated for both themes — pure values shown here, dark/lig
 
 | Token | Dark | Light | Use |
 |---|---|---|---|
-| `chrome.background` | `ink.800` | `ink.50` | Top-level app surface |
-| `chrome.surface` | `ink.700` | `#FFFFFF` | Cards, sheets, list rows |
-| `chrome.surface.elevated` | `ink.600` | `#FFFFFF` (with shadow) | Modal sheets, popovers |
+| `chrome.background` | `ink.800` (`#0E0E10`) | `salt.bone.diluted` (`#F4EEDF`) | Top-level app surface |
+| `chrome.surface` | `ink.700` (`#1C1C1E`) | `#FFFFFF` | Cards, sheets, list rows — pure white surfaces layer over the bone-tinted background to create subtle depth |
+| `chrome.surface.elevated` | `ink.600` (`#3A3A3C`) | `#FFFFFF` (with shadow) | Modal sheets, popovers |
 | `chrome.divider` | `ink.700` lightened 12% | `ink.200` | Hairlines, separators |
 | `chrome.border` | `ink.600` | `ink.300` | Field borders, button borders |
 | `chrome.fill` | `ink.700` lightened 6% | `ink.100` | Filled buttons (secondary) |
 | `chrome.fill.pressed` | `ink.700` lightened 12% | `ink.200` | Pressed state |
+
+**Bone layering rules** (light mode):
+- `chrome.background` is bone-tinted (`#F4EEDF`) — the canvas the app lives on.
+- `chrome.surface` is pure white — cards, list rows, content blocks sit *over* the bone-tinted background, creating subtle warm-to-neutral depth without shadows.
+- The full-intensity `salt.bone` (`#E8DCC4`) appears only on the app icon, hero/marketing surfaces, and rare identity moments — never on default app chrome.
+- Dark mode has no bone — chrome is `ink.800` background with `ink.700` surfaces. Bone may appear as accent text/highlights only.
+
+**Terminal-to-chrome seam** (light mode): chrome is bone-tinted; the terminal stays pure white (macOS Terminal Basic). The transition is intentional framing — the terminal feels like a portal to the user's Mac, mounted in Shio's identity-colored chrome (like a passe-partout mat around a print). Do not tint the terminal background to match chrome.
 
 #### Text
 

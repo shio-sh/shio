@@ -2,7 +2,28 @@
 
 The icon is the brand. It will be the only thing many people see before they decide whether to tap. It must read at 60pt on a home screen, at 29pt in Settings, and behave gracefully in tinted/clear/dark Liquid Glass contexts on iOS 26.
 
-This document explores four directions. We mock 2–3 in Figma, test at all sizes against representative home-screen backgrounds (light, dark, photo), and pick one for v1.0.
+---
+
+## ✅ LOCKED — Direction E: Kanji 塩 in DotGothic16
+
+After exploring the four directions below plus a fifth (kanji + display type), the icon is locked as:
+
+- **Glyph**: 塩 (Japanese for *salt*, the word's etymology)
+- **Typeface**: DotGothic16 (Google Fonts) — pixel-grid Japanese font, terminal-coded
+- **Background**: `#F4EEDF` (diluted bone — new `chrome.background.light` token)
+- **Foreground**: `#0E0E10` (`ink.800`)
+- **Size**: ~52% of canvas. Deliberately gives the character breathing room — not all icons need to fill the safe area; a 13-stroke kanji has its own visual density.
+- **Composition**: geometric center on a 1024×1024 canvas.
+
+Master at `/assets/icon/master.svg`. PNG exports at all required Apple sizes in `/assets/icon/shio-*.png`.
+
+**Known trade-off**: at 29×29 raw (@1x Settings), the character degrades to "a complex CJK glyph" without holding identity. Accepted because modern iPhones (XS+) use @2x (58px) and @3x (87px) where the character reads beautifully — @1x is a corner case not worth diluting the home-screen impression for.
+
+---
+
+## Exploration history (preserved for context)
+
+The four original directions explored below, plus the kanji direction that won. We mocked the kanji direction in Figma first, ran the 29pt brutal-test, and accepted the small-size trade-off in favor of distinctiveness and brand integrity.
 
 ---
 

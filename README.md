@@ -3,7 +3,7 @@
 Premium iOS + iPadOS SSH client. Your Mac, in your pocket.
 
 - Domain: [shio.sh](https://shio.sh)
-- Status: pre-build (Brick 0 — brand + design system)
+- Status: Brick 0 complete — ready to start Brick 1 (Xcode foundation)
 
 ## Documentation
 
@@ -14,8 +14,8 @@ Premium iOS + iPadOS SSH client. Your Mac, in your pocket.
 
 ## Build phases
 
-0. **Brand & design system** ← *current*
-1. Foundation (Xcode project, tokens in code)
+0. ✅ Brand & design system — icon locked, tokens locked
+1. **Foundation (Xcode project, tokens in code)** ← *next*
 2. Terminal rendering (xterm.js in WKWebView)
 3. SSH core (SwiftNIO SSH)
 4. Keyboard system (custom accessory + hardware passthrough)
