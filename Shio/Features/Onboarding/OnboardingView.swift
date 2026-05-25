@@ -1,37 +1,53 @@
 import SwiftUI
 
-/// Adaptive Tailscale onboarding. Shown only when no hosts exist.
+/// Verification-driven Tailscale onboarding. Every step that can be probed
+/// programmatically runs its check on appear and re-runs when the app
+/// returns from a Tailscale-opening deep-link. Steps auto-advance on a
+/// successful probe; failed probes show the specific UI element to tap in
+/// the Tailscale app to fix it.
 ///
-///  - **Fast path**: Tailscale is installed → skip straight to the Mac entry
-///    form (`AddHostSheet` in Tailscale mode).
-///  - **Guided path**: Tailscale isn't installed → walk the user through
-///    install on Mac, then iPhone, then verify. Only show the steps they need.
+/// Step order:
+///   .welcome           — unconditional brand moment
+///   .installOnMac      — instructed only (we can't see the user's Mac)
+///   .installApp        — verified by appInstalled
+///   .connectVPN        — verified by vpnActive (TCP probe to 100.100.100.100)
+///   .installKey        — explicit user action via PublicKeyView
+///   .addHost           — opens AddHostSheet
 ///
-/// All steps live in this single file because the flow is short and the
-/// branching needs to read top-to-bottom.
+/// We deliberately do **not** add a separate "enable Use Tailscale DNS"
+/// onboarding step. We can't verify it without a real `.ts.net` hostname
+/// from the user, and the AddHostSheet's post-save reachability probe will
+/// surface DNS issues with specific remediation copy if "Use Tailscale DNS"
+/// is off. Less ceremony in onboarding; clearer error at the moment of truth.
 struct OnboardingView: View {
 
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
     @State private var step: Step = .initial
     @State private var showingAddSheet = false
+    @State private var verification: Verification = .idle
 
     enum Step: Hashable {
         case initial
         case welcome
-        case introduceTailscale
         case installOnMac
-        case installOnIPhone
-        case verify
-        /// Show the user's public key and have them paste it into their
-        /// Mac's authorized_keys file. Required before the first host add —
-        /// without this, the SSH connect will fail with auth error.
+        case installApp
+        case connectVPN
         case installKey
+    }
+
+    /// Verification status for whichever step is currently visible. Reset
+    /// each time `step` changes.
+    enum Verification: Equatable {
+        case idle
+        case checking
+        case verified
+        case failed(message: String)
     }
 
     var body: some View {
         Group {
             if case .installKey = step {
-                // Full-screen key install — its own scroll layout, no wordmark hero.
                 PublicKeyView(mode: .onboarding(onComplete: {
                     showingAddSheet = true
                 }))
@@ -50,7 +66,17 @@ struct OnboardingView: View {
             }
         }
         .onAppear { advanceFromInitial() }
+        .onChange(of: scenePhase) { _, phase in
+            // When the user returns from a Tailscale deep-link, re-run the
+            // current step's verification — they likely just fixed something.
+            if phase == .active { runVerificationForCurrentStep() }
+        }
+        .onChange(of: step) { _, _ in
+            verification = .idle
+            runVerificationForCurrentStep()
+        }
         .animation(ShioMotion.standard, value: step)
+        .animation(ShioMotion.standard, value: verification)
         .sheet(isPresented: $showingAddSheet, onDismiss: handleSheetDismissed) {
             AddHostSheet(proModeEnabled: false)
         }
@@ -80,58 +106,47 @@ struct OnboardingView: View {
         case .welcome:
             stepLayout(
                 title: "Your Mac, in your pocket.",
-                body: "Shio is a clean, minimal SSH client. Tap to set things up.",
+                body: "Shio lets you reach your Mac from your iPhone over Tailscale — a free, secure private network for your own devices.",
                 primary: "Get started",
                 primaryAction: { step = nextStepFromWelcome() }
-            )
-
-        case .introduceTailscale:
-            stepLayout(
-                title: "Shio uses Tailscale",
-                body: "Tailscale is a free, secure network just for your devices. We'll help you set it up.",
-                primary: "Get started",
-                primaryAction: { step = .installOnMac }
             )
 
         case .installOnMac:
             stepLayout(
                 title: "Install Tailscale on your Mac",
-                body: "Open tailscale.com/download on your Mac and follow the instructions. Sign in with your Google, Microsoft, or GitHub account.",
-                primary: "I've installed it on my Mac",
-                primaryAction: { step = .installOnIPhone }
+                body: "On your Mac, open **tailscale.com/download** and follow the steps. Sign in with Google, Apple, Microsoft, or GitHub. We'll wait.",
+                primary: "I've installed it",
+                primaryAction: { step = .installApp }
             )
 
-        case .installOnIPhone:
-            stepLayout(
+        case .installApp:
+            verifiedStep(
                 title: "Install Tailscale on this iPhone",
-                body: "Get Tailscale from the App Store and sign in with the same account you used on your Mac.",
+                pendingBody: "Get Tailscale from the App Store and sign in with the **same account** you used on your Mac.",
+                verifiedBody: "Tailscale is installed.",
                 primary: "Open App Store",
                 primaryAction: { TailscaleDetector.openTailscaleOrAppStore() },
-                secondary: "I've installed it on my iPhone",
-                secondaryAction: { step = .verify }
+                secondary: "I've installed it",
+                secondaryAction: { runVerificationForCurrentStep() }
             )
 
-        case .verify:
-            stepLayout(
-                title: "Tailscale is set up",
-                body: KeyManager.hasKey()
-                    ? "Ready to add your Mac."
-                    : "One more step — install Shio's SSH key on your Mac so we can sign in.",
-                primary: KeyManager.hasKey() ? "Add my Mac" : "Continue",
-                primaryAction: {
-                    if KeyManager.hasKey() {
-                        showingAddSheet = true
-                    } else {
-                        step = .installKey
-                    }
-                }
+        case .connectVPN:
+            verifiedStep(
+                title: "Turn on Tailscale",
+                pendingBody: "Open the Tailscale app. There's a **big toggle at the top** — tap it. It should turn blue and say Connected. While you're there, open the app's settings (your profile, top-left) and turn on **Use Tailscale DNS**.",
+                verifiedBody: "Tailscale is connected.",
+                primary: "Open Tailscale",
+                primaryAction: { TailscaleDetector.openTailscaleOrAppStore() },
+                secondary: "Re-check",
+                secondaryAction: { runVerificationForCurrentStep() }
             )
 
         case .installKey:
-            // Rendered full-screen in `body` — this branch never fires.
-            EmptyView()
+            EmptyView()  // Rendered full-screen in `body`.
         }
     }
+
+    // MARK: - Layout helpers
 
     private func stepLayout(
         title: String,
@@ -142,11 +157,11 @@ struct OnboardingView: View {
         secondaryAction: (() -> Void)? = nil
     ) -> some View {
         VStack(spacing: ShioSpace.lg) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(ShioFont.title1)
                 .foregroundStyle(ShioColor.Text.primary)
                 .multilineTextAlignment(.center)
-            Text(body)
+            Text(LocalizedStringKey(body))
                 .font(ShioFont.body)
                 .foregroundStyle(ShioColor.Text.secondary)
                 .multilineTextAlignment(.center)
@@ -161,44 +176,158 @@ struct OnboardingView: View {
         }
     }
 
-    // MARK: -
-
-    private func advanceFromInitial() {
-        guard step == .initial else { return }
-        // Always show the welcome step — it's the first impression. From
-        // there, branch based on Tailscale presence and key state.
-        withAnimation { step = .welcome }
-    }
-
-    /// Pick the right next step from welcome. Skips installKey if the user
-    /// already has a key (audit finding #7) and skips the Tailscale
-    /// walkthrough if Tailscale is already installed.
-    private func nextStepFromWelcome() -> Step {
-        let tailscaleReady = TailscaleDetector.isInstalled
-        let keyReady = KeyManager.hasKey()
-        switch (tailscaleReady, keyReady) {
-        case (true, true):
-            // Everything in place — straight to add-host.
-            showingAddSheet = true
-            return .verify   // Lands here on sheet dismissal so user has a recoverable state.
-        case (true, false):
-            return .installKey
-        case (false, _):
-            return .introduceTailscale
+    /// Step layout that adapts to verification state. While `.checking`,
+    /// shows a quiet spinner. On `.verified`, shows a soft "Looks good" beat
+    /// and auto-advances after ~700ms. On `.failed` or `.idle`, shows the
+    /// instructional UI with the user's action button.
+    @ViewBuilder
+    private func verifiedStep(
+        title: String,
+        pendingBody: String,
+        verifiedBody: String,
+        primary: String,
+        primaryAction: @escaping () -> Void,
+        secondary: String?,
+        secondaryAction: (() -> Void)?
+    ) -> some View {
+        switch verification {
+        case .checking:
+            checkingLayout(title: title)
+        case .verified:
+            verifiedLayout(title: title, body: verifiedBody)
+        case .idle, .failed:
+            stepLayout(
+                title: title,
+                body: pendingBody,
+                primary: primary,
+                primaryAction: primaryAction,
+                secondary: secondary,
+                secondaryAction: secondaryAction
+            )
         }
     }
 
-    /// Called when AddHostSheet dismisses. If we're still in onboarding
-    /// (the user cancelled instead of saving), step back to a recoverable
-    /// state — `.verify` if everything's plumbed, otherwise `.welcome`.
-    /// This fixes the audit's #1 finding: previously the user was parked
-    /// on PublicKeyView with no way out.
+    private func checkingLayout(title: String) -> some View {
+        VStack(spacing: ShioSpace.lg) {
+            Text(LocalizedStringKey(title))
+                .font(ShioFont.title1)
+                .foregroundStyle(ShioColor.Text.primary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: ShioSpace.sm) {
+                ProgressView().tint(ShioColor.Text.secondary)
+                Text("Checking…")
+                    .font(ShioFont.callout)
+                    .foregroundStyle(ShioColor.Text.secondary)
+            }
+        }
+    }
+
+    private func verifiedLayout(title: String, body: String) -> some View {
+        VStack(spacing: ShioSpace.lg) {
+            Text(LocalizedStringKey(title))
+                .font(ShioFont.title1)
+                .foregroundStyle(ShioColor.Text.primary)
+                .multilineTextAlignment(.center)
+            HStack(spacing: ShioSpace.sm) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(ShioColor.State.success)
+                Text(LocalizedStringKey(body))
+                    .font(ShioFont.body)
+                    .foregroundStyle(ShioColor.Text.secondary)
+            }
+        }
+    }
+
+    // MARK: - Flow control
+
+    private func advanceFromInitial() {
+        guard step == .initial else { return }
+        withAnimation { step = .welcome }
+    }
+
+    /// Decide where to land after .welcome. We skip every step whose
+    /// precondition is already in place. Steps that need a live probe
+    /// (Tailscale installed / VPN connected) handle their own verification
+    /// once we arrive — so we err on the side of including them, and
+    /// rely on the auto-advance to make the experience seamless.
+    private func nextStepFromWelcome() -> Step {
+        let tailscaleReady = TailscaleDetector.isInstalled
+        let keyReady = KeyManager.hasKey()
+
+        if !tailscaleReady {
+            return .installOnMac
+        }
+        // Tailscale is installed. Verify VPN before adding host.
+        if !keyReady {
+            return .connectVPN
+        }
+        // Everything checks out — straight to add-host.
+        showingAddSheet = true
+        return .connectVPN  // Recoverable landing if the sheet is cancelled.
+    }
+
+    private func runVerificationForCurrentStep() {
+        switch step {
+        case .installApp:
+            verifyAppInstalled()
+        case .connectVPN:
+            verifyVPNActive()
+        default:
+            break
+        }
+    }
+
+    private func verifyAppInstalled() {
+        verification = .checking
+        Task {
+            let result = await TailscaleDiagnostic.shared.runSingle(.appInstalled)
+            handleVerification(result, onPass: { step = .connectVPN })
+        }
+    }
+
+    private func verifyVPNActive() {
+        verification = .checking
+        Task {
+            let result = await TailscaleDiagnostic.shared.runSingle(.vpnActive)
+            handleVerification(result, onPass: {
+                // VPN is up. Branch on whether the user already has a key
+                // installed on their Mac: if yes, jump straight to add-host;
+                // if no, route through the key install screen.
+                if KeyManager.hasKey() {
+                    showingAddSheet = true
+                } else {
+                    step = .installKey
+                }
+            })
+        }
+    }
+
+    /// Either auto-advance after a brief "Verified" beat, or surface the
+    /// failure state so the instructional UI returns.
+    @MainActor
+    private func handleVerification(_ result: TailscaleDiagnostic.CheckResult, onPass: @escaping () -> Void) {
+        switch result.status {
+        case .passed:
+            verification = .verified
+            Task {
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                // Only advance if we're still on the same step the user just verified —
+                // they might have already navigated elsewhere via a different path.
+                if case .checking = verification {} else {}
+                onPass()
+            }
+        case .failed(let reason):
+            verification = .failed(message: reason)
+        case .skipped, .idle, .running:
+            verification = .idle
+        }
+    }
+
+    /// Sheet dismissed. If we're still in onboarding (user cancelled), step
+    /// back to a recoverable state.
     private func handleSheetDismissed() {
-        // If a host was added successfully, RootView will have replaced
-        // OnboardingView with the main scene before this fires; the closure
-        // here only matters when we're still presented.
         if KeyManager.hasKey() {
-            withAnimation { step = .verify }
+            withAnimation { step = .connectVPN }  // Verified state will auto-advance again if VPN is still up.
         } else {
             withAnimation { step = .welcome }
         }
