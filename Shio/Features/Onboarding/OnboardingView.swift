@@ -22,20 +22,32 @@ struct OnboardingView: View {
         case installOnMac
         case installOnIPhone
         case verify
+        /// Show the user's public key and have them paste it into their
+        /// Mac's authorized_keys file. Required before the first host add —
+        /// without this, the SSH connect will fail with auth error.
+        case installKey
     }
 
     var body: some View {
-        ZStack {
-            ShioColor.Chrome.background.ignoresSafeArea()
-
-            VStack(spacing: ShioSpace.xl) {
-                Spacer()
-                wordmark
-                Spacer()
-                content
-                Spacer()
+        Group {
+            if case .installKey = step {
+                // Full-screen key install — its own scroll layout, no wordmark hero.
+                PublicKeyView(mode: .onboarding(onComplete: {
+                    showingAddSheet = true
+                }))
+            } else {
+                ZStack {
+                    ShioColor.Chrome.background.ignoresSafeArea()
+                    VStack(spacing: ShioSpace.xl) {
+                        Spacer()
+                        wordmark
+                        Spacer()
+                        content
+                        Spacer()
+                    }
+                    .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
+                }
             }
-            .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
         }
         .onAppear { advanceFromInitial() }
         .animation(ShioMotion.standard, value: step)
@@ -68,11 +80,11 @@ struct OnboardingView: View {
         case .welcome:
             stepLayout(
                 title: "Your Mac, in your pocket.",
-                body: "Shio is a clean, minimal SSH client. Tap to add the Mac you want to reach.",
-                primary: "Add my Mac",
+                body: "Shio is a clean, minimal SSH client. Tap to set things up.",
+                primary: "Get started",
                 primaryAction: {
                     if TailscaleDetector.isInstalled {
-                        showingAddSheet = true
+                        step = .installKey
                     } else {
                         step = .introduceTailscale
                     }
@@ -107,11 +119,15 @@ struct OnboardingView: View {
 
         case .verify:
             stepLayout(
-                title: "You're set",
-                body: "Add your Mac next — Shio will reach it over Tailscale.",
-                primary: "Add my Mac",
-                primaryAction: { showingAddSheet = true }
+                title: "Tailscale is set up",
+                body: "One more step — install Shio's SSH key on your Mac so we can sign in.",
+                primary: "Continue",
+                primaryAction: { step = .installKey }
             )
+
+        case .installKey:
+            // Rendered full-screen in `body` — this branch never fires.
+            EmptyView()
         }
     }
 

@@ -26,6 +26,13 @@ struct SettingsView: View {
                 }
                 Section {
                     NavigationLink {
+                        PublicKeyView(mode: .settings)
+                            .navigationTitle("SSH Key")
+                            .navigationBarTitleDisplayMode(.inline)
+                    } label: {
+                        Label("SSH Key", systemImage: "key.fill")
+                    }
+                    NavigationLink {
                         AboutView()
                     } label: {
                         Label("About Shio", systemImage: "info.circle")

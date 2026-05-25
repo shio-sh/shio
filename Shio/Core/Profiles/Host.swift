@@ -91,16 +91,11 @@ final class Host {
 
 extension Host {
     /// Build an `SSHClient.Configuration` from this profile.
-    /// Until Brick 7 second pass wires Keychain-backed key auth, a host with
-    /// no password configured is `.unconfigured` so SSHClient surfaces a clear
-    /// "no auth configured" error instead of attempting a doomed handshake.
+    /// Default auth is Shio's device-bound Ed25519 key (`.shioKey`). Passing
+    /// a password switches to password auth — used by Pro Mode flows that
+    /// elect for it.
     func makeClientConfiguration(password: String? = nil) -> SSHClient.Configuration {
-        let auth: SSHClient.Authentication
-        if let password {
-            auth = .password(password)
-        } else {
-            auth = .unconfigured
-        }
+        let auth: SSHClient.Authentication = password.map { .password($0) } ?? .shioKey
         return SSHClient.Configuration(
             host: hostname,
             port: port,

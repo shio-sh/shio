@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import NIOCore
 import NIOPosix
 import NIOSSH
@@ -30,7 +31,9 @@ final class SSHClient: @unchecked Sendable {
 
     enum Authentication: Sendable {
         case password(String)
-        case privateKey(PEM: String, passphrase: String?)
+        /// Authenticate using Shio's device-bound Ed25519 key (from KeyManager).
+        /// This is the default for all hosts created through onboarding.
+        case shioKey
         /// No authentication is configured. SSHClient will surface a clear
         /// error rather than attempting an impossible handshake.
         case unconfigured
@@ -193,6 +196,9 @@ final class SSHClient: @unchecked Sendable {
 
 private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDelegate, @unchecked Sendable {
     let configuration: SSHClient.Configuration
+    /// Tracks which methods we've already tried this session so NIO doesn't
+    /// loop us into the same offer when the server rejects it.
+    private var attempted: Set<String> = []
 
     init(configuration: SSHClient.Configuration) {
         self.configuration = configuration
@@ -204,10 +210,11 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
     ) {
         switch configuration.authentication {
         case .password(let password):
-            guard availableMethods.contains(.password) else {
+            guard availableMethods.contains(.password), !attempted.contains("password") else {
                 nextChallengePromise.succeed(nil)
                 return
             }
+            attempted.insert("password")
             let offer = NIOSSHUserAuthenticationOffer(
                 username: configuration.username,
                 serviceName: "",
@@ -215,11 +222,26 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
             )
             nextChallengePromise.succeed(offer)
 
-        case .privateKey:
-            // Brick 7 second pass wires real Keychain-backed Ed25519 keys here.
-            // For now, no public-key auth — yield nil so NIO surfaces a clear
-            // authenticationFailed error.
-            nextChallengePromise.succeed(nil)
+        case .shioKey:
+            guard availableMethods.contains(.publicKey), !attempted.contains("publicKey") else {
+                nextChallengePromise.succeed(nil)
+                return
+            }
+            attempted.insert("publicKey")
+            do {
+                let privateKey = try KeyManager.currentKey()
+                let nioKey = NIOSSHPrivateKey(ed25519Key: privateKey)
+                let offer = NIOSSHUserAuthenticationOffer(
+                    username: configuration.username,
+                    serviceName: "",
+                    offer: .privateKey(.init(privateKey: nioKey))
+                )
+                nextChallengePromise.succeed(offer)
+            } catch {
+                // Couldn't load/generate the key. Yield nil so NIO surfaces
+                // an authenticationFailed and the user sees a clear error.
+                nextChallengePromise.succeed(nil)
+            }
 
         case .unconfigured:
             nextChallengePromise.succeed(nil)
