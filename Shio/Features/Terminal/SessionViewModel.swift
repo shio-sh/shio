@@ -47,6 +47,9 @@ final class SessionViewModel {
         terminal.onResize = { [weak self] cols, rows in
             self?.client?.resize(cols: cols, rows: rows)
         }
+        terminal.onLoadFailure = { [weak self] message in
+            self?.state = .disconnected(reason: message)
+        }
     }
 
     // MARK: - Lifecycle

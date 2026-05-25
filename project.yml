@@ -38,8 +38,10 @@ targets:
       - path: Shio
         excludes:
           - "**/.DS_Store"
-    resources:
-      - path: Shio/Resources
+          - "Resources/terminal"
+      - path: Shio/Resources/terminal
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: swift-nio-ssh
         product: NIOSSH

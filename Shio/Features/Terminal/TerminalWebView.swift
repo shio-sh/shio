@@ -16,6 +16,9 @@ final class TerminalWebViewController {
     var onResize: ((Int, Int) -> Void)?
     /// Called when xterm.js finishes initializing.
     var onReady:  (() -> Void)?
+    /// Called when loading the terminal HTML fails. Caller should surface
+    /// the error to the user — never crash.
+    var onLoadFailure: ((String) -> Void)?
 
     let webView: WKWebView
 
@@ -44,12 +47,17 @@ final class TerminalWebViewController {
     }
 
     func load() {
-        guard let url = Bundle.main.url(
-            forResource: "terminal",
-            withExtension: "html",
-            subdirectory: "terminal"
-        ) else {
-            assertionFailure("terminal.html not bundled — check Brick 1 resources")
+        // Try with subdirectory first (folder-reference bundling preserves
+        // the source structure), then fall back to bundle root (in case the
+        // resources got flattened by a regression in project.yml).
+        let url = Bundle.main.url(forResource: "terminal", withExtension: "html", subdirectory: "terminal")
+            ?? Bundle.main.url(forResource: "terminal", withExtension: "html")
+
+        guard let url else {
+            #if DEBUG
+            print("[Shio] terminal.html not bundled — check Brick 1 resources / project.yml")
+            #endif
+            onLoadFailure?("Terminal assets are missing from the app bundle. This is a build configuration issue.")
             return
         }
         let dir = url.deletingLastPathComponent()
