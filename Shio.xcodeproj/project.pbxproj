@@ -1,0 +1,893 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00A75904D551B9A3C9B9A902 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0EF715A7AA3E08F624E430 /* OnboardingView.swift */; };
+		072E6151DD3DBA8C4D5009AB /* Color+Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33B72A8ADFDE67AFA134C6D8 /* Color+Tokens.swift */; };
+		0B320D1E9A852A771CD67156 /* KeyModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB78F17BB5323E65EEEF6965 /* KeyModifiers.swift */; };
+		0C92729B15CA25B61B62D94B /* SessionViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F89D8C4EFEC60A2A351A08A /* SessionViewModel.swift */; };
+		0EB7A2184AC42A55A2C281C8 /* Host.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03E706C3877DB0E1A7403767 /* Host.swift */; };
+		183B02D98832A62EB52A4511 /* xterm.css in Resources */ = {isa = PBXBuildFile; fileRef = 8A2C01CD78429992AF3DFC5C /* xterm.css */; };
+		1C718764F36A95C03ADBC3F5 /* addon-web-links.js in Resources */ = {isa = PBXBuildFile; fileRef = 598C13AE0D8EF75FA9565030 /* addon-web-links.js */; };
+		27326CD34FB4753426594763 /* Typography+Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E77EC55C2AD2DA66202935C /* Typography+Tokens.swift */; };
+		28332F3F976406B605ED1F28 /* IPadRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 581DDB482EC53D0405C7D5C5 /* IPadRootView.swift */; };
+		289EF02FC37A71BC46BD199F /* terminal.html in Resources */ = {isa = PBXBuildFile; fileRef = 1FED002DCF65988F55A3D9AF /* terminal.html */; };
+		2A1C0C1D6FE81164DE3D2429 /* HostListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF8FF5E0A127A90E9547135 /* HostListView.swift */; };
+		2C351A0AD22CBCB3D9AAD493 /* TerminalScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = D835D1A28A4A1C398F3CED60 /* TerminalScene.swift */; };
+		34499AB9BECFD59E292E2741 /* NIOSSH in Frameworks */ = {isa = PBXBuildFile; productRef = E463E0B7E258DCF4BC60EF0E /* NIOSSH */; };
+		3CEF99A85664546C8731113E /* TerminalInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A91562F5C01FE5253DD6888 /* TerminalInputView.swift */; };
+		469C683F693895831D534015 /* TerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35E80A411FFC981DB227689 /* TerminalView.swift */; };
+		543A7D0C55F031230402049D /* ShioButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3262798B7E89142B9299F915 /* ShioButton.swift */; };
+		7B1C26C4EF272C9046278046 /* ANSI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5B85247F7C0C6572DC7F667 /* ANSI.swift */; };
+		7C0CB329C234D49D290898EB /* ShioWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0283DD10B1846724BA76085E /* ShioWidgetsBundle.swift */; };
+		88372AAE9AD89D9D1C6E4278 /* KeyboardAccessoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1B77D2CE66838834DA139FC /* KeyboardAccessoryView.swift */; };
+		92E14576D50A54DC82996370 /* ShioLiveActivitiesBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BAA9BBF8C8DC7160C462FCF /* ShioLiveActivitiesBundle.swift */; };
+		958CB7A2286554B1F5323CA7 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7FF0F5C4EC32BF6817C9D9DD /* NIOCore */; };
+		97C8C659C8F472579175245A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 99B937BDF51C3B7B8E2DD435 /* Assets.xcassets */; };
+		985FE020F020EEA25AD19715 /* ConnectToHostIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44077486EAF143FDBB8589B4 /* ConnectToHostIntent.swift */; };
+		A49201B72BEB5EEA10385B29 /* TerminalTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F506F05A8EB5EF0D3350D7CE /* TerminalTheme.swift */; };
+		AF4F7EA21C0A85C32C56C511 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91F90A20D155A5D522E2F434 /* SettingsView.swift */; };
+		BA5570D5E427656C297313E3 /* HostEntity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF876E8D2E66A603F0824DA2 /* HostEntity.swift */; };
+		BC4185899A705A95C3D1C7DE /* SSHClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF50E1930DC5F96436AEBC77 /* SSHClient.swift */; };
+		C1404FF1FE28D78F4A479BB2 /* Motion+Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 593AB5E0261468B3B76E63AB /* Motion+Tokens.swift */; };
+		C1B291538BF6BB5AA68775D5 /* TmuxResume.swift in Sources */ = {isa = PBXBuildFile; fileRef = 567F28A90C774F3180D2DE2F /* TmuxResume.swift */; };
+		C1DAD720C64069C918A5B4D1 /* HostStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C171314EC0537149713B6ECB /* HostStore.swift */; };
+		C20B37E75B1A7C9F86B0BDFF /* AddHostSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7921EC46571695FB06FEAC6B /* AddHostSheet.swift */; };
+		C34E4359473A6B466D24F2A3 /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = 1A15A870920E3B7D36CFEB47 /* NIOPosix */; };
+		D2295B99162C3BE7FAB5A7D9 /* addon-fit.js in Resources */ = {isa = PBXBuildFile; fileRef = 9D3FBD445C997029351D385D /* addon-fit.js */; };
+		E47554D59841A654CAEE947B /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA823F70080E5EF448721EFA /* RootView.swift */; };
+		E8BD207392E159382A936E68 /* TerminalWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FE85FB3551844A1C1823B2A /* TerminalWebView.swift */; };
+		E9006A57FBB199DAE6A16EB6 /* Spacing+Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 671F13D490F4E8B6D78DF558 /* Spacing+Tokens.swift */; };
+		E919EB0368C79A62703148A3 /* ShioLiveActivities.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8D6C7DED738E2DA27E61D97A /* ShioLiveActivities.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		EAD8F1375A208489ADE57E84 /* ShioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C53739129691296BFBFE39B /* ShioApp.swift */; };
+		F05330F4639EB7387F11DD9F /* ShioWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 46960C8EA115590778B0C873 /* ShioWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F17C86D47B944F92F87DC8E6 /* TailscaleDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AB4EFEAE71D7E4D3E64E07A /* TailscaleDetector.swift */; };
+		F19A96F3D823C37DD874E43B /* ShioAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF941E1105B3CF3C2DCEEE8C /* ShioAppShortcuts.swift */; };
+		F91AD2D327A51389DC6B3D3C /* xterm.js in Resources */ = {isa = PBXBuildFile; fileRef = E62E962B3065750B237EF350 /* xterm.js */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		485C2F87AC6F8432466F0242 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FCB5492734DBDC5BD15D44FA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 6A934B2F972D89E61A07EF27;
+			remoteInfo = ShioWidgets;
+		};
+		6EB3EE07FC886F12F3718BF0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FCB5492734DBDC5BD15D44FA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5A94B44C2D3EFF9BD3F655F9;
+			remoteInfo = ShioLiveActivities;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		DD55E6F0FEEA2BA9BAA30020 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				F05330F4639EB7387F11DD9F /* ShioWidgets.appex in Embed Foundation Extensions */,
+				E919EB0368C79A62703148A3 /* ShioLiveActivities.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0283DD10B1846724BA76085E /* ShioWidgetsBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShioWidgetsBundle.swift; sourceTree = "<group>"; };
+		03E706C3877DB0E1A7403767 /* Host.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Host.swift; sourceTree = "<group>"; };
+		0A91562F5C01FE5253DD6888 /* TerminalInputView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalInputView.swift; sourceTree = "<group>"; };
+		1FED002DCF65988F55A3D9AF /* terminal.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = terminal.html; sourceTree = "<group>"; };
+		3262798B7E89142B9299F915 /* ShioButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShioButton.swift; sourceTree = "<group>"; };
+		33B72A8ADFDE67AFA134C6D8 /* Color+Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Tokens.swift"; sourceTree = "<group>"; };
+		3F89D8C4EFEC60A2A351A08A /* SessionViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionViewModel.swift; sourceTree = "<group>"; };
+		44077486EAF143FDBB8589B4 /* ConnectToHostIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectToHostIntent.swift; sourceTree = "<group>"; };
+		46960C8EA115590778B0C873 /* ShioWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ShioWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		4E77EC55C2AD2DA66202935C /* Typography+Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Typography+Tokens.swift"; sourceTree = "<group>"; };
+		4FF8FF5E0A127A90E9547135 /* HostListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostListView.swift; sourceTree = "<group>"; };
+		567F28A90C774F3180D2DE2F /* TmuxResume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TmuxResume.swift; sourceTree = "<group>"; };
+		581DDB482EC53D0405C7D5C5 /* IPadRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPadRootView.swift; sourceTree = "<group>"; };
+		593AB5E0261468B3B76E63AB /* Motion+Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Motion+Tokens.swift"; sourceTree = "<group>"; };
+		598C13AE0D8EF75FA9565030 /* addon-web-links.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "addon-web-links.js"; sourceTree = "<group>"; };
+		5D0EF715A7AA3E08F624E430 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		671F13D490F4E8B6D78DF558 /* Spacing+Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Spacing+Tokens.swift"; sourceTree = "<group>"; };
+		6C53739129691296BFBFE39B /* ShioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShioApp.swift; sourceTree = "<group>"; };
+		7921EC46571695FB06FEAC6B /* AddHostSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddHostSheet.swift; sourceTree = "<group>"; };
+		7AB4EFEAE71D7E4D3E64E07A /* TailscaleDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TailscaleDetector.swift; sourceTree = "<group>"; };
+		7BAA9BBF8C8DC7160C462FCF /* ShioLiveActivitiesBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShioLiveActivitiesBundle.swift; sourceTree = "<group>"; };
+		7FE85FB3551844A1C1823B2A /* TerminalWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalWebView.swift; sourceTree = "<group>"; };
+		8A2C01CD78429992AF3DFC5C /* xterm.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = xterm.css; sourceTree = "<group>"; };
+		8D6C7DED738E2DA27E61D97A /* ShioLiveActivities.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = ShioLiveActivities.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		90C2E699CF63F0C27E7FA5EF /* ShioWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShioWidgets.entitlements; sourceTree = "<group>"; };
+		91F90A20D155A5D522E2F434 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		99B937BDF51C3B7B8E2DD435 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9D3FBD445C997029351D385D /* addon-fit.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = "addon-fit.js"; sourceTree = "<group>"; };
+		A5B85247F7C0C6572DC7F667 /* ANSI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ANSI.swift; sourceTree = "<group>"; };
+		AAB5F6406DE3113D37523591 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		AF941E1105B3CF3C2DCEEE8C /* ShioAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShioAppShortcuts.swift; sourceTree = "<group>"; };
+		C171314EC0537149713B6ECB /* HostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostStore.swift; sourceTree = "<group>"; };
+		C2F75F7BB5135F74F2FB7E14 /* ShioLiveActivities.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShioLiveActivities.entitlements; sourceTree = "<group>"; };
+		D1B77D2CE66838834DA139FC /* KeyboardAccessoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardAccessoryView.swift; sourceTree = "<group>"; };
+		D35E80A411FFC981DB227689 /* TerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalView.swift; sourceTree = "<group>"; };
+		D3DE2E30940F3A7469316ABF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		D6E88C52CBC9770017318631 /* Shio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Shio.entitlements; sourceTree = "<group>"; };
+		D835D1A28A4A1C398F3CED60 /* TerminalScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalScene.swift; sourceTree = "<group>"; };
+		D9DBF112035D6ECED87D5F7C /* Shio.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Shio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA823F70080E5EF448721EFA /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		E62E962B3065750B237EF350 /* xterm.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = xterm.js; sourceTree = "<group>"; };
+		F506F05A8EB5EF0D3350D7CE /* TerminalTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalTheme.swift; sourceTree = "<group>"; };
+		F80F95F2825A0D73479DDB5B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		FB78F17BB5323E65EEEF6965 /* KeyModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyModifiers.swift; sourceTree = "<group>"; };
+		FF50E1930DC5F96436AEBC77 /* SSHClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSHClient.swift; sourceTree = "<group>"; };
+		FF876E8D2E66A603F0824DA2 /* HostEntity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostEntity.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B6291D74730B9254BD8CF857 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				34499AB9BECFD59E292E2741 /* NIOSSH in Frameworks */,
+				958CB7A2286554B1F5323CA7 /* NIOCore in Frameworks */,
+				C34E4359473A6B466D24F2A3 /* NIOPosix in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		12EC39E455C23D64FEDBCD09 /* terminal */ = {
+			isa = PBXGroup;
+			children = (
+				9D3FBD445C997029351D385D /* addon-fit.js */,
+				598C13AE0D8EF75FA9565030 /* addon-web-links.js */,
+				1FED002DCF65988F55A3D9AF /* terminal.html */,
+				8A2C01CD78429992AF3DFC5C /* xterm.css */,
+				E62E962B3065750B237EF350 /* xterm.js */,
+			);
+			path = terminal;
+			sourceTree = "<group>";
+		};
+		1AEC3C6E14B24D4BAF1AA3EF /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				12EC39E455C23D64FEDBCD09 /* terminal */,
+				99B937BDF51C3B7B8E2DD435 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		1CC36D42046169462DA3FD6E /* Hosts */ = {
+			isa = PBXGroup;
+			children = (
+				7921EC46571695FB06FEAC6B /* AddHostSheet.swift */,
+				4FF8FF5E0A127A90E9547135 /* HostListView.swift */,
+			);
+			path = Hosts;
+			sourceTree = "<group>";
+		};
+		25FC98BAB94EC095203579CB /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				BE55EA2102BCF0DD5585A114 /* Components */,
+				C88D710C7B1320D13CCFBAE7 /* Tokens */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		260E29FAD6D9176DA9C553B5 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				91F90A20D155A5D522E2F434 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		373326851C4A28E10A2C81C0 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				44077486EAF143FDBB8589B4 /* ConnectToHostIntent.swift */,
+				FF876E8D2E66A603F0824DA2 /* HostEntity.swift */,
+				AF941E1105B3CF3C2DCEEE8C /* ShioAppShortcuts.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		5AB4B6C63B389C856CF16006 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				1CC36D42046169462DA3FD6E /* Hosts */,
+				907DFADB9C2C9CD90F4B3ABC /* Onboarding */,
+				260E29FAD6D9176DA9C553B5 /* Settings */,
+				B538ECAB435AE9EC1880353A /* Shared */,
+				D41445AC47D402954B54791F /* Terminal */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		5DC182BCEAEAE373FD4A811A /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				BDC0EB9E485B3364814565A8 /* Keyboard */,
+				A572B218E7470873EFFFEDE1 /* Profiles */,
+				C7B93E68D6F5FBCBC31DC10A /* SSH */,
+				EA59C6D5A4DFA757E2BF5A69 /* Tailscale */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		7BC3F8B6612D93894E9923DB /* iPad */ = {
+			isa = PBXGroup;
+			children = (
+				581DDB482EC53D0405C7D5C5 /* IPadRootView.swift */,
+			);
+			path = iPad;
+			sourceTree = "<group>";
+		};
+		90059DD31C2D0AF03C73FF8A /* Shio */ = {
+			isa = PBXGroup;
+			children = (
+				5DC182BCEAEAE373FD4A811A /* Core */,
+				25FC98BAB94EC095203579CB /* DesignSystem */,
+				5AB4B6C63B389C856CF16006 /* Features */,
+				373326851C4A28E10A2C81C0 /* Intents */,
+				FF5B140A2F8847C4D8581478 /* Platform */,
+				1AEC3C6E14B24D4BAF1AA3EF /* Resources */,
+				D3DE2E30940F3A7469316ABF /* Info.plist */,
+				D6E88C52CBC9770017318631 /* Shio.entitlements */,
+				6C53739129691296BFBFE39B /* ShioApp.swift */,
+			);
+			path = Shio;
+			sourceTree = "<group>";
+		};
+		907DFADB9C2C9CD90F4B3ABC /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				5D0EF715A7AA3E08F624E430 /* OnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		92AC00DE83C24335B2F80371 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D9DBF112035D6ECED87D5F7C /* Shio.app */,
+				8D6C7DED738E2DA27E61D97A /* ShioLiveActivities.appex */,
+				46960C8EA115590778B0C873 /* ShioWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A572B218E7470873EFFFEDE1 /* Profiles */ = {
+			isa = PBXGroup;
+			children = (
+				03E706C3877DB0E1A7403767 /* Host.swift */,
+				C171314EC0537149713B6ECB /* HostStore.swift */,
+			);
+			path = Profiles;
+			sourceTree = "<group>";
+		};
+		B1DB4EA78381B52C35125D03 /* ShioWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				F80F95F2825A0D73479DDB5B /* Info.plist */,
+				90C2E699CF63F0C27E7FA5EF /* ShioWidgets.entitlements */,
+				0283DD10B1846724BA76085E /* ShioWidgetsBundle.swift */,
+			);
+			path = ShioWidgets;
+			sourceTree = "<group>";
+		};
+		B538ECAB435AE9EC1880353A /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				DA823F70080E5EF448721EFA /* RootView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		BDC0EB9E485B3364814565A8 /* Keyboard */ = {
+			isa = PBXGroup;
+			children = (
+				A5B85247F7C0C6572DC7F667 /* ANSI.swift */,
+				FB78F17BB5323E65EEEF6965 /* KeyModifiers.swift */,
+			);
+			path = Keyboard;
+			sourceTree = "<group>";
+		};
+		BE55EA2102BCF0DD5585A114 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				3262798B7E89142B9299F915 /* ShioButton.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		C7B93E68D6F5FBCBC31DC10A /* SSH */ = {
+			isa = PBXGroup;
+			children = (
+				FF50E1930DC5F96436AEBC77 /* SSHClient.swift */,
+				567F28A90C774F3180D2DE2F /* TmuxResume.swift */,
+			);
+			path = SSH;
+			sourceTree = "<group>";
+		};
+		C88D710C7B1320D13CCFBAE7 /* Tokens */ = {
+			isa = PBXGroup;
+			children = (
+				33B72A8ADFDE67AFA134C6D8 /* Color+Tokens.swift */,
+				593AB5E0261468B3B76E63AB /* Motion+Tokens.swift */,
+				671F13D490F4E8B6D78DF558 /* Spacing+Tokens.swift */,
+				4E77EC55C2AD2DA66202935C /* Typography+Tokens.swift */,
+			);
+			path = Tokens;
+			sourceTree = "<group>";
+		};
+		D12026DEAAC983C8C2E6DA40 /* ShioLiveActivities */ = {
+			isa = PBXGroup;
+			children = (
+				AAB5F6406DE3113D37523591 /* Info.plist */,
+				C2F75F7BB5135F74F2FB7E14 /* ShioLiveActivities.entitlements */,
+				7BAA9BBF8C8DC7160C462FCF /* ShioLiveActivitiesBundle.swift */,
+			);
+			path = ShioLiveActivities;
+			sourceTree = "<group>";
+		};
+		D41445AC47D402954B54791F /* Terminal */ = {
+			isa = PBXGroup;
+			children = (
+				D1B77D2CE66838834DA139FC /* KeyboardAccessoryView.swift */,
+				3F89D8C4EFEC60A2A351A08A /* SessionViewModel.swift */,
+				0A91562F5C01FE5253DD6888 /* TerminalInputView.swift */,
+				D835D1A28A4A1C398F3CED60 /* TerminalScene.swift */,
+				F506F05A8EB5EF0D3350D7CE /* TerminalTheme.swift */,
+				D35E80A411FFC981DB227689 /* TerminalView.swift */,
+				7FE85FB3551844A1C1823B2A /* TerminalWebView.swift */,
+			);
+			path = Terminal;
+			sourceTree = "<group>";
+		};
+		E7E8604A5205BF2E3D0DA33B = {
+			isa = PBXGroup;
+			children = (
+				90059DD31C2D0AF03C73FF8A /* Shio */,
+				D12026DEAAC983C8C2E6DA40 /* ShioLiveActivities */,
+				B1DB4EA78381B52C35125D03 /* ShioWidgets */,
+				92AC00DE83C24335B2F80371 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		EA59C6D5A4DFA757E2BF5A69 /* Tailscale */ = {
+			isa = PBXGroup;
+			children = (
+				7AB4EFEAE71D7E4D3E64E07A /* TailscaleDetector.swift */,
+			);
+			path = Tailscale;
+			sourceTree = "<group>";
+		};
+		FF5B140A2F8847C4D8581478 /* Platform */ = {
+			isa = PBXGroup;
+			children = (
+				7BC3F8B6612D93894E9923DB /* iPad */,
+			);
+			path = Platform;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5A94B44C2D3EFF9BD3F655F9 /* ShioLiveActivities */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D16CDAC147F83B334BA97D2B /* Build configuration list for PBXNativeTarget "ShioLiveActivities" */;
+			buildPhases = (
+				3C2139B830C38A6395696072 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShioLiveActivities;
+			packageProductDependencies = (
+			);
+			productName = ShioLiveActivities;
+			productReference = 8D6C7DED738E2DA27E61D97A /* ShioLiveActivities.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		6A934B2F972D89E61A07EF27 /* ShioWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D01557E9384C5A9A40D69082 /* Build configuration list for PBXNativeTarget "ShioWidgets" */;
+			buildPhases = (
+				B650A9B6CBD17AF87754892A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ShioWidgets;
+			packageProductDependencies = (
+			);
+			productName = ShioWidgets;
+			productReference = 46960C8EA115590778B0C873 /* ShioWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		809371DE6E8F5EC5F7D244D7 /* Shio */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 03CEB11DD41F3A8AAF57B9F5 /* Build configuration list for PBXNativeTarget "Shio" */;
+			buildPhases = (
+				095FBBA6C99262FA16058062 /* Sources */,
+				5CC9DE6AC779B24C2A1EBFA0 /* Resources */,
+				B6291D74730B9254BD8CF857 /* Frameworks */,
+				DD55E6F0FEEA2BA9BAA30020 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				292810CFC7D35765D264840A /* PBXTargetDependency */,
+				35AAD2924361E2078E76B2B2 /* PBXTargetDependency */,
+			);
+			name = Shio;
+			packageProductDependencies = (
+				E463E0B7E258DCF4BC60EF0E /* NIOSSH */,
+				7FF0F5C4EC32BF6817C9D9DD /* NIOCore */,
+				1A15A870920E3B7D36CFEB47 /* NIOPosix */,
+			);
+			productName = Shio;
+			productReference = D9DBF112035D6ECED87D5F7C /* Shio.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		FCB5492734DBDC5BD15D44FA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					5A94B44C2D3EFF9BD3F655F9 = {
+						DevelopmentTeam = "";
+					};
+					6A934B2F972D89E61A07EF27 = {
+						DevelopmentTeam = "";
+					};
+					809371DE6E8F5EC5F7D244D7 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = B1C706F3DD35E31E3429FA48 /* Build configuration list for PBXProject "Shio" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = E7E8604A5205BF2E3D0DA33B;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				11AFA43AD8B3BC7112349AF9 /* XCRemoteSwiftPackageReference "swift-nio" */,
+				DB48071930B497886DBDF45D /* XCRemoteSwiftPackageReference "swift-nio-ssh" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 92AC00DE83C24335B2F80371 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				809371DE6E8F5EC5F7D244D7 /* Shio */,
+				5A94B44C2D3EFF9BD3F655F9 /* ShioLiveActivities */,
+				6A934B2F972D89E61A07EF27 /* ShioWidgets */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		5CC9DE6AC779B24C2A1EBFA0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				97C8C659C8F472579175245A /* Assets.xcassets in Resources */,
+				D2295B99162C3BE7FAB5A7D9 /* addon-fit.js in Resources */,
+				1C718764F36A95C03ADBC3F5 /* addon-web-links.js in Resources */,
+				289EF02FC37A71BC46BD199F /* terminal.html in Resources */,
+				183B02D98832A62EB52A4511 /* xterm.css in Resources */,
+				F91AD2D327A51389DC6B3D3C /* xterm.js in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		095FBBA6C99262FA16058062 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7B1C26C4EF272C9046278046 /* ANSI.swift in Sources */,
+				C20B37E75B1A7C9F86B0BDFF /* AddHostSheet.swift in Sources */,
+				072E6151DD3DBA8C4D5009AB /* Color+Tokens.swift in Sources */,
+				985FE020F020EEA25AD19715 /* ConnectToHostIntent.swift in Sources */,
+				0EB7A2184AC42A55A2C281C8 /* Host.swift in Sources */,
+				BA5570D5E427656C297313E3 /* HostEntity.swift in Sources */,
+				2A1C0C1D6FE81164DE3D2429 /* HostListView.swift in Sources */,
+				C1DAD720C64069C918A5B4D1 /* HostStore.swift in Sources */,
+				28332F3F976406B605ED1F28 /* IPadRootView.swift in Sources */,
+				0B320D1E9A852A771CD67156 /* KeyModifiers.swift in Sources */,
+				88372AAE9AD89D9D1C6E4278 /* KeyboardAccessoryView.swift in Sources */,
+				C1404FF1FE28D78F4A479BB2 /* Motion+Tokens.swift in Sources */,
+				00A75904D551B9A3C9B9A902 /* OnboardingView.swift in Sources */,
+				E47554D59841A654CAEE947B /* RootView.swift in Sources */,
+				BC4185899A705A95C3D1C7DE /* SSHClient.swift in Sources */,
+				0C92729B15CA25B61B62D94B /* SessionViewModel.swift in Sources */,
+				AF4F7EA21C0A85C32C56C511 /* SettingsView.swift in Sources */,
+				EAD8F1375A208489ADE57E84 /* ShioApp.swift in Sources */,
+				F19A96F3D823C37DD874E43B /* ShioAppShortcuts.swift in Sources */,
+				543A7D0C55F031230402049D /* ShioButton.swift in Sources */,
+				E9006A57FBB199DAE6A16EB6 /* Spacing+Tokens.swift in Sources */,
+				F17C86D47B944F92F87DC8E6 /* TailscaleDetector.swift in Sources */,
+				3CEF99A85664546C8731113E /* TerminalInputView.swift in Sources */,
+				2C351A0AD22CBCB3D9AAD493 /* TerminalScene.swift in Sources */,
+				A49201B72BEB5EEA10385B29 /* TerminalTheme.swift in Sources */,
+				469C683F693895831D534015 /* TerminalView.swift in Sources */,
+				E8BD207392E159382A936E68 /* TerminalWebView.swift in Sources */,
+				C1B291538BF6BB5AA68775D5 /* TmuxResume.swift in Sources */,
+				27326CD34FB4753426594763 /* Typography+Tokens.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		3C2139B830C38A6395696072 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				92E14576D50A54DC82996370 /* ShioLiveActivitiesBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B650A9B6CBD17AF87754892A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7C0CB329C234D49D290898EB /* ShioWidgetsBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		292810CFC7D35765D264840A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 6A934B2F972D89E61A07EF27 /* ShioWidgets */;
+			targetProxy = 485C2F87AC6F8432466F0242 /* PBXContainerItemProxy */;
+		};
+		35AAD2924361E2078E76B2B2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5A94B44C2D3EFF9BD3F655F9 /* ShioLiveActivities */;
+			targetProxy = 6EB3EE07FC886F12F3718BF0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		368D23508FE87739864867D5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Shio/Shio.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = Shio/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = sh.shio.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		893DD7C2E3CC7C35BAF65D3C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShioLiveActivities/ShioLiveActivities.entitlements;
+				INFOPLIST_FILE = ShioLiveActivities/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = sh.shio.app.liveactivities;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A2F048892A8A1B04A7296F46 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		BD5FE143F07C19482427C62A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C3A060B5B7A766F44E285B40 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShioLiveActivities/ShioLiveActivities.entitlements;
+				INFOPLIST_FILE = ShioLiveActivities/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = sh.shio.app.liveactivities;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		E13DD36C7087958C15859816 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShioWidgets/ShioWidgets.entitlements;
+				INFOPLIST_FILE = ShioWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = sh.shio.app.widgets;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		E30006309A805420DCBA6C73 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Shio/Shio.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = Shio/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = sh.shio.app;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		FF36480E3944201BB1F1950D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ShioWidgets/ShioWidgets.entitlements;
+				INFOPLIST_FILE = ShioWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = sh.shio.app.widgets;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		03CEB11DD41F3A8AAF57B9F5 /* Build configuration list for PBXNativeTarget "Shio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E30006309A805420DCBA6C73 /* Debug */,
+				368D23508FE87739864867D5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B1C706F3DD35E31E3429FA48 /* Build configuration list for PBXProject "Shio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A2F048892A8A1B04A7296F46 /* Debug */,
+				BD5FE143F07C19482427C62A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D01557E9384C5A9A40D69082 /* Build configuration list for PBXNativeTarget "ShioWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FF36480E3944201BB1F1950D /* Debug */,
+				E13DD36C7087958C15859816 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D16CDAC147F83B334BA97D2B /* Build configuration list for PBXNativeTarget "ShioLiveActivities" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				893DD7C2E3CC7C35BAF65D3C /* Debug */,
+				C3A060B5B7A766F44E285B40 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		11AFA43AD8B3BC7112349AF9 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.65.0;
+			};
+		};
+		DB48071930B497886DBDF45D /* XCRemoteSwiftPackageReference "swift-nio-ssh" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio-ssh";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.10.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1A15A870920E3B7D36CFEB47 /* NIOPosix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 11AFA43AD8B3BC7112349AF9 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOPosix;
+		};
+		7FF0F5C4EC32BF6817C9D9DD /* NIOCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 11AFA43AD8B3BC7112349AF9 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOCore;
+		};
+		E463E0B7E258DCF4BC60EF0E /* NIOSSH */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DB48071930B497886DBDF45D /* XCRemoteSwiftPackageReference "swift-nio-ssh" */;
+			productName = NIOSSH;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = FCB5492734DBDC5BD15D44FA /* Project object */;
+}

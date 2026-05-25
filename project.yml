@@ -1,0 +1,133 @@
+name: Shio
+options:
+  bundleIdPrefix: sh.shio
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: en
+  groupSortPosition: top
+  generateEmptyDirectories: true
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEVELOPMENT_TEAM: ""
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+    SUPPORTS_MACCATALYST: NO
+
+packages:
+  swift-nio-ssh:
+    url: https://github.com/apple/swift-nio-ssh
+    from: 0.10.0
+  swift-nio:
+    url: https://github.com/apple/swift-nio
+    from: 2.65.0
+
+targets:
+  Shio:
+    type: application
+    platform: iOS
+    sources:
+      - path: Shio
+        excludes:
+          - "**/.DS_Store"
+    resources:
+      - path: Shio/Resources
+    dependencies:
+      - package: swift-nio-ssh
+        product: NIOSSH
+      - package: swift-nio
+        product: NIOCore
+      - package: swift-nio
+        product: NIOPosix
+      - target: ShioWidgets
+      - target: ShioLiveActivities
+    info:
+      path: Shio/Info.plist
+      properties:
+        CFBundleDisplayName: Shio
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+          UISceneConfigurations: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        LSApplicationCategoryType: public.app-category.developer-tools
+        LSApplicationQueriesSchemes:
+          - tailscale
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app
+        CODE_SIGN_ENTITLEMENTS: Shio/Shio.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+
+  ShioWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShioWidgets
+    info:
+      path: ShioWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Shio Widgets
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.widgets
+        CODE_SIGN_ENTITLEMENTS: ShioWidgets/ShioWidgets.entitlements
+
+  ShioLiveActivities:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShioLiveActivities
+    info:
+      path: ShioLiveActivities/Info.plist
+      properties:
+        CFBundleDisplayName: Shio Live Activities
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.liveactivities
+        CODE_SIGN_ENTITLEMENTS: ShioLiveActivities/ShioLiveActivities.entitlements
+
+schemes:
+  Shio:
+    build:
+      targets:
+        Shio: all
+        ShioWidgets: all
+        ShioLiveActivities: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

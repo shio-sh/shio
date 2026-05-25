@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>shio terminal</title>
+<link rel="stylesheet" href="xterm.css">
+<style>
+  /* CSS variables here get overridden by Swift via document.documentElement.style.setProperty()
+     to match Shio's design tokens at runtime. Defaults are the dark theme. */
+  :root {
+    --bg: #000000;
+    --fg: #FFFFFF;
+    --cursor: #FFFFFF;
+    --selection: rgba(255, 255, 255, 0.2);
+
+    --ansi-0:  #000000;
+    --ansi-1:  #C91B00;
+    --ansi-2:  #00C200;
+    --ansi-3:  #C7C400;
+    --ansi-4:  #0225C7;
+    --ansi-5:  #CA30C7;
+    --ansi-6:  #00C5C7;
+    --ansi-7:  #C7C7C7;
+    --ansi-8:  #686868;
+    --ansi-9:  #FF6E67;
+    --ansi-10: #5FFA68;
+    --ansi-11: #FFFA72;
+    --ansi-12: #6871FF;
+    --ansi-13: #FF77FF;
+    --ansi-14: #60FDFF;
+    --ansi-15: #FFFFFF;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    overflow: hidden;
+    /* Prevent the WebView from interpreting touches for selection/menu;
+       UIKit handles those. */
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  /* We let UIKit handle keyboard input entirely. xterm.js's textarea is
+     present for cursor positioning + IME, but UIKit's interception layer
+     forwards key events into xterm via writeText(). */
+  .xterm .xterm-helper-textarea {
+    /* Keep but hide — IME still needs it for some languages. */
+    opacity: 0;
+    position: absolute;
+    left: -9999px;
+  }
+  #terminal {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+  }
+</style>
+</head>
+<body>
+<div id="terminal"></div>
+
+<script src="xterm.js"></script>
+<script src="addon-fit.js"></script>
+<script src="addon-web-links.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---- Theme helpers ---------------------------------------------------
+
+  function readCSSColor(name) {
+    return getComputedStyle(document.documentElement)
+      .getPropertyValue(name)
+      .trim();
+  }
+
+  function themeFromCSS() {
+    return {
+      background:    readCSSColor('--bg'),
+      foreground:    readCSSColor('--fg'),
+      cursor:        readCSSColor('--cursor'),
+      cursorAccent:  readCSSColor('--bg'),
+      selectionBackground: readCSSColor('--selection'),
+      black:         readCSSColor('--ansi-0'),
+      red:           readCSSColor('--ansi-1'),
+      green:         readCSSColor('--ansi-2'),
+      yellow:        readCSSColor('--ansi-3'),
+      blue:          readCSSColor('--ansi-4'),
+      magenta:       readCSSColor('--ansi-5'),
+      cyan:          readCSSColor('--ansi-6'),
+      white:         readCSSColor('--ansi-7'),
+      brightBlack:   readCSSColor('--ansi-8'),
+      brightRed:     readCSSColor('--ansi-9'),
+      brightGreen:   readCSSColor('--ansi-10'),
+      brightYellow:  readCSSColor('--ansi-11'),
+      brightBlue:    readCSSColor('--ansi-12'),
+      brightMagenta: readCSSColor('--ansi-13'),
+      brightCyan:    readCSSColor('--ansi-14'),
+      brightWhite:   readCSSColor('--ansi-15'),
+    };
+  }
+
+  // ---- Terminal init ---------------------------------------------------
+
+  const term = new Terminal({
+    fontFamily: 'SFMono-Regular, Menlo, Monaco, monospace',
+    fontSize: 13,
+    lineHeight: 1.2,
+    letterSpacing: 0,
+    cursorBlink: true,
+    cursorStyle: 'block',
+    scrollback: 10000,
+    allowProposedApi: true,
+    convertEol: false,
+    macOptionIsMeta: true,
+    rightClickSelectsWord: false,
+    theme: themeFromCSS(),
+  });
+
+  const fitAddon = new FitAddon.FitAddon();
+  const webLinksAddon = new WebLinksAddon.WebLinksAddon();
+
+  term.loadAddon(fitAddon);
+  term.loadAddon(webLinksAddon);
+
+  term.open(document.getElementById('terminal'));
+  fitAddon.fit();
+
+  // ---- Bridges to Swift ------------------------------------------------
+
+  /** Swift → JS: write data into the terminal. */
+  window.shioWrite = function (data) {
+    term.write(data);
+  };
+
+  /** Swift → JS: clear scrollback and reset. */
+  window.shioReset = function () {
+    term.reset();
+  };
+
+  /** Swift → JS: refresh theme from CSS variables (after Swift sets them). */
+  window.shioApplyTheme = function () {
+    term.options.theme = themeFromCSS();
+  };
+
+  /** Swift → JS: set font size (in CSS px). */
+  window.shioSetFontSize = function (px) {
+    term.options.fontSize = px;
+    fitAddon.fit();
+    notifyResize();
+  };
+
+  /** Swift → JS: force a layout/fit (after rotation, keyboard, etc.). */
+  window.shioFit = function () {
+    fitAddon.fit();
+    notifyResize();
+  };
+
+  /** Swift → JS: focus the terminal (for IME). */
+  window.shioFocus = function () { term.focus(); };
+
+  // JS → Swift: user data (from xterm — paste, IME, etc.). UIKit handles keys.
+  term.onData(function (data) {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.shioInput) {
+      window.webkit.messageHandlers.shioInput.postMessage(data);
+    }
+  });
+
+  // JS → Swift: resize notifications (cols/rows changed).
+  function notifyResize() {
+    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.shioResize) {
+      window.webkit.messageHandlers.shioResize.postMessage({ cols: term.cols, rows: term.rows });
+    }
+  }
+  term.onResize(notifyResize);
+
+  // Auto-fit on window resize (orientation, keyboard show/hide).
+  window.addEventListener('resize', function () { fitAddon.fit(); });
+
+  // Tell Swift we're ready.
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.shioReady) {
+    window.webkit.messageHandlers.shioReady.postMessage({});
+  }
+})();
+</script>
+</body>
+</html>
