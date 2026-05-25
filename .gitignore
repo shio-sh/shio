@@ -1,0 +1,55 @@
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved
+.build/
+
+# CocoaPods (not used, but just in case)
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Secrets
+*.pem
+*.p12
+*.mobileprovision
+AuthKey_*.p8
+.env
+.env.*
+
+# Logs
+*.log
+
+# Figma / design exports (large binary noise)
+design/exports/
+
+# Node (xterm.js bundling — when we get to Brick 2)
+node_modules/
+package-lock.json
