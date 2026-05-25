@@ -17,25 +17,28 @@ struct HostListView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if hosts.isEmpty {
-                    emptyState
-                } else {
-                    Section {
-                        ForEach(hosts) { host in
-                            Button {
-                                selectedHost = host
-                            } label: {
-                                HostRow(host: host)
+            VStack(spacing: 0) {
+                KeyReinstallBanner()
+                List {
+                    if hosts.isEmpty {
+                        emptyState
+                    } else {
+                        Section {
+                            ForEach(hosts) { host in
+                                Button {
+                                    selectedHost = host
+                                } label: {
+                                    HostRow(host: host)
+                                }
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
+                            .onDelete(perform: deleteHosts)
                         }
-                        .onDelete(perform: deleteHosts)
                     }
                 }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
             }
-            .listStyle(.insetGrouped)
-            .scrollContentBackground(.hidden)
             .background(ShioColor.Chrome.background)
             .navigationTitle("shio")
             .navigationBarTitleDisplayMode(.large)

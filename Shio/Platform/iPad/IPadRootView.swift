@@ -29,6 +29,16 @@ struct IPadRootView: View {
 
     private var sidebar: some View {
         List(selection: $selectedHost) {
+            // Reinstall banner — only renders when KeyManager.needsReinstall.
+            // Wrapping in a Section keeps List happy without showing chrome.
+            if KeyManager.needsReinstall {
+                Section {
+                    KeyReinstallBanner()
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(.init())
+                        .listRowSeparator(.hidden)
+                }
+            }
             Section("Macs") {
                 ForEach(hosts) { host in
                     Label {

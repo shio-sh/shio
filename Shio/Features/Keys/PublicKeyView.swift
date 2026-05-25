@@ -52,10 +52,10 @@ struct PublicKeyView: View {
             .padding(.vertical, ShioSpace.xl)
         }
         .background(ShioColor.Chrome.background)
-        .onAppear { loadKey() }
+        .task { await ensureKeyAndLoad() }
         .alert("Regenerate SSH key?", isPresented: $confirmingRegenerate) {
             Button("Cancel", role: .cancel) {}
-            Button("Regenerate", role: .destructive) { regenerate() }
+            Button("Regenerate", role: .destructive) { Task { await regenerate() } }
         } message: {
             Text("Macs using the current key will stop letting you in until you paste the new one into their authorized_keys file.")
         }
@@ -160,23 +160,46 @@ struct PublicKeyView: View {
 
     // MARK: -
 
-    private func loadKey() {
-        do {
-            let pk = try KeyManager.currentPublicKey()
+    /// Reaches the screen → ensure a key exists, then load its public half
+    /// for display. Runs the (potentially blocking) Keychain operations on
+    /// a background task so SwiftUI's main thread stays responsive.
+    private func ensureKeyAndLoad() async {
+        let result: Result<Curve25519.Signing.PublicKey, Error> = await Task.detached(priority: .userInitiated) {
+            do {
+                let privateKey = try KeyManager.generateIfNeeded()
+                return .success(privateKey.publicKey)
+            } catch {
+                return .failure(error)
+            }
+        }.value
+
+        switch result {
+        case .success(let pk):
             publicKeyLine = OpenSSHFormatter.authorizedKeysLine(publicKey: pk)
             installCommand = OpenSSHFormatter.installCommand(publicKey: pk)
             loadError = nil
-        } catch {
+        case .failure(let error):
             loadError = error.localizedDescription
         }
     }
 
-    private func regenerate() {
-        do {
-            _ = try KeyManager.regenerate()
-            loadKey()
+    private func regenerate() async {
+        let result: Result<Curve25519.Signing.PublicKey, Error> = await Task.detached(priority: .userInitiated) {
+            do {
+                let pk = try KeyManager.regenerate()
+                return .success(pk.publicKey)
+            } catch {
+                return .failure(error)
+            }
+        }.value
+
+        switch result {
+        case .success(let pk):
+            publicKeyLine = OpenSSHFormatter.authorizedKeysLine(publicKey: pk)
+            installCommand = OpenSSHFormatter.installCommand(publicKey: pk)
+            loadError = nil
             ShioHaptic.success()
-        } catch {
+        case .failure(let error):
             loadError = error.localizedDescription
             ShioHaptic.error()
         }

@@ -47,6 +47,9 @@ final class SSHClient: @unchecked Sendable {
         case connectionFailed(String)
         case authenticationFailed
         case notConnected
+        case keychainUnavailable(String)
+        case keychainFailed(String)
+        case sshKeyMissing
 
         var errorDescription: String? {
             switch self {
@@ -55,8 +58,11 @@ final class SSHClient: @unchecked Sendable {
             case .ptyRequestFailed:            return "The remote host wouldn't open a PTY."
             case .noAuthenticationConfigured:  return "This Mac has no authentication set up. Add a password or SSH key in its profile."
             case .connectionFailed(let why):   return "Couldn't reach this Mac. \(why)"
-            case .authenticationFailed:        return "Authentication failed. Check your username and key."
+            case .authenticationFailed:        return "Authentication failed. Make sure Shio's public key is in this Mac's authorized_keys file."
             case .notConnected:                return "Not connected."
+            case .keychainUnavailable(let why):return "Couldn't read your SSH key — \(why)"
+            case .keychainFailed(let why):     return "Keychain error — \(why)"
+            case .sshKeyMissing:               return "No SSH key has been generated yet. Open Settings → SSH Key to set one up."
             }
         }
     }
@@ -74,6 +80,9 @@ final class SSHClient: @unchecked Sendable {
     private var channel:      (any Channel)?
     private var childChannel: (any Channel)?
     private let configuration: Configuration
+    /// The SSH key resolved at connect() time, so the auth delegate
+    /// never touches Keychain on the NIO event loop.
+    private var resolvedKey: NIOSSHPrivateKey?
 
     init(configuration: Configuration) {
         self.configuration = configuration
@@ -84,15 +93,44 @@ final class SSHClient: @unchecked Sendable {
     // MARK: - Lifecycle
 
     func connect() async throws {
-        if case .unconfigured = configuration.authentication {
+        // Map config → typed errors before any network I/O. This is also
+        // where we pre-resolve the Keychain-backed key — Keychain access
+        // happens off the NIO event loop (audit finding #6) and surfaces
+        // distinct error states instead of collapsing into "auth failed"
+        // (audit finding #3).
+        switch configuration.authentication {
+        case .unconfigured:
             throw SSHError.noAuthenticationConfigured
+        case .password:
+            break
+        case .shioKey:
+            try resolveShioKey()
         }
         try await doConnect()
     }
 
+    /// Loads Shio's Ed25519 key from Keychain and wraps it as a
+    /// `NIOSSHPrivateKey`. Called on the caller's thread (typically a
+    /// background Task in SessionViewModel.start), not on NIO's event loop.
+    private func resolveShioKey() throws {
+        do {
+            guard let pk = try KeyManager.existingKey() else {
+                throw SSHError.sshKeyMissing
+            }
+            resolvedKey = NIOSSHPrivateKey(ed25519Key: pk)
+        } catch let e as KeyManager.KeyError {
+            if e.isAvailabilityIssue {
+                throw SSHError.keychainUnavailable(e.localizedDescription)
+            }
+            throw SSHError.keychainFailed(e.localizedDescription)
+        } catch {
+            throw error
+        }
+    }
+
     private func doConnect() async throws {
         let cfg = configuration
-        let auth = SSHAuthenticationDelegate(configuration: cfg)
+        let auth = SSHAuthenticationDelegate(configuration: cfg, resolvedKey: resolvedKey)
         let host = SSHHostKeyDelegate()
 
         let bootstrap = ClientBootstrap(group: SSHClient.sharedGroup)
@@ -196,12 +234,16 @@ final class SSHClient: @unchecked Sendable {
 
 private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDelegate, @unchecked Sendable {
     let configuration: SSHClient.Configuration
+    /// Pre-resolved by SSHClient.connect() so this delegate never touches
+    /// Keychain on the NIO event loop.
+    let resolvedKey: NIOSSHPrivateKey?
     /// Tracks which methods we've already tried this session so NIO doesn't
     /// loop us into the same offer when the server rejects it.
     private var attempted: Set<String> = []
 
-    init(configuration: SSHClient.Configuration) {
+    init(configuration: SSHClient.Configuration, resolvedKey: NIOSSHPrivateKey?) {
         self.configuration = configuration
+        self.resolvedKey = resolvedKey
     }
 
     func nextAuthenticationType(
@@ -223,25 +265,19 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
             nextChallengePromise.succeed(offer)
 
         case .shioKey:
-            guard availableMethods.contains(.publicKey), !attempted.contains("publicKey") else {
+            guard let key = resolvedKey,
+                  availableMethods.contains(.publicKey),
+                  !attempted.contains("publicKey") else {
                 nextChallengePromise.succeed(nil)
                 return
             }
             attempted.insert("publicKey")
-            do {
-                let privateKey = try KeyManager.currentKey()
-                let nioKey = NIOSSHPrivateKey(ed25519Key: privateKey)
-                let offer = NIOSSHUserAuthenticationOffer(
-                    username: configuration.username,
-                    serviceName: "",
-                    offer: .privateKey(.init(privateKey: nioKey))
-                )
-                nextChallengePromise.succeed(offer)
-            } catch {
-                // Couldn't load/generate the key. Yield nil so NIO surfaces
-                // an authenticationFailed and the user sees a clear error.
-                nextChallengePromise.succeed(nil)
-            }
+            let offer = NIOSSHUserAuthenticationOffer(
+                username: configuration.username,
+                serviceName: "",
+                offer: .privateKey(.init(privateKey: key))
+            )
+            nextChallengePromise.succeed(offer)
 
         case .unconfigured:
             nextChallengePromise.succeed(nil)

@@ -44,12 +44,6 @@ final class Host {
         set { kindRaw = newValue.rawValue }
     }
 
-    // MARK: - Auth
-
-    /// Keychain reference for the private key that should be used.
-    /// nil = use Shio's default key, populated in Brick 7.
-    var keychainKeyRef: String?
-
     // MARK: - Persistence (per-host)
 
     var persistenceModeRaw: String
@@ -91,11 +85,25 @@ final class Host {
 
 extension Host {
     /// Build an `SSHClient.Configuration` from this profile.
-    /// Default auth is Shio's device-bound Ed25519 key (`.shioKey`). Passing
-    /// a password switches to password auth — used by Pro Mode flows that
-    /// elect for it.
+    ///
+    /// Auth selection (audit finding #2 — don't silently mint a key as a
+    /// side effect of trying to connect):
+    ///
+    /// - `password != nil` → password auth.
+    /// - `password == nil` and Shio has a generated key → `.shioKey`.
+    /// - `password == nil` and no key yet → `.unconfigured`. SSHClient
+    ///   surfaces a clear `sshKeyMissing` error pointing the user at
+    ///   Settings → SSH Key, instead of attempting publickey auth with
+    ///   a freshly minted key the Mac has never seen.
     func makeClientConfiguration(password: String? = nil) -> SSHClient.Configuration {
-        let auth: SSHClient.Authentication = password.map { .password($0) } ?? .shioKey
+        let auth: SSHClient.Authentication
+        if let password {
+            auth = .password(password)
+        } else if KeyManager.hasKey() {
+            auth = .shioKey
+        } else {
+            auth = .unconfigured
+        }
         return SSHClient.Configuration(
             host: hostname,
             port: port,

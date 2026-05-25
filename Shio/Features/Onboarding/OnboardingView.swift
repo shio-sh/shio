@@ -51,7 +51,7 @@ struct OnboardingView: View {
         }
         .onAppear { advanceFromInitial() }
         .animation(ShioMotion.standard, value: step)
-        .sheet(isPresented: $showingAddSheet) {
+        .sheet(isPresented: $showingAddSheet, onDismiss: handleSheetDismissed) {
             AddHostSheet(proModeEnabled: false)
         }
     }
@@ -82,13 +82,7 @@ struct OnboardingView: View {
                 title: "Your Mac, in your pocket.",
                 body: "Shio is a clean, minimal SSH client. Tap to set things up.",
                 primary: "Get started",
-                primaryAction: {
-                    if TailscaleDetector.isInstalled {
-                        step = .installKey
-                    } else {
-                        step = .introduceTailscale
-                    }
-                }
+                primaryAction: { step = nextStepFromWelcome() }
             )
 
         case .introduceTailscale:
@@ -120,9 +114,17 @@ struct OnboardingView: View {
         case .verify:
             stepLayout(
                 title: "Tailscale is set up",
-                body: "One more step — install Shio's SSH key on your Mac so we can sign in.",
-                primary: "Continue",
-                primaryAction: { step = .installKey }
+                body: KeyManager.hasKey()
+                    ? "Ready to add your Mac."
+                    : "One more step — install Shio's SSH key on your Mac so we can sign in.",
+                primary: KeyManager.hasKey() ? "Add my Mac" : "Continue",
+                primaryAction: {
+                    if KeyManager.hasKey() {
+                        showingAddSheet = true
+                    } else {
+                        step = .installKey
+                    }
+                }
             )
 
         case .installKey:
@@ -164,7 +166,41 @@ struct OnboardingView: View {
     private func advanceFromInitial() {
         guard step == .initial else { return }
         // Always show the welcome step — it's the first impression. From
-        // there, branch based on Tailscale presence.
+        // there, branch based on Tailscale presence and key state.
         withAnimation { step = .welcome }
+    }
+
+    /// Pick the right next step from welcome. Skips installKey if the user
+    /// already has a key (audit finding #7) and skips the Tailscale
+    /// walkthrough if Tailscale is already installed.
+    private func nextStepFromWelcome() -> Step {
+        let tailscaleReady = TailscaleDetector.isInstalled
+        let keyReady = KeyManager.hasKey()
+        switch (tailscaleReady, keyReady) {
+        case (true, true):
+            // Everything in place — straight to add-host.
+            showingAddSheet = true
+            return .verify   // Lands here on sheet dismissal so user has a recoverable state.
+        case (true, false):
+            return .installKey
+        case (false, _):
+            return .introduceTailscale
+        }
+    }
+
+    /// Called when AddHostSheet dismisses. If we're still in onboarding
+    /// (the user cancelled instead of saving), step back to a recoverable
+    /// state — `.verify` if everything's plumbed, otherwise `.welcome`.
+    /// This fixes the audit's #1 finding: previously the user was parked
+    /// on PublicKeyView with no way out.
+    private func handleSheetDismissed() {
+        // If a host was added successfully, RootView will have replaced
+        // OnboardingView with the main scene before this fires; the closure
+        // here only matters when we're still presented.
+        if KeyManager.hasKey() {
+            withAnimation { step = .verify }
+        } else {
+            withAnimation { step = .welcome }
+        }
     }
 }

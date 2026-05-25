@@ -5,51 +5,88 @@ import Security
 /// Owns Shio's Ed25519 SSH key. One key per app install for now — Brick 7
 /// second pass adds per-host keys if/when users ask for them.
 ///
-/// **Storage model**:
-/// - Private key (32-byte seed) lives in the Keychain as a generic
-///   password, scoped to the app's `keychain-access-groups` entitlement.
-/// - Public key is derived on demand from the private key (no need to
-///   cache; it's cheap).
-/// - Generation happens lazily on first `currentKey()` call.
+/// **API split** (audit finding #4): we used to have a single
+/// `currentKey()` that silently generated a key if none existed. That made
+/// "tap a host to connect" cause a key to be minted as a side effect — bad
+/// UX. The API is now split:
 ///
-/// **Note on Secure Enclave**: CryptoKit's `Curve25519.Signing.PrivateKey`
-/// does *not* support Secure Enclave (that's reserved for `SecureEnclave.P256`).
-/// For Brick 7 we use Keychain-backed Ed25519, which is the standard for
-/// SSH clients on iOS. Apps that need Secure Enclave-only would switch to
-/// ecdsa-sha2-nistp256 — out of scope here.
+///  - `existingKey()` — pure load, no side effects. Returns nil if no key
+///    has been generated yet. Use everywhere a key might *not* yet exist.
+///  - `generateIfNeeded()` — explicit creation, called only from
+///    `PublicKeyView` (the screen that shows the public key) so generation
+///    is always a deliberate user-initiated act.
+///  - `regenerate()` — destructive reset, also user-initiated.
+///
+/// **Storage**: private key (32-byte seed) lives in Keychain as a generic
+/// password scoped to the app's `keychain-access-groups` entitlement. The
+/// public key derives on demand — no cache needed.
 enum KeyManager {
 
-    /// Errors surfaced to callers. SSHClient maps these to user-visible copy.
+    /// Errors surfaced to callers. `SSHClient` maps these into user-visible
+    /// `SSHError` cases.
     enum KeyError: LocalizedError {
         case keychainStoreFailed(OSStatus)
         case keychainLoadFailed(OSStatus)
         case keychainDeleteFailed(OSStatus)
+        case keychainUnavailable(OSStatus)
         case keyDataCorrupted
 
         var errorDescription: String? {
             switch self {
-            case .keychainStoreFailed(let status):
-                return "Couldn't save the SSH key to Keychain (\(status))."
-            case .keychainLoadFailed(let status):
-                return "Couldn't read the SSH key from Keychain (\(status))."
-            case .keychainDeleteFailed(let status):
-                return "Couldn't remove the SSH key from Keychain (\(status))."
+            case .keychainStoreFailed(let s):
+                return "Couldn't save the SSH key to Keychain (\(s))."
+            case .keychainLoadFailed(let s):
+                return "Couldn't read the SSH key from Keychain (\(s))."
+            case .keychainDeleteFailed(let s):
+                return "Couldn't remove the SSH key from Keychain (\(s))."
+            case .keychainUnavailable:
+                return "Keychain isn't available right now. Unlock your iPhone and try again."
             case .keyDataCorrupted:
                 return "The SSH key stored in Keychain looks corrupted. Regenerate it from Settings."
             }
         }
+
+        /// Convenience: is this an availability problem (pre-first-unlock,
+        /// user-presence required) rather than a real failure? Callers can
+        /// surface a friendlier message for these.
+        var isAvailabilityIssue: Bool {
+            if case .keychainUnavailable = self { return true }
+            return false
+        }
     }
 
-    // Keychain item coordinates. Generic password class is the right fit for
-    // a small piece of arbitrary key material on iOS.
+    // Keychain coordinates. Generic password class is right for a small
+    // piece of arbitrary key material on iOS.
     private static let service = "sh.shio.app.ssh"
     private static let account = "default"
 
-    /// Returns the current key, generating + persisting a new one on first call.
-    /// Subsequent calls return the same key until `regenerate()` is called.
+    // MARK: - Read-only checks
+
+    /// True if a key has been generated and stored. Cheap; no I/O beyond a
+    /// Keychain attribute lookup.
+    static func hasKey() -> Bool {
+        (try? existingKey()) != nil
+    }
+
+    /// Returns the stored private key, or `nil` if none has been generated.
+    /// **Never** generates a new key as a side effect.
+    static func existingKey() throws -> Curve25519.Signing.PrivateKey? {
+        try loadKey()
+    }
+
+    /// Returns the stored public key, or `nil` if no key has been generated.
+    static func existingPublicKey() throws -> Curve25519.Signing.PublicKey? {
+        try existingKey()?.publicKey
+    }
+
+    // MARK: - Explicit, user-initiated generation
+
+    /// Generates and stores a new key if and only if no key exists. Returns
+    /// the resulting key. Call this from a screen the user has deliberately
+    /// reached — never as a side effect of trying to authenticate.
     @discardableResult
-    static func currentKey() throws -> Curve25519.Signing.PrivateKey {
-        if let existing = try loadKey() {
+    static func generateIfNeeded() throws -> Curve25519.Signing.PrivateKey {
+        if let existing = try existingKey() {
             return existing
         }
         let fresh = Curve25519.Signing.PrivateKey()
@@ -57,27 +94,36 @@ enum KeyManager {
         return fresh
     }
 
-    /// Forces creation of a new key, replacing whatever was there.
-    /// Any Macs using the previous public key will need the new one pasted in.
+    /// Forces creation of a new key, replacing whatever was there. Any Mac
+    /// using the previous public key will reject Shio until the user pastes
+    /// the new one. Callers should set `markReinstallNeeded()` so the host
+    /// list surfaces a banner.
     @discardableResult
     static func regenerate() throws -> Curve25519.Signing.PrivateKey {
         try? deleteKey()
         let fresh = Curve25519.Signing.PrivateKey()
         try storeKey(fresh)
+        markReinstallNeeded()
         return fresh
     }
 
-    /// True if a key has been generated and stored.
-    static func hasKey() -> Bool {
-        (try? loadKey()) != nil
+    // MARK: - Reinstall-needed signal
+
+    private static let reinstallFlagKey = "shio.key.needsReinstallOnMacs"
+
+    /// Flag set by `regenerate()`. Read by `HostListView` / `IPadRootView`
+    /// to show a "your hosts need the new key" banner. Cleared by the user
+    /// dismissing that banner.
+    static var needsReinstall: Bool {
+        get { UserDefaults.standard.bool(forKey: reinstallFlagKey) }
     }
 
-    // MARK: - Public-facing convenience
+    static func markReinstallNeeded() {
+        UserDefaults.standard.set(true, forKey: reinstallFlagKey)
+    }
 
-    /// The public key, derived from the stored private key. Cheap to call;
-    /// no caching required.
-    static func currentPublicKey() throws -> Curve25519.Signing.PublicKey {
-        try currentKey().publicKey
+    static func clearReinstallNeeded() {
+        UserDefaults.standard.set(false, forKey: reinstallFlagKey)
     }
 
     // MARK: - Keychain plumbing
@@ -99,9 +145,7 @@ enum KeyManager {
         let status = SecItemCopyMatching(query as CFDictionary, &item)
         switch status {
         case errSecSuccess:
-            guard let data = item as? Data else {
-                throw KeyError.keyDataCorrupted
-            }
+            guard let data = item as? Data else { throw KeyError.keyDataCorrupted }
             do {
                 return try Curve25519.Signing.PrivateKey(rawRepresentation: data)
             } catch {
@@ -109,14 +153,14 @@ enum KeyManager {
             }
         case errSecItemNotFound:
             return nil
+        case errSecInteractionNotAllowed, errSecAuthFailed, errSecUserCanceled:
+            throw KeyError.keychainUnavailable(status)
         default:
             throw KeyError.keychainLoadFailed(status)
         }
     }
 
     private static func storeKey(_ key: Curve25519.Signing.PrivateKey) throws {
-        // Delete any existing item first so we don't have to deal with
-        // duplicate-attribute errors.
         try? deleteKey()
 
         var attrs = baseQuery()
@@ -125,7 +169,12 @@ enum KeyManager {
         attrs[kSecAttrSynchronizable as String] = false
 
         let status = SecItemAdd(attrs as CFDictionary, nil)
-        guard status == errSecSuccess else {
+        switch status {
+        case errSecSuccess:
+            return
+        case errSecInteractionNotAllowed, errSecAuthFailed:
+            throw KeyError.keychainUnavailable(status)
+        default:
             throw KeyError.keychainStoreFailed(status)
         }
     }
