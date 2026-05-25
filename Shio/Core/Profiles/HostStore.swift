@@ -1,21 +1,20 @@
 import Foundation
 import SwiftData
 
-/// Centralized SwiftData container. The app and extensions share this via the
-/// App Group so the widget and Live Activity can read the same hosts.
+/// Centralized SwiftData container.
+///
+/// For Brick 7 we use the default app-local container. Brick 10 (Widgets)
+/// will switch to an App Group container URL so the widget can read the
+/// same hosts — but that needs the App Group entitlement actually
+/// provisioned on the build, which isn't the case for unsigned simulator
+/// builds. Doing the App Group dance now would just crash with
+/// loadIssueModelContainer.
 enum ShioModelContainer {
     static let appGroup = "group.sh.shio.app"
 
     static let shared: ModelContainer = {
         do {
-            let schema = Schema([Host.self])
-            // App Group container URL so extensions can read the same store.
-            let groupURL = FileManager.default
-                .containerURL(forSecurityApplicationGroupIdentifier: appGroup)
-                ?? URL.documentsDirectory
-            let storeURL = groupURL.appendingPathComponent("shio.sqlite")
-            let config = ModelConfiguration(schema: schema, url: storeURL)
-            return try ModelContainer(for: schema, configurations: [config])
+            return try ModelContainer(for: Host.self)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
