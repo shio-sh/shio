@@ -6,6 +6,7 @@ import SwiftUI
 struct TerminalScene: View {
 
     @State var viewModel: SessionViewModel
+    @State private var showingDiagnose: Bool = false
 
     var body: some View {
         ZStack {
@@ -33,6 +34,19 @@ struct TerminalScene: View {
         .onDisappear {
             Task { await viewModel.stop() }
         }
+        .sheet(isPresented: $showingDiagnose) {
+            NavigationStack {
+                DiagnosticsView(
+                    targetHost: viewModel.hostName,
+                    targetPort: viewModel.targetPort
+                )
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Done") { showingDiagnose = false }
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -49,8 +63,13 @@ struct TerminalScene: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            ShioButton("Reconnect", style: .primary) {
-                Task { await viewModel.start() }
+            HStack(spacing: ShioSpace.sm) {
+                ShioButton("Reconnect", style: .primary) {
+                    Task { await viewModel.start() }
+                }
+                ShioButton("Diagnose", style: .secondary) {
+                    showingDiagnose = true
+                }
             }
             .padding(.top, ShioSpace.sm)
         }

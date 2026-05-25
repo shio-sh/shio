@@ -26,6 +26,9 @@ final class SessionViewModel {
     let terminal: TerminalWebViewController
     private(set) var state: ConnectionState = .idle
     private(set) var hostName: String
+    /// Port the session is configured to use. Exposed so the disconnect
+    /// overlay can pass it to `DiagnosticsView` for the `hostReachable` probe.
+    var targetPort: Int { configuration.port }
 
     private var client: SSHClient?
     private var configuration: SSHClient.Configuration

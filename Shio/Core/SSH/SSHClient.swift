@@ -162,58 +162,16 @@ final class SSHClient: @unchecked Sendable {
         }
     }
 
-    /// Translates NIO's raw error types into something the user can act on.
-    /// NIO defaults leak Swift type names through `localizedDescription` —
-    /// "NIOPosix.NIOConnectionError error 1" or "SocketAddressError.UnknownHost"
-    /// — which tell the user nothing about what to fix.
+    /// Delegates to the shared `ConnectErrorTranslator` so both the SSH
+    /// client and the Tailscale diagnostic engine surface identical copy
+    /// for the same underlying problem.
     private func translateConnectError(_ error: any Error, host: String, port: Int) -> String {
-        let raw = String(describing: error)
-
-        // DNS resolution failed — getaddrinfo returned NXDOMAIN. For Tailscale
-        // hosts this almost always means MagicDNS isn't being applied: either
-        // the Tailscale VPN isn't actually connected on this iPhone, or
-        // "Use Tailscale DNS" is off in the Tailscale iOS app.
-        if raw.contains("UnknownHost") || raw.contains("nodename nor servname") {
-            let lower = host.lowercased()
-            let looksLikeTailscale = lower.contains(".ts.net") || lower.contains(".tail")
-            var lines = ["Couldn't find \(host) on the network."]
-            if looksLikeTailscale {
-                lines.append("That's a Tailscale name — and your iPhone's DNS doesn't know about it. Two things to check:")
-                lines.append("• Open the Tailscale iOS app and make sure it says Connected (the toggle is on).")
-                lines.append("• In the Tailscale app's settings, ensure \"Use Tailscale DNS\" is enabled.")
-                lines.append("If that doesn't work, try your Mac's tailnet IP instead (it looks like 100.x.y.z and is shown next to your Mac in tailscale.com → Machines).")
-            } else {
-                lines.append("DNS lookup failed. Check the hostname is spelled correctly.")
-            }
-            return lines.joined(separator: "\n")
-        }
-
-        // NIOConnectionError aggregates resolution + per-address connect failures.
-        // We see this when DNS resolved but every connect attempt failed.
-        if raw.contains("NIOConnectionError") {
-            return [
-                "Tried \(host):\(port) but couldn't get through. Common causes:",
-                "• Your Mac is asleep or off — wake it.",
-                "• Tailscale isn't running on both devices — open the Tailscale app.",
-                "• Remote Login isn't enabled on the Mac — System Settings → General → Sharing → Remote Login.",
-                "• The hostname is wrong — check your Mac's name on tailscale.com.",
-            ].joined(separator: "\n")
-        }
-
-        // POSIX errors leak through with names like "Connection refused" /
-        // "No route to host" / "Operation timed out".
-        if raw.contains("Connection refused") {
-            return "\(host) refused the connection on port \(port). Remote Login is probably off — turn it on under System Settings → General → Sharing on your Mac."
-        }
-        if raw.contains("No route to host") || raw.contains("Network is unreachable") {
-            return "Can't route to \(host). Make sure Tailscale is running on both your iPhone and your Mac."
-        }
-        if raw.contains("Operation timed out") || raw.contains("timeout") {
-            return "\(host) didn't respond within \(configuration.connectTimeoutSeconds)s. The Mac may be asleep, or Tailscale may not be connecting."
-        }
-
-        // Fallback: at least name the error type.
-        return raw
+        ConnectErrorTranslator.translate(
+            error,
+            host: host,
+            port: port,
+            connectTimeoutSeconds: configuration.connectTimeoutSeconds
+        )
     }
 
     /// Open a shell channel with a PTY.

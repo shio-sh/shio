@@ -33,6 +33,11 @@ struct SettingsView: View {
                         Label("SSH Key", systemImage: "key.fill")
                     }
                     NavigationLink {
+                        DiagnosticsView()
+                    } label: {
+                        Label("Diagnose connection", systemImage: "stethoscope")
+                    }
+                    NavigationLink {
                         AboutView()
                     } label: {
                         Label("About Shio", systemImage: "info.circle")
