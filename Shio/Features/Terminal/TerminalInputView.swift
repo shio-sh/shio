@@ -26,8 +26,39 @@ final class TerminalInputView: UIView {
         super.init(frame: frame)
         backgroundColor = .clear
         isUserInteractionEnabled = true
+
+        // Clear iPad's QuickType bar above the system keyboard. None of those
+        // buttons make sense for a terminal and they steal vertical space
+        // from the accessory row.
+        inputAssistantItem.leadingBarButtonGroups = []
+        inputAssistantItem.trailingBarButtonGroups = []
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    // MARK: - Text input traits
+    //
+    // A terminal wants *none* of iOS's text-helping behaviors. Autocorrect
+    // mangles commands. Auto-capitalization makes the first letter of every
+    // sentence wrong. Smart quotes break `'foo'`. The QuickType prediction
+    // bar (iOS 17+ inline predictions, plus the older suggestions row)
+    // covers our accessory keys. We turn every one of them off.
+    //
+    // These come from the UITextInputTraits protocol (which UIKeyInput
+    // conforms to via UITextInput), so they're protocol requirements we
+    // implement — not overrides of a UIView property.
+
+    var autocorrectionType:    UITextAutocorrectionType    = .no
+    var autocapitalizationType: UITextAutocapitalizationType = .none
+    var spellCheckingType:     UITextSpellCheckingType     = .no
+    var smartQuotesType:       UITextSmartQuotesType       = .no
+    var smartDashesType:       UITextSmartDashesType       = .no
+    var smartInsertDeleteType: UITextSmartInsertDeleteType = .no
+    /// ASCII-only keyboard. Reduces the chance of IME / emoji layouts
+    /// surprising terminal apps.
+    var keyboardType:          UIKeyboardType              = .asciiCapable
+    /// iOS 17+ inline predictions — the ghost-text suggestions that appear
+    /// inline as you type. Off for terminals.
+    var inlinePredictionType:  UITextInlinePredictionType  = .no
 
     // MARK: - First responder / IME
 

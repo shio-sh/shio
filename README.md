@@ -88,6 +88,17 @@ The brand, design system, and architecture are all locked in markdown:
 - [`docs/design-tokens.md`](docs/design-tokens.md) — color, typography, spacing, motion, components.
 - [`docs/app-icon-concepts.md`](docs/app-icon-concepts.md) — the locked icon decision with rejected alternatives.
 - [`docs/landing-page-brief.md`](docs/landing-page-brief.md) — the brief for `shio.sh`.
+- [`docs/setup.md`](docs/setup.md) — Mac-side setup script: what it does, what it won't, how to read it before running.
+
+## Mac-side setup
+
+Shio needs four things on your Mac to work end-to-end: Homebrew, `tmux`, Remote Login enabled, and Tailscale installed + signed in. Once the landing page is live, a single line handles the parts it can:
+
+```sh
+curl -fsSL https://shio.sh/setup | bash
+```
+
+Pre-landing-page, run [`scripts/mac-setup.sh`](scripts/mac-setup.sh) directly. The script is open source, asks for confirmation at every step, and touches only `~/.ssh/`, Homebrew-managed paths, and the System Settings pane it opens for you. See [`docs/setup.md`](docs/setup.md) for the trust model and a read-it-first option.
 
 ## Architecture
 

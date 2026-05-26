@@ -70,8 +70,15 @@ final class SessionViewModel {
                    let str = String(data: data, encoding: .utf8),
                    TmuxResume.looksLikeTmuxMissing(str) {
                     self.tmuxFallbackTriggered = true
-                    // Show a soft hint inline in the terminal.
-                    self.terminal.write("\r\n\u{1B}[33m[shio] tmux not found — running plain shell.\u{1B}[0m\r\n")
+                    // Inline hint with the install command, so the user can
+                    // fix it without context-switching. Yellow on the first
+                    // line, dim on the suggestion.
+                    let hint = [
+                        "\r\n\u{1B}[33m[shio] tmux not found — running plain shell.\u{1B}[0m",
+                        "\u{1B}[2m       Install on this Mac with: \u{1B}[0m\u{1B}[1mbrew install tmux\u{1B}[0m",
+                        "\u{1B}[2m       Once installed, your next connection will auto-resume.\u{1B}[0m\r\n",
+                    ].joined(separator: "\r\n")
+                    self.terminal.write(hint)
                 }
             }
         }
