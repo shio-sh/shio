@@ -1,102 +1,80 @@
-# Shio — macOS setup
+# Setting up your Mac for Shio
 
-This page explains what Shio needs on your Mac, why, and the one-line script that handles it for you. The script is open source, runs only with your confirmation at each step, and touches a deliberately small set of files. **You should read it before you run it.** This page shows you how.
+Shio is the iPhone app. Your Mac doesn't need Shio installed — it just needs to be reachable on Tailscale and willing to accept SSH connections from your iPhone. Four short steps. Total time: a minute or two.
 
----
-
-## What Shio needs on your Mac
-
-To let your iPhone connect to your Mac through Shio, your Mac needs **four** things in place. None of them are Shio-specific — they're the same things any SSH-over-Tailscale setup needs.
-
-1. **Homebrew** — macOS's package manager. Used to install tmux. If you already have Homebrew, the script skips this step.
-2. **`tmux`** — used for session persistence. When you close Shio and come back, you land in the same shell state. macOS doesn't ship tmux since Catalina (2019), so it's a one-Homebrew-install away.
-3. **Remote Login enabled** — under System Settings → General → Sharing. This is what starts the SSH server (`sshd`) on your Mac. The script can't toggle it for you — that's a macOS security boundary, and we think rightly so. The script opens the right Settings pane and waits.
-4. **Tailscale** — installed and signed in on both your Mac and your iPhone, with the VPN active and "Use Tailscale DNS" turned on. The script checks whether Tailscale is installed and links you to the install page if not.
-
-Optionally, the script can also paste Shio's public key into `~/.ssh/authorized_keys` for you — but only if you explicitly hand it the key via an environment variable.
+Every step uses an existing trusted tool — Tailscale's signed installer, Apple's System Settings, your Mac's Terminal, and (optionally) Homebrew. **Shio asks you to install nothing of our own on your Mac.**
 
 ---
 
-## The one-liner
+## 1. Install Tailscale on your Mac
+
+Open [tailscale.com/download](https://tailscale.com/download) on your Mac. Run the installer. Sign in with Google, Apple, Microsoft, or GitHub.
+
+Use **the same account** you'll use on your iPhone. That's how Tailscale knows the two devices belong to the same private network.
+
+Once installed, you'll see a small Tailscale icon in your menu bar showing **Connected**.
+
+## 2. Enable Remote Login
+
+Open **System Settings** on your Mac. Navigate to **General → Sharing**. Turn **Remote Login** on.
+
+Under "Allow access for", make sure your user account is included (or "All users").
+
+Remote Login is what starts the SSH server on your Mac. Without it, your Mac refuses connection requests on port 22 — even with the right key, even with Tailscale humming along perfectly. macOS doesn't ship with this on by default, and only you can turn it on (no app can do it for you, and rightly so).
+
+## 3. Install Shio's public key
+
+Each Shio install generates its own SSH keypair stored on your iPhone. To let it sign into a Mac, that Mac needs to know the public half.
+
+On your iPhone:
+1. Open Shio
+2. Go to **Settings → SSH Key**
+3. Tap **Copy install command**
+
+On your Mac, open Terminal and paste. Hit enter. The line appends Shio's public key to `~/.ssh/authorized_keys` safely, creating `~/.ssh` if it doesn't exist and setting `chmod 600` on the file.
+
+That's all. No restart, no service to reload.
+
+## 4. (Optional) Install tmux
+
+This step is optional. Shio works without it; sessions just don't persist between reconnects when tmux isn't present.
+
+With tmux installed, when you close Shio and come back, you land in the exact same shell state — same working directory, same running command, same scrollback. Without it, each reconnect starts a fresh shell.
+
+If you already use [Homebrew](https://brew.sh), it's one line:
 
 ```sh
-curl -fsSL https://shio.sh/setup | bash
+brew install tmux
 ```
 
-That's it. The script asks for confirmation at each step. Total time on a fresh Mac: ~30 seconds.
+If you don't have Homebrew, you don't need it just for this — Shio's perfectly happy with plain SSH. Install Homebrew + tmux later if you decide you want session persistence.
 
-If you'd prefer to install the public key in the same step, copy it from Shio first (Settings → SSH Key → Copy public key), then:
+A nice quirk: you can install tmux *from inside Shio's first SSH session*. Connect, run `brew install tmux` at the prompt, disconnect, reconnect — your next session will auto-resume.
+
+---
+
+## That's it
+
+Back on your iPhone, in Shio:
+- Add your Mac (Shio knows it via Tailscale's MagicDNS name)
+- Tap to connect
+
+If anything doesn't work, Shio's built-in **Diagnose connection** (Settings → Diagnose, or the Diagnose button on a disconnect overlay) will tell you exactly which step is incomplete and what to do.
+
+---
+
+## A one-command install someday
+
+We're working toward shipping `shio` as a CLI helper in [Homebrew's official formulas](https://formulae.brew.sh) so the steps above collapse into:
 
 ```sh
-SHIO_PUBLIC_KEY='ssh-ed25519 AAAA... shio@iphone' \
-  bash <(curl -fsSL https://shio.sh/setup)
+brew install shio
 ```
 
----
-
-## Read it first (recommended)
-
-`curl | bash` is a known pattern that security folks rightly criticize, because you're trusting whoever serves that URL. Mitigation: read the script before you run it.
-
-```sh
-curl -fsSLo shio-setup.sh https://shio.sh/setup
-less shio-setup.sh                              # read it
-bash shio-setup.sh                              # run it
-```
-
-The script lives at [`scripts/mac-setup.sh`](../scripts/mac-setup.sh) in this repo. The `shio.sh/setup` URL serves the exact same file from a Cloudflare Pages deployment of this repository. The content of the URL and the content of the repo are pinned to the same commit.
-
----
-
-## What the script will and won't do
-
-### Will
-
-- Install Homebrew (only if missing) by running [Homebrew's official installer](https://brew.sh) — same one you'd run yourself.
-- Install `tmux` via Homebrew.
-- Open System Settings → General → Sharing in the GUI so you can toggle Remote Login.
-- (If you set `SHIO_PUBLIC_KEY`) Append a single line to `~/.ssh/authorized_keys`, ensuring `chmod 700 ~/.ssh` and `chmod 600 ~/.ssh/authorized_keys`. Uses an atomic temp-file write so the file is never half-corrupted.
-- Check whether Tailscale is installed and tell you where to get it if not.
-
-### Won't
-
-- Run anything as `root` for things that don't require it. (Homebrew's installer and `brew install` need elevated permissions during install; nothing else does.)
-- Modify any file outside `~/.ssh/` or Homebrew-managed paths.
-- Toggle macOS settings programmatically.
-- Change shell configuration (`.zshrc`, `.bash_profile`, etc.) — Homebrew's installer prints suggestions but doesn't apply them. The Shio script doesn't apply them either.
-- Disable or weaken any security feature.
-- Collect telemetry. Make network calls anywhere except `brew.sh`, `raw.githubusercontent.com/Homebrew/install/...`, Homebrew's package mirrors, and the URLs displayed during the run.
-- Run silently. Every destructive step asks `y/N`.
-
----
-
-## Why we chose this shape
-
-A few options were considered and rejected:
-
-- **A full macOS companion app** — too much install friction, doubles maintenance, can't actually toggle Remote Login anyway.
-- **Auto-toggling Remote Login** — requires Full Disk Access entitlement on the user's Terminal. We refuse to ask for that.
-- **Bundling tmux inside Shio** — pointless because tmux runs on the Mac, not the iPhone.
-- **Custom Tailscale-replacement networking** — Tailscale is the trust anchor. We defer security-critical networking to people who specialize in it.
-
-What we landed on: **one auditable script, served from one HTTPS URL, that does the minimum amount of preparation each user explicitly consents to.**
-
----
-
-## Removing what the script installed
-
-Everything the script installs is unprivileged Homebrew packages, plus optional lines in your `authorized_keys`. To undo:
-
-```sh
-brew uninstall tmux                       # if you don't want it
-brew uninstall --force --zap homebrew/bundle    # if you don't want Homebrew at all
-# Then remove the public key line from ~/.ssh/authorized_keys manually.
-```
-
-Remote Login you can toggle off in System Settings any time.
+That requires earning Homebrew's notability threshold first, which we'll work toward once Shio is shipping with real users. Until then, the guide above is the path — and honestly, it's not bad.
 
 ---
 
 ## Reporting issues
 
-If you spot a security or privacy concern with the script, please don't open a public issue — see [SECURITY.md](../SECURITY.md). For everything else, GitHub issues are welcome.
+For security-relevant issues, see [SECURITY.md](../SECURITY.md). For everything else, GitHub issues are welcome.
