@@ -40,7 +40,35 @@ final class LibGhosttyTerminalController {
         }
         self.surfaceView.onResize = { [weak self] cols, rows in
             guard let self else { return }
+            self.currentRows = Int(rows)
             self.onResize?(Int(cols), Int(rows))
+        }
+    }
+
+    /// Latest grid height in rows, tracked from libghostty's resize
+    /// callback. Drives a page's worth of scroll for the Page Up/Down
+    /// buttons. Defaults to a sane value before the first resize lands.
+    private(set) var currentRows: Int = 24
+
+    /// Page the scrollback up (older content) by roughly one screen.
+    func pageUp()   { page(directionDown: false) }
+    /// Page the scrollback down (toward the live tail) by roughly one screen.
+    func pageDown() { page(directionDown: true) }
+
+    private func page(directionDown: Bool) {
+        // Keep a couple of rows of overlap for reading continuity.
+        let amount = max(1, currentRows - 2)
+        if surfaceView.isAlternateScreenActive {
+            // A TUI (less/vim/htop, or tmux with mouse on) owns the buffer;
+            // libghostty's own scrollback is suspended. Send a wheel scroll
+            // big enough to move ~a page so the program scrolls itself.
+            // sendMouseScroll: +deltaY = wheel-up = older content into view.
+            let pointsPerRow: CGFloat = 18
+            let sign: CGFloat = directionDown ? -1 : 1
+            surfaceView.sendMouseScroll(deltaY: sign * CGFloat(amount) * pointsPerRow)
+        } else {
+            // scrollLines: + = toward live tail, - = into older history.
+            surfaceView.scrollLines(directionDown ? amount : -amount)
         }
     }
 

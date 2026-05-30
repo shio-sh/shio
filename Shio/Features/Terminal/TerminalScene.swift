@@ -41,6 +41,8 @@ struct TerminalScene: View {
                     reconnectingOverlay
                 case .disconnected(let reason):
                     disconnectedOverlay(reason: reason)
+                case .connected:
+                    scrollButtons(for: viewModel)
                 default:
                     EmptyView()
                 }
@@ -213,6 +215,41 @@ struct TerminalScene: View {
     }
 
     // MARK: - Overlays
+
+    /// Floating Page Up / Page Down controls, top-right of the terminal.
+    /// They page libghostty's scrollback (or, in a full-screen TUI, send a
+    /// page-sized wheel scroll) — distinct from the keyboard-accessory
+    /// arrows, which send cursor keys to the program.
+    @ViewBuilder
+    private func scrollButtons(for viewModel: SessionViewModel) -> some View {
+        VStack(spacing: 1) {
+            scrollButton(symbol: "chevron.up", accessibility: "Page up") {
+                viewModel.terminal.pageUp()
+            }
+            scrollButton(symbol: "chevron.down", accessibility: "Page down") {
+                viewModel.terminal.pageDown()
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.top, ShioSpace.sm)
+        .padding(.trailing, ShioSpace.sm)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+    }
+
+    private func scrollButton(symbol: String, accessibility: String, action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.tap()
+            action()
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(ShioColor.Text.secondary)
+                .frame(width: 40, height: 36)
+                .background(.ultraThinMaterial)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel(accessibility)
+    }
 
     @ViewBuilder
     private var reconnectingOverlay: some View {

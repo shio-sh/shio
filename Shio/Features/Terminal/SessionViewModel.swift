@@ -50,6 +50,15 @@ final class SessionViewModel {
     private let persistenceMode: Host.PersistenceMode
     private var tmuxFallbackTriggered = false
 
+    // MARK: Resize debounce
+    /// Latest grid size waiting to be pushed to the remote PTY.
+    private var pendingResize: (cols: Int, rows: Int)?
+    /// Coalesces the burst of resize callbacks that fire during rotation,
+    /// split-view drags, and keyboard show/hide. libghostty re-renders
+    /// locally on every change immediately; we only debounce the SIGWINCH to
+    /// the remote so the shell/TUI isn't thrashed mid-animation.
+    private var resizeDebounce: Task<Void, Never>?
+
     // MARK: Reconnect state
 
     /// True once the user (or the parent view's onDisappear) explicitly
@@ -101,10 +110,24 @@ final class SessionViewModel {
             self?.client?.write(data)
         }
         terminal.onResize = { [weak self] cols, rows in
-            self?.client?.resize(cols: cols, rows: rows)
+            self?.scheduleResize(cols: cols, rows: rows)
         }
         terminal.onLoadFailure = { [weak self] message in
             self?.state = .disconnected(reason: message)
+        }
+    }
+
+    /// Debounce remote PTY resizes (~120ms trailing). The last size in a
+    /// burst wins, so a rotation that sweeps through intermediate grid sizes
+    /// sends a single window-change to the remote.
+    private func scheduleResize(cols: Int, rows: Int) {
+        pendingResize = (cols, rows)
+        resizeDebounce?.cancel()
+        resizeDebounce = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            guard let self, !Task.isCancelled, let size = self.pendingResize else { return }
+            self.client?.resize(cols: size.cols, rows: size.rows)
+            self.pendingResize = nil
         }
     }
 
@@ -275,6 +298,8 @@ final class SessionViewModel {
         userInitiatedStop = true
         reconnectTask?.cancel()
         reconnectTask = nil
+        resizeDebounce?.cancel()
+        resizeDebounce = nil
         await client?.disconnect()
         client = nil
         state = .idle
