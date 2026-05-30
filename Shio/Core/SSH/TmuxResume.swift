@@ -15,14 +15,25 @@ import Foundation
 /// (it doesn't love dots/slashes in session names).
 enum TmuxResume {
 
-    /// Build the resume command for a given host name.
-    /// Returns the raw bytes to send after the shell is ready.
-    static func resumeCommand(for hostName: String) -> String {
-        let safe = sessionName(for: hostName)
+    /// Build the resume command for a given host name, optionally with a
+    /// session index for multi-session support. Index 0 (default) uses the
+    /// bare `shio-<host>` name to preserve compatibility with single-session
+    /// users' existing tmux sessions. Index >= 1 appends `-<index>`.
+    ///
+    /// We also enable tmux's mouse mode for the session so Shio's
+    /// one-finger pan (which sends mouse-scroll events in alt-screen
+    /// mode) reaches tmux and lets it scroll its own scrollback buffer.
+    /// Without mouse mode, tmux ignores mouse events and ghostty
+    /// falls back to converting them into arrow keys — which then
+    /// cycle bash history or get rendered as literal text. `set` (no
+    /// `-g`) scopes to the session only, so we don't change the
+    /// user's global tmux config.
+    static func resumeCommand(for hostName: String, index: Int = 0) -> String {
+        let safe = sessionName(for: hostName, index: index)
         // `-A` = attach if session exists, create if not.
-        // `-s` = session name.
-        // Trailing newline executes it.
-        return "tmux new-session -A -s \(safe)\n"
+        // `\;` = tmux command separator. `set mouse on` enables mouse
+        //        reporting for this session only.
+        return "tmux new-session -A -s \(safe) \\; set mouse on\n"
     }
 
     /// Detect (heuristically) whether the remote responded that tmux is
@@ -34,9 +45,9 @@ enum TmuxResume {
             || s.contains("command not found: tmux")
     }
 
-    static func sessionName(for hostName: String) -> String {
+    static func sessionName(for hostName: String, index: Int = 0) -> String {
         let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
         let scrubbed = String(hostName.map { allowed.contains($0) ? $0 : "-" })
-        return "shio-\(scrubbed)"
+        return index == 0 ? "shio-\(scrubbed)" : "shio-\(scrubbed)-\(index)"
     }
 }

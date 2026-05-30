@@ -86,11 +86,11 @@ struct IPadRootView: View {
     @ViewBuilder
     private var detail: some View {
         if let host = selectedHost {
-            TerminalScene(viewModel: SessionViewModel(
-                configuration: host.makeClientConfiguration(),
-                persistenceMode: host.persistenceMode
-            ))
-            .id(host.id)
+            TerminalScene()
+                .id(host.persistentModelID)
+                .task(id: host.persistentModelID) {
+                    SessionStore.shared.openOrCreate(host: host)
+                }
         } else {
             placeholder
         }

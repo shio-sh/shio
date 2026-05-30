@@ -1,0 +1,36 @@
+import Foundation
+import SwiftData
+
+/// A repo or folder on a `Host` that the user has chosen to work on in Shio.
+/// Projects are the home screen; each holds one or more terminal sessions.
+/// (Session wiring and repo selection land in Phase 2.)
+@Model
+final class Project {
+
+    /// Display name, usually the repo folder name.
+    var name: String
+
+    /// Absolute path to the repo/folder on the host (e.g. /Users/amrith/shio.sh).
+    var path: String
+
+    /// The machine this project lives on.
+    var host: Host?
+
+    /// Optional per-project override of the host's persistence mode.
+    var persistenceModeOverrideRaw: String?
+
+    var persistenceModeOverride: Host.PersistenceMode? {
+        get { persistenceModeOverrideRaw.flatMap(Host.PersistenceMode.init(rawValue:)) }
+        set { persistenceModeOverrideRaw = newValue?.rawValue }
+    }
+
+    var createdAt: Date
+    var lastOpenedAt: Date?
+
+    init(name: String, path: String, host: Host? = nil) {
+        self.name = name
+        self.path = path
+        self.host = host
+        self.createdAt = .now
+    }
+}

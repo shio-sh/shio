@@ -69,7 +69,12 @@ final class KeyboardAccessoryView: UIInputView {
 
     private func layoutKeys() {
         addImmediateKey(label: "esc",  bytes: "\u{1B}")
-        addImmediateKey(label: "tab",  bytes: "\t")
+        // Tab respects a pending Shift so users can do "shift+tab" cycle
+        // (Claude Code, fzf, etc) without a hardware keyboard.
+        addModifierAwareKey(label: "tab") { mods in
+            mods.contains(.shift) ? "\u{1B}[Z" : "\t"
+        }
+        addModifierKey(.shift,   label: "shift")
         addModifierKey(.control, label: "ctrl")
         addModifierKey(.alt,     label: "opt")
 
@@ -89,7 +94,26 @@ final class KeyboardAccessoryView: UIInputView {
 
     private func addImmediateKey(label: String, bytes: String) {
         let key = ImmediateKey(label: label, bytes: bytes)
-        key.onTap = { [weak self] bytes in self?.terminalInput?.onBytes?(bytes) }
+        key.onTap = { [weak self] bytes in
+            Haptics.tap()
+            self?.terminalInput?.onBytes?(bytes)
+        }
+        stack.addArrangedSubview(key)
+    }
+
+    /// An immediate-emit key whose bytes depend on which modifiers are
+    /// currently pending/sticky (so e.g. tab can become Shift+Tab when
+    /// the user has tapped Shift first).
+    private func addModifierAwareKey(label: String, bytesFor: @escaping (KeyModifiers) -> String) {
+        let key = ImmediateKey(label: label, bytes: "")
+        key.onTap = { [weak self] _ in
+            guard let self else { return }
+            Haptics.tap()
+            let mods = self.terminalInput?.pendingModifiers
+                .union(self.terminalInput?.stickyModifiers ?? []) ?? []
+            self.terminalInput?.clearPendingModifiers()
+            self.terminalInput?.onBytes?(bytesFor(mods))
+        }
         stack.addArrangedSubview(key)
     }
 
@@ -97,6 +121,7 @@ final class KeyboardAccessoryView: UIInputView {
         let key = ModifierKey(label: label, modifier: mod)
         key.onTap = { [weak self] in
             guard let self else { return }
+            Haptics.tap()
             // Toggle pending: if pending is set, clear; otherwise set.
             let pending = self.terminalInput?.pendingModifiers ?? []
             let sticky  = self.terminalInput?.stickyModifiers ?? []

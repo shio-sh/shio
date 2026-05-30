@@ -33,6 +33,7 @@ struct OnboardingView: View {
         case installOnMac
         case installApp
         case connectVPN
+        case enableAppLock
         case installKey
     }
 
@@ -141,8 +142,57 @@ struct OnboardingView: View {
                 secondaryAction: { runVerificationForCurrentStep() }
             )
 
+        case .enableAppLock:
+            stepLayout(
+                title: appLockStepTitle,
+                body: "Shio is a direct line into your Mac. Lock the app behind \(appLockMethodLabel) so a glance at your phone never becomes a glance at your terminal. You can always change this in Settings.",
+                primary: "Enable \(appLockMethodLabel)",
+                primaryAction: {
+                    Task {
+                        let ok = await AppLock.authenticate(
+                            reason: "Confirm that Shio can lock with \(AppLock.methodLabel)."
+                        )
+                        if ok {
+                            UserDefaults(suiteName: ShioModelContainer.appGroup)?
+                                .set(true, forKey: AppLock.defaultsKey)
+                        }
+                        await MainActor.run { advanceFromAppLock() }
+                    }
+                },
+                secondary: "Not now",
+                secondaryAction: { advanceFromAppLock() }
+            )
+
         case .installKey:
             EmptyView()  // Rendered full-screen in `body`.
+        }
+    }
+
+    private var appLockStepTitle: String {
+        switch AppLock.biometryType {
+        case .faceID:  return "Lock Shio with Face ID"
+        case .touchID: return "Lock Shio with Touch ID"
+        case .opticID: return "Lock Shio with Optic ID"
+        default:       return "Lock Shio with your passcode"
+        }
+    }
+
+    private var appLockMethodLabel: String {
+        switch AppLock.biometryType {
+        case .faceID:  return "Face ID"
+        case .touchID: return "Touch ID"
+        case .opticID: return "Optic ID"
+        default:       return "device authentication"
+        }
+    }
+
+    private func advanceFromAppLock() {
+        // Same branch the old VPN-pass handler used: skip the key install
+        // if the key already exists on this device.
+        if KeyManager.hasKey() {
+            showingAddSheet = true
+        } else {
+            withAnimation { step = .installKey }
         }
     }
 
@@ -290,14 +340,10 @@ struct OnboardingView: View {
         Task {
             let result = await TailscaleDiagnostic.shared.runSingle(.vpnActive)
             handleVerification(result, onPass: {
-                // VPN is up. Branch on whether the user already has a key
-                // installed on their Mac: if yes, jump straight to add-host;
-                // if no, route through the key install screen.
-                if KeyManager.hasKey() {
-                    showingAddSheet = true
-                } else {
-                    step = .installKey
-                }
+                // VPN is up. Walk through the security toggle before
+                // touching keys / hosts — that's the natural moment to
+                // ask, after the boring connectivity steps are done.
+                step = .enableAppLock
             })
         }
     }

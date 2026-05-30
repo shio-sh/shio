@@ -18,15 +18,25 @@ enum ShioModelContainer {
     nonisolated(unsafe) static var loadFailureReason: String?
 
     static let shared: ModelContainer = {
+        // 0. Pre-create `Library/Application Support` inside the App Group
+        //    container if it doesn't exist. iOS doesn't pre-populate the
+        //    subdirectory tree of a freshly-provisioned App Group, so the
+        //    first time SwiftData touches it the directory is missing and
+        //    SwiftData logs an exhaustive `errno 2 / No such file or
+        //    directory` diagnostic dump (several hundred lines of noise)
+        //    before recovering and creating it itself. We just create it
+        //    up-front to keep first-launch logs clean.
+        prepareAppGroupApplicationSupport()
+
         // 1. Try the default on-disk container.
-        if let container = try? ModelContainer(for: Host.self) {
+        if let container = try? ModelContainer(for: Host.self, Project.self) {
             return container
         }
 
         // 2. Fall back to in-memory. The user's data won't persist, but
         //    they can still use the app, and Settings shows the error.
         let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true)
-        if let container = try? ModelContainer(for: Host.self, configurations: inMemoryConfig) {
+        if let container = try? ModelContainer(for: Host.self, Project.self, configurations: inMemoryConfig) {
             loadFailureReason = "Couldn't open the on-disk store. Your hosts won't be saved between launches. Delete and reinstall Shio to reset."
             return container
         }
@@ -35,4 +45,23 @@ enum ShioModelContainer {
         //    loudly so we catch it in development.
         fatalError("Failed to create any ModelContainer — schema is invalid")
     }()
+
+    /// Ensure the `Library/Application Support` directory exists inside
+    /// the App Group container. No-op if the directory is already there
+    /// or the App Group isn't reachable.
+    private static func prepareAppGroupApplicationSupport() {
+        let fm = FileManager.default
+        guard let groupURL = fm.containerURL(forSecurityApplicationGroupIdentifier: appGroup) else {
+            return
+        }
+        let appSupport = groupURL
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+        if !fm.fileExists(atPath: appSupport.path) {
+            try? fm.createDirectory(
+                at: appSupport,
+                withIntermediateDirectories: true
+            )
+        }
+    }
 }

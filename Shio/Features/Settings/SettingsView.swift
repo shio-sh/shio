@@ -7,6 +7,9 @@ struct SettingsView: View {
     @AppStorage("shio.proMode.enabled", store: UserDefaults(suiteName: ShioModelContainer.appGroup))
     private var proModeEnabled: Bool = false
 
+    @AppStorage(AppLock.defaultsKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
+    private var appLockEnabled: Bool = false
+
     @State private var showingProModeDisclosure = false
 
     var body: some View {
@@ -38,15 +41,43 @@ struct SettingsView: View {
                         Label("Diagnose connection", systemImage: "stethoscope")
                     }
                     NavigationLink {
+                        IconPickerView()
+                    } label: {
+                        Label("App Icon", systemImage: "app.dashed")
+                    }
+                    NavigationLink {
                         AboutView()
                     } label: {
                         Label("About Shio", systemImage: "info.circle")
                     }
                 }
+                Section("Security") {
+                    Toggle(isOn: $appLockEnabled) {
+                        Label(appLockToggleTitle, systemImage: appLockToggleIcon)
+                    }
+                    .tint(.green)
+                    .onChange(of: appLockEnabled) { _, newValue in
+                        print("[shio] appLock toggle → \(newValue)")
+                        guard newValue else { return }
+                        Task {
+                            let ok = await AppLock.authenticate(
+                                reason: "Confirm that Shio can lock with \(AppLock.methodLabel)."
+                            )
+                            await MainActor.run {
+                                if !ok { appLockEnabled = false }
+                            }
+                        }
+                    }
+                    Text("Shio re-authenticates if you leave the app for more than 10 seconds. SSH sessions stay connected while locked.")
+                        .font(ShioFont.footnote)
+                        .foregroundStyle(ShioColor.Text.tertiary)
+                }
+
                 Section("Advanced") {
                     Toggle(isOn: $proModeEnabled) {
                         Label("Pro Mode", systemImage: "wrench.adjustable.fill")
                     }
+                    .tint(.green)
                     .onChange(of: proModeEnabled) { _, newValue in
                         if newValue {
                             // Only show disclosure once.
@@ -73,6 +104,24 @@ struct SettingsView: View {
             } message: {
                 Text("Pro Mode unlocks raw SSH, ProxyJump, custom ports, and manual key management. Shio can't protect you from misconfigurations in this mode.")
             }
+        }
+    }
+
+    private var appLockToggleTitle: String {
+        switch AppLock.biometryType {
+        case .faceID:  return "Require Face ID"
+        case .touchID: return "Require Touch ID"
+        case .opticID: return "Require Optic ID"
+        default:       return "Require device passcode"
+        }
+    }
+
+    private var appLockToggleIcon: String {
+        switch AppLock.biometryType {
+        case .faceID:  return "faceid"
+        case .touchID: return "touchid"
+        case .opticID: return "opticid"
+        default:       return "lock.fill"
         }
     }
 }

@@ -46,6 +46,16 @@ targets:
         buildPhase: resources
       - path: Shio/Resources/fonts/DotGothic16-Regular.ttf
         buildPhase: resources
+      # Alternate app icons must land in the bundle root (not a subfolder),
+      # so list each file individually rather than as a folder reference.
+      - path: Shio/Resources/AlternateIcons/AppIconLight60x60@2x.png
+        buildPhase: resources
+      - path: Shio/Resources/AlternateIcons/AppIconLight60x60@3x.png
+        buildPhase: resources
+      - path: Shio/Resources/AlternateIcons/AppIconDark60x60@2x.png
+        buildPhase: resources
+      - path: Shio/Resources/AlternateIcons/AppIconDark60x60@3x.png
+        buildPhase: resources
     dependencies:
       - package: swift-nio-ssh
         product: NIOSSH
@@ -53,6 +63,8 @@ targets:
         product: NIOCore
       - package: swift-nio
         product: NIOPosix
+      - framework: Frameworks/GhosttyKit.xcframework
+        embed: true
       - target: ShioWidgets
       - target: ShioLiveActivities
     info:
@@ -78,9 +90,48 @@ targets:
         LSApplicationCategoryType: public.app-category.developer-tools
         LSApplicationQueriesSchemes:
           - tailscale
+        # `shio://connect?host=<id>` URL scheme — used by ShioWidgets to
+        # request connection to a specific host.
+        CFBundleURLTypes:
+          - CFBundleURLName: sh.shio.app
+            CFBundleURLSchemes:
+              - shio
+        # Handoff: advertised user activity types this app publishes and
+        # accepts on continuation. Must match `SessionHandoff.activityType`.
+        NSUserActivityTypes:
+          - sh.shio.app.session
         NSSupportsLiveActivities: true
         NSSupportsLiveActivitiesFrequentUpdates: true
+        NSFaceIDUsageDescription: Shio locks itself with Face ID so that picking up your phone doesn't expose your Macs.
         ITSAppUsesNonExemptEncryption: false
+        # Alternate app icons. The primary AppIcon lives in
+        # Assets.xcassets/AppIcon.appiconset (the dark keycap). Light keycap
+        # — and an explicit dark entry so the user can "switch back" — are
+        # registered here as alternates.
+        CFBundleIcons:
+          CFBundlePrimaryIcon:
+            CFBundleIconName: AppIcon
+          CFBundleAlternateIcons:
+            AppIconLight:
+              CFBundleIconFiles:
+                - AppIconLight60x60
+              UIPrerenderedIcon: false
+            AppIconDark:
+              CFBundleIconFiles:
+                - AppIconDark60x60
+              UIPrerenderedIcon: false
+        CFBundleIcons~ipad:
+          CFBundlePrimaryIcon:
+            CFBundleIconName: AppIcon
+          CFBundleAlternateIcons:
+            AppIconLight:
+              CFBundleIconFiles:
+                - AppIconLight60x60
+              UIPrerenderedIcon: false
+            AppIconDark:
+              CFBundleIconFiles:
+                - AppIconDark60x60
+              UIPrerenderedIcon: false
         UIAppFonts:
           - DepartureMono-Regular.otf
           - DotGothic16-Regular.ttf
@@ -96,6 +147,9 @@ targets:
     platform: iOS
     sources:
       - path: ShioWidgets
+      # Shared App Group state — built into both the main app and this
+      # widget extension so they speak the same WidgetHost type.
+      - path: Shio/Core/Widgets/WidgetSharedState.swift
     info:
       path: ShioWidgets/Info.plist
       properties:
@@ -112,6 +166,9 @@ targets:
     platform: iOS
     sources:
       - path: ShioLiveActivities
+      # Shared Activity attributes — built into both the main app and
+      # this widget extension so they speak the same ActivityKit type.
+      - path: Shio/Core/LiveActivities/SessionActivityAttributes.swift
     info:
       path: ShioLiveActivities/Info.plist
       properties:

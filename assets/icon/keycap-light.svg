@@ -1,0 +1,94 @@
+<svg width="2048" height="2048" viewBox="0 0 2048 2048" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    shio app icon — light keycap
+    ============================
+    Full-bleed PBT cap. Neutral ivory / bone — only a whisper of warmth,
+    no amber/yellow saturation. Same construction as the dark variant:
+    pronounced chamfered bevel around an inset dish, light from upper-
+    left, ambient lift at the top edge, dual-layer texture (coarse
+    patina + fine grain) matching the dark cap. Kanji untouched from
+    master.svg (uniform scale only).
+  -->
+  <defs>
+    <!-- Body: ivory at top → warm-neutral cool-bone at bottom. Hue is
+         barely saturated; the warmth comes from a green-shifted mid-tone
+         rather than a yellow drop. -->
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#F2EEE3"/>
+      <stop offset="0.5" stop-color="#DFDACE"/>
+      <stop offset="1"   stop-color="#B5B0A4"/>
+    </linearGradient>
+    <linearGradient id="diag" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFCF3" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#6E695D" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="ambient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#FFFCF3" stop-opacity="0.40"/>
+      <stop offset="0.14" stop-color="#FFFCF3" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="skirt" x1="0" y1="0.82" x2="0" y2="1">
+      <stop offset="0" stop-color="#6E695D" stop-opacity="0"/>
+      <stop offset="1" stop-color="#6E695D" stop-opacity="0.14"/>
+    </linearGradient>
+    <radialGradient id="dish" cx="0.48" cy="0.42" r="0.62">
+      <stop offset="0"   stop-color="#F0EBE0"/>
+      <stop offset="0.6" stop-color="#DDD8CB"/>
+      <stop offset="1"   stop-color="#C2BDB0"/>
+    </radialGradient>
+    <linearGradient id="chamfer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#FFFCF3"/>
+      <stop offset="0.55" stop-color="#CFCABC"/>
+      <stop offset="1"    stop-color="#ADA79A"/>
+    </linearGradient>
+    <linearGradient id="lip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#FFFCF3" stop-opacity="0.65"/>
+      <stop offset="0.35" stop-color="#FFFCF3" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Fine PBT grain. -->
+    <filter id="grain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="2.2" numOctaves="2" seed="12" stitchTiles="stitch" result="n"/>
+      <feColorMatrix in="n" values="
+        0 0 0 0 0.10
+        0 0 0 0 0.09
+        0 0 0 0 0.07
+        0 0 0 0.16 0"/>
+    </filter>
+    <!-- Coarse patina — broad blotchiness for seasoned-cap character. -->
+    <filter id="patina" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.6" numOctaves="2" seed="4" stitchTiles="stitch" result="n"/>
+      <feColorMatrix in="n" values="
+        0 0 0 0 0.12
+        0 0 0 0 0.10
+        0 0 0 0 0.07
+        0 0 0 0.08 -0.5"/>
+    </filter>
+  </defs>
+
+  <rect width="2048" height="2048" fill="url(#body)"/>
+  <rect width="2048" height="2048" fill="url(#diag)"/>
+  <rect width="2048" height="2048" fill="url(#ambient)"/>
+  <rect width="2048" height="2048" fill="url(#skirt)"/>
+
+  <rect x="144" y="144" width="1760" height="1760" rx="312"
+        fill="url(#dish)" stroke="url(#chamfer)" stroke-width="10"/>
+
+  <rect x="152" y="152" width="1744" height="1744" rx="304"
+        fill="none" stroke="url(#lip)" stroke-width="3"/>
+
+  <!-- Coarse patina under the fine grain. -->
+  <rect width="2048" height="2048" filter="url(#patina)" opacity="0.55"/>
+  <!-- Fine grain on top. -->
+  <rect width="2048" height="2048" filter="url(#grain)" opacity="0.80"/>
+
+  <!-- 塩 — master path, uniform scale 0.72. Three siblings (shape untouched)
+       give the legend a subtle physical relief on the ivory dish. -->
+  <g transform="translate(287 288) scale(0.72)">
+    <path transform="translate(0 -3)" opacity="0.55"
+          d="M982.528 814.016H923.776V885.44H840.832V801.344H912.256V658.496H982.528V516.8H1066.62V658.496H1492.86V742.592H995.2V801.344H1422.59V1098.56H982.528V814.016ZM483.712 1371.58H627.712V1027.14H483.712V944.192H627.712V588.224H710.656V944.192H853.504V1027.14H710.656V1300.16H853.504V1383.1H710.656V1454.53H483.712V1371.58ZM1338.5 1014.46V885.44H1066.62V1014.46H1338.5ZM769.408 1441.86H912.256V1157.31H1492.86V1441.86H1564.29V1527.1H769.408V1441.86ZM1409.92 1441.86V1241.41H1279.74V1441.86H1409.92ZM1053.95 1441.86V1241.41H995.2V1441.86H1053.95ZM1196.8 1441.86V1241.41H1138.05V1441.86H1196.8Z"
+          fill="#FFFCF3"/>
+    <path transform="translate(0 4)" opacity="0.28"
+          d="M982.528 814.016H923.776V885.44H840.832V801.344H912.256V658.496H982.528V516.8H1066.62V658.496H1492.86V742.592H995.2V801.344H1422.59V1098.56H982.528V814.016ZM483.712 1371.58H627.712V1027.14H483.712V944.192H627.712V588.224H710.656V944.192H853.504V1027.14H710.656V1300.16H853.504V1383.1H710.656V1454.53H483.712V1371.58ZM1338.5 1014.46V885.44H1066.62V1014.46H1338.5ZM769.408 1441.86H912.256V1157.31H1492.86V1441.86H1564.29V1527.1H769.408V1441.86ZM1409.92 1441.86V1241.41H1279.74V1441.86H1409.92ZM1053.95 1441.86V1241.41H995.2V1441.86H1053.95ZM1196.8 1441.86V1241.41H1138.05V1441.86H1196.8Z"
+          fill="#2E2A22"/>
+    <path d="M982.528 814.016H923.776V885.44H840.832V801.344H912.256V658.496H982.528V516.8H1066.62V658.496H1492.86V742.592H995.2V801.344H1422.59V1098.56H982.528V814.016ZM483.712 1371.58H627.712V1027.14H483.712V944.192H627.712V588.224H710.656V944.192H853.504V1027.14H710.656V1300.16H853.504V1383.1H710.656V1454.53H483.712V1371.58ZM1338.5 1014.46V885.44H1066.62V1014.46H1338.5ZM769.408 1441.86H912.256V1157.31H1492.86V1441.86H1564.29V1527.1H769.408V1441.86ZM1409.92 1441.86V1241.41H1279.74V1441.86H1409.92ZM1053.95 1441.86V1241.41H995.2V1441.86H1053.95ZM1196.8 1441.86V1241.41H1138.05V1441.86H1196.8Z" fill="#1F1B14"/>
+  </g>
+</svg>

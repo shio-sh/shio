@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>shio keycap icon — preview</title>
+<style>
+  :root {
+    --bg: #14151C;
+    --fg: #F4EEDF;
+    --mute: #8B8472;
+    --line: #2A2B33;
+    --light-bg: #F4EEDF;
+    --light-fg: #1F1B14;
+    --light-line: #D6C6A1;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 48px;
+    font-family: -apple-system, system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+  }
+  h1 { font-weight: 500; margin: 0 0 8px 0; font-size: 22px; letter-spacing: 0.02em; }
+  .sub { color: var(--mute); margin-bottom: 36px; font-size: 13px; }
+  .sub code { background: #1E1F28; padding: 2px 6px; border-radius: 4px; }
+  .section { margin-bottom: 64px; }
+  .section-title {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--mute);
+    margin: 0 0 18px 0;
+  }
+  .section-title b { color: var(--fg); font-weight: 600; margin-right: 10px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .panel {
+    background: #0E0E10;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 24px;
+  }
+  .panel.light {
+    background: var(--light-bg);
+    color: var(--light-fg);
+    border-color: var(--light-line);
+  }
+  .panel h3 {
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    margin: 0 0 16px 0;
+  }
+  .stack { display: flex; align-items: flex-end; gap: 22px; flex-wrap: wrap; }
+  .stack figure { margin: 0; text-align: center; }
+  .stack figcaption {
+    margin-top: 8px;
+    font-size: 10px;
+    opacity: 0.50;
+    letter-spacing: 0.06em;
+  }
+  /* iOS squircle mask ≈ 22.37% corner radius */
+  .stack img {
+    border-radius: 22.37%;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    display: block;
+  }
+  .panel.light .stack img {
+    box-shadow: 0 4px 14px rgba(60,40,0,0.15);
+  }
+  .home {
+    margin-top: 18px;
+    background:
+      radial-gradient(circle at 20% 0%, rgba(255,180,120,0.10), transparent 55%),
+      linear-gradient(180deg, #2a2a3a 0%, #14141e 100%);
+    border-radius: 18px;
+    padding: 28px;
+    display: flex;
+    gap: 22px;
+    align-items: center;
+  }
+  .home img { border-radius: 22.37%; box-shadow: 0 8px 22px rgba(0,0,0,0.55); }
+  .home .lbl {
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-bottom: 24px;
+  }
+  .hero .tile {
+    background: #0E0E10;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 48px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .hero .tile.light {
+    background: var(--light-bg);
+    border-color: var(--light-line);
+  }
+  .hero img { border-radius: 22.37%; box-shadow: 0 12px 36px rgba(0,0,0,0.55); }
+  .hero .tile.light img { box-shadow: 0 12px 36px rgba(60,40,0,0.18); }
+  hr {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 64px 0 40px;
+  }
+  .variants-note { color: var(--mute); font-size: 12px; margin-bottom: 24px; }
+</style>
+</head>
+<body>
+
+<h1>shio — keycap icon</h1>
+<div class="sub">
+  Full-bleed: iOS squircle = keycap silhouette. Kanji is <code>master.svg</code> verbatim, uniform-scaled only. ⌘R to reload.
+</div>
+
+<!-- ============================ CANONICAL ============================ -->
+<section class="section">
+  <p class="section-title">keycap-dark.svg &nbsp;/&nbsp; keycap-light.svg</p>
+
+  <div class="hero">
+    <div class="tile"><img src="keycap-dark.svg" width="360" height="360"></div>
+    <div class="tile light"><img src="keycap-light.svg" width="360" height="360"></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h3>Dark @ icon sizes</h3>
+      <div class="stack">
+        <figure><img src="keycap-dark.svg" width="180" height="180"><figcaption>180</figcaption></figure>
+        <figure><img src="keycap-dark.svg" width="120" height="120"><figcaption>120</figcaption></figure>
+        <figure><img src="keycap-dark.svg" width="80" height="80"><figcaption>80</figcaption></figure>
+        <figure><img src="keycap-dark.svg" width="58" height="58"><figcaption>58</figcaption></figure>
+      </div>
+    </div>
+    <div class="panel light">
+      <h3>Light @ icon sizes</h3>
+      <div class="stack">
+        <figure><img src="keycap-light.svg" width="180" height="180"><figcaption>180</figcaption></figure>
+        <figure><img src="keycap-light.svg" width="120" height="120"><figcaption>120</figcaption></figure>
+        <figure><img src="keycap-light.svg" width="80" height="80"><figcaption>80</figcaption></figure>
+        <figure><img src="keycap-light.svg" width="58" height="58"><figcaption>58</figcaption></figure>
+      </div>
+    </div>
+  </div>
+
+  <div class="home">
+    <img src="keycap-dark.svg" width="120" height="120">
+    <img src="keycap-light.svg" width="120" height="120">
+    <div class="lbl">home-screen sim @ 120</div>
+  </div>
+</section>
+
+</body>
+</html>

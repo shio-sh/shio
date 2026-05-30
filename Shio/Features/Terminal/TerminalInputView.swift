@@ -124,13 +124,15 @@ extension TerminalInputView: UIKeyInput {
     var hasText: Bool { false }
 
     func insertText(_ text: String) {
+        // iOS sends "\n" when the user taps Return on the soft keyboard,
+        // but shells expect CR ("\r") to submit. Translate before anything
+        // else so the modifier branch below also sees the right byte.
+        let normalized = text.replacingOccurrences(of: "\n", with: "\r")
         let modifiers = consumeModifiers()
         if modifiers.isEmpty {
-            // Plain text — just send it.
-            onBytes?(text)
+            onBytes?(normalized)
         } else {
-            // For each character, apply the modifier translation.
-            for scalar in text.unicodeScalars {
+            for scalar in normalized.unicodeScalars {
                 if let bytes = ANSI.bytesForCharacter(scalar, modifiers: modifiers) {
                     onBytes?(bytes)
                 }

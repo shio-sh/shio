@@ -65,6 +65,11 @@ final class Host {
     var createdAt: Date
     var lastConnectedAt: Date?
 
+    /// Projects (repos) the user works on this host. Cascade delete so
+    /// removing a host removes its projects.
+    @Relationship(deleteRule: .cascade, inverse: \Project.host)
+    var projects: [Project] = []
+
     init(
         name: String,
         hostname: String,

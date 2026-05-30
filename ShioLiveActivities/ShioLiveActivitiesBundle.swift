@@ -9,71 +9,98 @@ struct ShioLiveActivitiesBundle: WidgetBundle {
     }
 }
 
-/// Live Activity for an active SSH session. Brick 9 fills this in.
-/// Brick 1 ships an empty shell that compiles.
+/// Live Activity for an active SSH session.
+///
+/// Design intent:
+///   - Lock screen: rich view. The user glances at their lock screen
+///     and sees "you have a live session on <host>" — a useful reminder
+///     so they know to disconnect before bed, etc.
+///   - Dynamic Island: deliberately minimal — just the brand kanji in
+///     cream. iOS reserves green and orange in this region for the
+///     system's camera / microphone privacy indicators; rendering any
+///     colored status dot here would mimic those, misleading users
+///     about hardware state and inviting App Review rejection. Kanji
+///     only.
 struct ShioSessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShioSessionAttributes.self) { context in
-            // Lock screen view
-            HStack {
+            // Lock screen / banner view (rich).
+            HStack(spacing: 12) {
                 Text("塩")
-                    .font(.system(size: 20))
-                VStack(alignment: .leading) {
-                    Text(context.attributes.hostName)
-                        .font(.headline)
-                    Text(context.state.lastCommand ?? "Connected")
-                        .font(.caption)
+                    .font(.custom("DotGothic16-Regular", size: 28))
+                    .foregroundStyle(Color(red: 0.957, green: 0.933, blue: 0.875))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Connected to \(context.attributes.hostName)")
+                        .font(.system(.subheadline, design: .monospaced).weight(.medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    Text(statusText(for: context.state.connectionState))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.55))
                 }
-                Spacer()
+                Spacer(minLength: 0)
+                Circle()
+                    .fill(statusColor(for: context.state.connectionState))
+                    .frame(width: 6, height: 6)
             }
-            .padding()
-            .activityBackgroundTint(.black)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .activityBackgroundTint(Color(red: 0.157, green: 0.157, blue: 0.196))
             .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) {
-                    Text("塩")
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.attributes.hostName)
-                        .font(.headline)
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    if let cmd = context.state.lastCommand {
-                        Text(cmd)
-                            .font(.system(.caption, design: .monospaced))
-                            .lineLimit(1)
-                    }
+                // Expanded view (shown on long-press of the pill). Kept
+                // empty by design — we don't want this to be a content
+                // surface for a terminal app.
+                DynamicIslandExpandedRegion(.center) {
+                    EmptyView()
                 }
             } compactLeading: {
+                // CRITICAL: never use green or orange in the Dynamic
+                // Island. iOS reserves green (camera) and orange (mic)
+                // for system privacy indicators in this region — painting
+                // either color here mimics those indicators and risks App
+                // Review rejection AND, worse, misleads the user into
+                // thinking their hardware is in use. Only the kanji,
+                // only in our brand cream.
                 Text("塩")
+                    .font(.custom("DotGothic16-Regular", size: 14))
+                    .foregroundStyle(Color(red: 0.957, green: 0.933, blue: 0.875))
             } compactTrailing: {
-                Circle()
-                    .fill(.green)
-                    .frame(width: 8, height: 8)
+                EmptyView()
             } minimal: {
                 Text("塩")
+                    .font(.custom("DotGothic16-Regular", size: 14))
+                    .foregroundStyle(Color(red: 0.957, green: 0.933, blue: 0.875))
             }
         }
     }
-}
 
-public struct ShioSessionAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
-        public var lastCommand: String?
-        public var duration: TimeInterval
-        public var connectionState: String
-
-        public init(lastCommand: String? = nil, duration: TimeInterval = 0, connectionState: String = "connected") {
-            self.lastCommand = lastCommand
-            self.duration = duration
-            self.connectionState = connectionState
+    private func statusText(for state: String) -> String {
+        switch state {
+        case "connected":    return "Live"
+        case "reconnecting": return "Reconnecting…"
+        case "disconnected": return "Disconnected"
+        case "ended":        return "Ended"
+        default:             return state
         }
     }
 
-    public var hostName: String
-
-    public init(hostName: String) {
-        self.hostName = hostName
+    /// Status color used ONLY in the lock-screen banner — never in the
+    /// Dynamic Island. The lock screen is far from the camera/mic
+    /// privacy indicators, so a small colored dot here doesn't mimic
+    /// system semantics.
+    private func statusColor(for state: String) -> Color {
+        switch state {
+        case "connected":    return .green
+        case "reconnecting": return .yellow
+        case "disconnected": return .red
+        case "ended":        return .gray
+        default:             return .green
+        }
     }
 }
+
+// ShioSessionAttributes is shared with the main app — see
+// Shio/Core/LiveActivities/SessionActivityAttributes.swift. Added to
+// both targets via project.yml.

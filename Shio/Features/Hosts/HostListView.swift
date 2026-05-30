@@ -8,8 +8,9 @@ struct HostListView: View {
     @Query(sort: \Host.lastConnectedAt, order: .reverse) private var hosts: [Host]
     @Environment(\.modelContext) private var context
 
-    @State private var selectedHost: Host?
     @State private var isAddingHost = false
+    @State private var showingTerminal = false
+    private let sessionStore = SessionStore.shared
 
     /// Set by the parent: which kind of "add" sheet to show (Tailscale picker vs Pro Mode).
     @AppStorage("shio.proMode.enabled", store: UserDefaults(suiteName: ShioModelContainer.appGroup))
@@ -26,7 +27,8 @@ struct HostListView: View {
                         Section {
                             ForEach(hosts) { host in
                                 Button {
-                                    selectedHost = host
+                                    sessionStore.openOrCreate(host: host)
+                                    showingTerminal = true
                                 } label: {
                                     HostRow(host: host)
                                 }
@@ -55,11 +57,8 @@ struct HostListView: View {
             .sheet(isPresented: $isAddingHost) {
                 AddHostSheet(proModeEnabled: proModeEnabled)
             }
-            .fullScreenCover(item: $selectedHost) { host in
-                TerminalScene(viewModel: SessionViewModel(
-                    configuration: host.makeClientConfiguration(),
-                    persistenceMode: host.persistenceMode
-                ))
+            .fullScreenCover(isPresented: $showingTerminal) {
+                TerminalScene()
             }
         }
     }
@@ -70,10 +69,10 @@ struct HostListView: View {
             Text("塩")
                 .font(ShioFont.kanji(size: 64))
                 .foregroundStyle(ShioColor.Text.primary)
-            Text("Add your Mac")
+            Text("Add a host")
                 .font(ShioFont.title2)
                 .foregroundStyle(ShioColor.Text.primary)
-            Text("Connect to your Mac from your iPhone over Tailscale.")
+            Text("Reach your Mac — or any SSH server — from your iPhone over Tailscale.")
                 .font(ShioFont.callout)
                 .foregroundStyle(ShioColor.Text.secondary)
                 .multilineTextAlignment(.center)
