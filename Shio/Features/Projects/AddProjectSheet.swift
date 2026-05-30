@@ -72,17 +72,46 @@ struct AddProjectSheet: View {
                             Text("Shio runs git clone on the machine, using its own git auth, the first time you open the project.")
                         }
                     }
-                    Section {
-                        TextField("/Users/you/code/your-repo", text: $path)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .font(ShioFont.Mono.inline)
-                    } header: {
-                        Text(source == .clone ? "Clone into" : "Repo path")
-                    } footer: {
-                        Text(source == .clone
-                             ? "Absolute path on the machine to clone into. Shio opens a terminal here once it's cloned."
-                             : "The absolute path to the repo on that machine. Shio opens a terminal here.")
+                    if source == .clone {
+                        Section {
+                            TextField("/Users/you/code/your-repo", text: $path)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .font(ShioFont.Mono.inline)
+                        } header: {
+                            Text("Clone into")
+                        } footer: {
+                            Text("Absolute path on the machine to clone into. Shio opens a terminal here once it's cloned.")
+                        }
+                    } else {
+                        Section {
+                            NavigationLink {
+                                if let host = selectedHost {
+                                    DirectoryPickerView(
+                                        host: host,
+                                        initialPath: trimmedPath.isEmpty ? nil : trimmedPath
+                                    ) { picked in
+                                        path = picked
+                                    }
+                                }
+                            } label: {
+                                HStack {
+                                    Text("Folder")
+                                        .foregroundStyle(ShioColor.Text.primary)
+                                    Spacer()
+                                    Text(trimmedPath.isEmpty ? "Choose…" : trimmedPath)
+                                        .font(trimmedPath.isEmpty ? ShioFont.body : ShioFont.Mono.inline)
+                                        .foregroundStyle(trimmedPath.isEmpty ? ShioColor.Text.tertiary : ShioColor.Text.secondary)
+                                        .lineLimit(1)
+                                        .truncationMode(.head)
+                                }
+                            }
+                            .disabled(selectedHost == nil)
+                        } header: {
+                            Text("Repo folder")
+                        } footer: {
+                            Text("Browse the machine and pick the repo folder. Shio opens a terminal there.")
+                        }
                     }
                 }
             }
