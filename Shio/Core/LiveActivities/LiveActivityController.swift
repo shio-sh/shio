@@ -53,12 +53,25 @@ final class LiveActivityController {
             let activity = try Activity<ShioSessionAttributes>.request(
                 attributes: attributes,
                 content: content,
-                pushType: nil
+                pushType: .token
             )
             activityIDs[sessionID] = activity.id
             startTimes[sessionID] = Date()
+            observePushToken(for: activity, sessionID: sessionID)
         } catch {
             print("[shio] LiveActivity start failed: \(error)")
+        }
+    }
+
+    /// Stream this activity's push-to-update token to the relay so the lock
+    /// screen can be refreshed remotely (away-push). Scaffold — `PushService`
+    /// no-ops without a configured relay.
+    private func observePushToken(for activity: Activity<ShioSessionAttributes>, sessionID: UUID) {
+        Task { @MainActor in
+            for await tokenData in activity.pushTokenUpdates {
+                let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+                await PushService.shared.registerActivityPushToken(hex, sessionID: sessionID)
+            }
         }
     }
 

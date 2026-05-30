@@ -41,4 +41,4 @@ This is a **scaffold**. Before it's production-trustworthy:
 - [ ] Transport hardening: the `/pair` endpoint is plain HTTP for the local/tailnet case. Add TLS (or scope strictly to the tailnet) before any non-local use; never expose it to the public internet.
 - [ ] Real-device validation of reachability + the URLSession handshake in `PairingService.swift`.
 - [ ] Repo discovery: enumerate git repos on the machine and let the app pick them as Projects (Phase 2 remainder).
-- [ ] Phase 6: extend this companion into the always-on away-watcher (server-side agent detection + push). See `docs/roadmap`.
+- [x] Phase 6: `shio-away-watcher.py` is the always-on away-watcher — server-side agent detection that pings the relay (`relay/`) so your phone gets a "session needs you" push with the app closed. Still needs a deployed relay + APNs key; see `relay/README.md`.

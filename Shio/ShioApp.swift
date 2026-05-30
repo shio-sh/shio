@@ -4,6 +4,7 @@ import SwiftData
 @main
 struct ShioApp: App {
     @Environment(\.scenePhase) private var scenePhase
+    @UIApplicationDelegateAdaptor(ShioAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         WindowGroup {
@@ -12,6 +13,12 @@ struct ShioApp: App {
                 .tint(ShioColor.Text.primary)
                 .task {
                     Haptics.prepare()
+                    // Register for away-push once the device is set up (a key
+                    // exists), so brand-new users aren't prompted before
+                    // onboarding. No-op end-to-end until a relay is configured.
+                    if KeyManager.hasKey() {
+                        await PushService.shared.requestAuthorizationAndRegister()
+                    }
                 }
                 .onOpenURL { url in
                     handleDeepLink(url)

@@ -104,6 +104,10 @@ targets:
         NSSupportsLiveActivitiesFrequentUpdates: true
         NSFaceIDUsageDescription: Shio locks itself with Face ID so that picking up your phone doesn't expose your Macs.
         NSCameraUsageDescription: Shio uses the camera to scan the pairing QR code your machine shows, so it can connect securely.
+        # Remote notifications: away-watcher pushes ("a session needs you")
+        # and Live Activity remote updates.
+        UIBackgroundModes:
+          - remote-notification
         ITSAppUsesNonExemptEncryption: false
         # Alternate app icons. The primary AppIcon lives in
         # Assets.xcassets/AppIcon.appiconset (the dark keycap). Light keycap
