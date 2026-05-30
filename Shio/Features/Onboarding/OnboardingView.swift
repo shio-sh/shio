@@ -25,6 +25,7 @@ struct OnboardingView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var step: Step = .initial
     @State private var showingAddSheet = false
+    @State private var showingPairing = false
     @State private var verification: Verification = .idle
 
     enum Step: Hashable {
@@ -81,6 +82,12 @@ struct OnboardingView: View {
         .sheet(isPresented: $showingAddSheet, onDismiss: handleSheetDismissed) {
             AddHostSheet(proModeEnabled: false)
         }
+        .sheet(isPresented: $showingPairing) {
+            // Pairing inserts a Host on success; RootView's host query then
+            // swaps onboarding out for the app, so there's nothing more to do
+            // here. If the user cancels without pairing, we stay on .welcome.
+            PairingView()
+        }
     }
 
     // MARK: - Wordmark
@@ -106,10 +113,12 @@ struct OnboardingView: View {
 
         case .welcome:
             stepLayout(
-                title: "Your Mac, in your pocket.",
-                body: "Shio lets you reach your Mac from your iPhone over Tailscale — a free, secure private network for your own devices.",
-                primary: "Get started",
-                primaryAction: { step = nextStepFromWelcome() }
+                title: "Your machines, in your pocket.",
+                body: "Pair a machine you own — scan the QR it shows and Shio is in. Your terminal, your projects, your agents, wherever you are.",
+                primary: "Pair with QR",
+                primaryAction: { showingPairing = true },
+                secondary: "Set up with Tailscale instead",
+                secondaryAction: { step = nextStepFromWelcome() }
             )
 
         case .installOnMac:
