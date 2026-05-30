@@ -249,6 +249,8 @@ final class SSHClient: @unchecked Sendable {
     /// An event loop from the shared group, for constructing failed futures
     /// off the connection path.
     static var sftpEventLoop: any EventLoop { sharedGroup.next() }
+    /// The shared event loop group, for local-forward server bootstraps.
+    static var sharedEventLoopGroup: any EventLoopGroup { sharedGroup }
 }
 
 // MARK: - User auth delegate

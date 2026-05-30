@@ -185,6 +185,40 @@ final class SessionViewModel {
     /// Called by the UI after opening (or dismissing) the surfaced link.
     func clearDetectedURL() { detectedURL = nil }
 
+    /// If `url` is an OAuth link whose redirect targets the host's loopback
+    /// (`localhost:PORT`), open an SSH local forward for that port so the
+    /// in-app browser's redirect tunnels back to the host's callback server
+    /// and the login completes. Returns the forward to keep alive until the
+    /// browser closes, or nil when no forward is needed/possible.
+    func prepareLoopbackForward(for url: URL) async -> SSHPortForward? {
+        guard case .connected = state, let client else { return nil }
+        guard let port = Self.loopbackRedirectPort(in: url) else { return nil }
+        return try? await client.openLocalForward(localPort: port, remotePort: port)
+    }
+
+    /// Pull a loopback callback port out of an auth URL — from a
+    /// `redirect_uri`/`callback` query item, or the URL itself if it's a
+    /// localhost link.
+    private static func loopbackRedirectPort(in url: URL) -> Int? {
+        if isLoopbackHost(url.host), let port = url.port { return port }
+
+        guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let items = comps.queryItems else { return nil }
+        let keys = ["redirect_uri", "redirect", "callback", "callback_url", "return_to"]
+        for item in items where keys.contains(item.name.lowercased()) {
+            guard let raw = item.value else { continue }
+            let decoded = raw.removingPercentEncoding ?? raw
+            if let inner = URLComponents(string: decoded), isLoopbackHost(inner.host), let port = inner.port {
+                return port
+            }
+        }
+        return nil
+    }
+
+    private static func isLoopbackHost(_ host: String?) -> Bool {
+        host == "localhost" || host == "127.0.0.1" || host == "[::1]" || host == "::1"
+    }
+
     /// Debounce remote PTY resizes (~120ms trailing). The last size in a
     /// burst wins, so a rotation that sweeps through intermediate grid sizes
     /// sends a single window-change to the remote.

@@ -15,6 +15,9 @@ struct TerminalScene: View {
 
     @State private var showingDiagnose: Bool = false
     @State private var presentedLink: IdentifiableURL?
+    /// Live SSH forward backing a loopback OAuth redirect, torn down when the
+    /// in-app browser closes.
+    @State private var oauthForward: SSHPortForward?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -93,7 +96,12 @@ struct TerminalScene: View {
                 await active.viewModel.start()
             }
         }
-        .sheet(item: $presentedLink) { link in
+        .sheet(item: $presentedLink, onDismiss: {
+            // Close the loopback forward once the OAuth dance is done.
+            let forward = oauthForward
+            oauthForward = nil
+            Task { await forward?.close() }
+        }) { link in
             SafariView(url: link.url)
                 .ignoresSafeArea()
         }
@@ -263,8 +271,14 @@ struct TerminalScene: View {
         .contentShape(Capsule())
         .onTapGesture {
             Haptics.tap()
-            presentedLink = IdentifiableURL(url: url)
             viewModel.clearDetectedURL()
+            Task {
+                // If the link redirects to the host's loopback (an OAuth
+                // callback), stand up the SSH forward first so the browser's
+                // redirect can reach the host, then open the browser.
+                oauthForward = await viewModel.prepareLoopbackForward(for: url)
+                presentedLink = IdentifiableURL(url: url)
+            }
         }
         .padding(.bottom, ShioSpace.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
