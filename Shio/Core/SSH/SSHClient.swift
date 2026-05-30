@@ -240,6 +240,15 @@ final class SSHClient: @unchecked Sendable {
         channel = nil
         childChannel = nil
     }
+
+    // MARK: - SFTP support hooks (used by SFTPClient.swift)
+
+    /// The parent connection channel, exposed so the SFTP subsystem can open
+    /// its own child channel on the same connection.
+    var sftpParentChannel: (any Channel)? { channel }
+    /// An event loop from the shared group, for constructing failed futures
+    /// off the connection path.
+    static var sftpEventLoop: any EventLoop { sharedGroup.next() }
 }
 
 // MARK: - User auth delegate
