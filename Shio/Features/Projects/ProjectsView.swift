@@ -11,6 +11,7 @@ struct ProjectsView: View {
     @State private var isAddingProject = false
     @State private var showingTerminal = false
     private let sessionStore = SessionStore.shared
+    private let agents = AgentStateStore.shared
 
     var body: some View {
         NavigationStack {
@@ -24,7 +25,7 @@ struct ProjectsView: View {
                                 showingTerminal = true
                             }
                         } label: {
-                            ProjectRow(project: project)
+                            ProjectRow(project: project, agentActivity: agentActivity(for: project))
                         }
                         .buttonStyle(.plain)
                     }
@@ -72,6 +73,17 @@ struct ProjectsView: View {
         }
     }
 
+    /// Worst-case agent activity across this project's open sessions, for the
+    /// row badge. Waiting outranks running outranks finished.
+    private func agentActivity(for project: Project) -> AgentActivity {
+        let activities = sessionStore.sessions(forProject: project.persistentModelID)
+            .compactMap { agents.snapshot(for: $0.id)?.activity }
+        if activities.contains(.waiting) { return .waiting }
+        if activities.contains(.running) { return .running }
+        if activities.contains(.finished) { return .finished }
+        return .none
+    }
+
     private var emptyState: some View {
         VStack(spacing: ShioSpace.lg) {
             Text("塩")
@@ -97,6 +109,8 @@ struct ProjectsView: View {
 
 private struct ProjectRow: View {
     let project: Project
+    var agentActivity: AgentActivity = .none
+
     var body: some View {
         HStack(spacing: ShioSpace.md) {
             Image(systemName: "folder.fill")
@@ -112,10 +126,34 @@ private struct ProjectRow: View {
                     .foregroundStyle(ShioColor.Text.secondary)
             }
             Spacer()
+            agentBadge
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(ShioColor.Text.tertiary)
         }
         .padding(.vertical, ShioSpace.xs)
+    }
+
+    /// Small status badge when the project has a live agent. "Needs you" for
+    /// a blocked agent gets a label; running/finished get a quiet dot.
+    @ViewBuilder
+    private var agentBadge: some View {
+        switch agentActivity {
+        case .waiting:
+            HStack(spacing: 4) {
+                Image(systemName: "bell.badge.fill")
+                Text("Needs you")
+            }
+            .font(ShioFont.footnote)
+            .foregroundStyle(.orange)
+        case .running:
+            Circle().fill(ShioColor.Text.tertiary).frame(width: 6, height: 6)
+        case .finished:
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 13))
+                .foregroundStyle(.green)
+        case .none:
+            EmptyView()
+        }
     }
 }

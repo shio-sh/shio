@@ -34,7 +34,8 @@ struct ShioSessionLiveActivity: Widget {
                         .font(.system(.subheadline, design: .monospaced).weight(.medium))
                         .foregroundStyle(.white)
                         .lineLimit(1)
-                    Text(statusText(for: context.state.connectionState))
+                    Text(agentStatusText(name: context.state.agentName, activity: context.state.agentActivity)
+                         ?? statusText(for: context.state.connectionState))
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.55))
                 }
@@ -74,6 +75,22 @@ struct ShioSessionLiveActivity: Widget {
                     .foregroundStyle(Color(red: 0.957, green: 0.933, blue: 0.875))
             }
         }
+    }
+
+    /// Agent status line for the lock screen, or nil when no agent is active.
+    /// e.g. "Claude Code · Waiting on you". The Dynamic Island never shows
+    /// this — it stays kanji-only by design.
+    private func agentStatusText(name: String?, activity: String?) -> String? {
+        guard let activity, !activity.isEmpty else { return nil }
+        let label: String
+        switch activity {
+        case "waiting":  label = "Waiting on you"
+        case "running":  label = "Working…"
+        case "finished": label = "Finished"
+        default:         return nil
+        }
+        if let name { return "\(name) · \(label)" }
+        return label
     }
 
     private func statusText(for state: String) -> String {

@@ -59,6 +59,15 @@ final class SessionViewModel {
     /// the remote so the shell/TUI isn't thrashed mid-animation.
     private var resizeDebounce: Task<Void, Never>?
 
+    // MARK: Agent detection
+    /// Set by `SessionStore` so output-watching can key `AgentStateStore` by
+    /// the owning session's id (same id the Live Activity uses).
+    var ownerSessionID: UUID?
+    /// Rolling, ANSI-stripped tail of recent output fed to the classifier.
+    private var agentTail = ""
+    /// Last activity we pushed, so we only update on transitions.
+    private var lastAgentActivity: AgentActivity = .none
+
     // MARK: Reconnect state
 
     /// True once the user (or the parent view's onDisappear) explicitly
@@ -117,6 +126,31 @@ final class SessionViewModel {
         }
     }
 
+    /// Feed a chunk of raw output into the output-watching agent classifier,
+    /// update the shared `AgentStateStore`, and surface activity transitions
+    /// (especially → waiting) on the Live Activity.
+    private func ingestForAgentDetection(_ raw: String) {
+        guard let id = ownerSessionID else { return }
+        agentTail += AgentDetector.strip(raw)
+        if agentTail.count > 4000 { agentTail = String(agentTail.suffix(4000)) }
+
+        let snapshot = AgentDetector.classify(cleanTail: agentTail)
+        AgentStateStore.shared.update(sessionID: id, snapshot)
+
+        guard snapshot.activity != lastAgentActivity else { return }
+        lastAgentActivity = snapshot.activity
+        if case .connected = state {
+            Task {
+                await LiveActivityController.shared.update(
+                    sessionID: id,
+                    connectionState: "connected",
+                    agentName: snapshot.agentName,
+                    agentActivity: snapshot.activity == .none ? nil : snapshot.activity.rawValue
+                )
+            }
+        }
+    }
+
     /// Debounce remote PTY resizes (~120ms trailing). The last size in a
     /// burst wins, so a rotation that sweeps through intermediate grid sizes
     /// sends a single window-change to the remote.
@@ -171,9 +205,9 @@ final class SessionViewModel {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.terminal.write(data)
+                let str = String(data: data, encoding: .utf8)
                 if self.persistenceMode == .tmuxAutoResume, !self.tmuxFallbackTriggered,
-                   let str = String(data: data, encoding: .utf8),
-                   TmuxResume.looksLikeTmuxMissing(str) {
+                   let str, TmuxResume.looksLikeTmuxMissing(str) {
                     self.tmuxFallbackTriggered = true
                     let hint = [
                         "\r\n\u{1B}[33m[shio] tmux not found — running plain shell.\u{1B}[0m",
@@ -182,6 +216,7 @@ final class SessionViewModel {
                     ].joined(separator: "\r\n")
                     self.terminal.write(hint)
                 }
+                if let str { self.ingestForAgentDetection(str) }
             }
         }
         client.onDisconnect = { [weak self] error in

@@ -78,13 +78,21 @@ final class LiveActivityController {
     /// or the network drops out and we can't push another update before
     /// the window closes, iOS marks the activity as stale so the lock
     /// screen stops claiming "Connected" when we have no idea.
-    func update(sessionID: UUID, connectionState: String, lastCommand: String? = nil) async {
+    func update(
+        sessionID: UUID,
+        connectionState: String,
+        lastCommand: String? = nil,
+        agentName: String? = nil,
+        agentActivity: String? = nil
+    ) async {
         guard let activity = lookupActivity(sessionID) else { return }
         let duration = startTimes[sessionID].map { Date().timeIntervalSince($0) } ?? 0
         let state = ShioSessionAttributes.ContentState(
             lastCommand: lastCommand,
             duration: duration,
-            connectionState: connectionState
+            connectionState: connectionState,
+            agentName: agentName,
+            agentActivity: agentActivity
         )
         let stale: TimeInterval = connectionState == "disconnected"
             ? Self.disconnectedStaleSeconds

@@ -147,6 +147,7 @@ final class SessionStore {
             displayName: displayName,
             viewModel: vm
         )
+        vm.ownerSessionID = session.id   // lets output-watching key AgentStateStore
         sessions.append(session)
         activeSession = session
         return session
@@ -157,6 +158,7 @@ final class SessionStore {
     /// session itself alive, so the user can reconnect later.
     func close(_ session: Session) async {
         await LiveActivityController.shared.end(sessionID: session.id, finalState: "ended")
+        AgentStateStore.shared.clear(session.id)
         await session.viewModel.stop()
         sessions.removeAll { $0.id == session.id }
         if activeSession?.id == session.id {

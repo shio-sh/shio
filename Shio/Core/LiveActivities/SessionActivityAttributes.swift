@@ -15,15 +15,25 @@ public struct ShioSessionAttributes: ActivityAttributes {
         /// "disconnected". Stringly typed because Codable + cross-target
         /// enum sharing in widget extensions has historically been finicky.
         public var connectionState: String
+        /// Detected agent in this session ("Claude Code", "Codex", …), or nil.
+        public var agentName: String?
+        /// Agent activity — `AgentActivity.rawValue` ("running"/"waiting"/
+        /// "finished"), or nil when no agent is detected. Stringly typed for
+        /// the same cross-target reason as `connectionState`.
+        public var agentActivity: String?
 
         public init(
             lastCommand: String? = nil,
             duration: TimeInterval = 0,
-            connectionState: String = "connected"
+            connectionState: String = "connected",
+            agentName: String? = nil,
+            agentActivity: String? = nil
         ) {
             self.lastCommand = lastCommand
             self.duration = duration
             self.connectionState = connectionState
+            self.agentName = agentName
+            self.agentActivity = agentActivity
         }
     }
 
