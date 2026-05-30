@@ -121,7 +121,12 @@ final class ShioAppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didReceiveRemoteNotification userInfo: [AnyHashable: Any]
     ) async -> UIBackgroundFetchResult {
-        await PushService.shared.handleRemoteNotification(userInfo)
+        // CloudKit pushes (the sovereign path) take precedence; only fall
+        // through to the relay path if this wasn't one.
+        let handledByCloudKit = await CloudKitSignalService.shared.handleNotification(userInfo)
+        if !handledByCloudKit {
+            await PushService.shared.handleRemoteNotification(userInfo)
+        }
         return .noData
     }
 }

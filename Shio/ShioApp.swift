@@ -18,6 +18,9 @@ struct ShioApp: App {
                     // onboarding. No-op end-to-end until a relay is configured.
                     if KeyManager.hasKey() {
                         await PushService.shared.requestAuthorizationAndRegister()
+                        // Register the sovereign CloudKit away-push subscription
+                        // (no-op until the iCloud container is provisioned).
+                        await CloudKitSignalService.shared.ensureSubscription()
                     }
                 }
                 .onOpenURL { url in

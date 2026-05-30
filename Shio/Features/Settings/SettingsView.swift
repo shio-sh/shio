@@ -11,6 +11,8 @@ struct SettingsView: View {
     private var appLockEnabled: Bool = false
 
     @State private var showingProModeDisclosure = false
+    @State private var testPushResult: String?
+    @State private var sendingTestPush = false
 
     var body: some View {
         NavigationStack {
@@ -95,6 +97,25 @@ struct SettingsView: View {
                             .foregroundStyle(ShioColor.Text.tertiary)
                     }
                 }
+
+                if proModeEnabled {
+                    Section {
+                        Button {
+                            Task { await sendTestPush() }
+                        } label: {
+                            HStack {
+                                Label("Send test notification", systemImage: "bell.badge")
+                                Spacer()
+                                if sendingTestPush { ProgressView() }
+                            }
+                        }
+                        .disabled(sendingTestPush)
+                    } header: {
+                        Text("Notifications")
+                    } footer: {
+                        Text("Writes a CloudKit signal and pushes it back to this device — to verify away-push is delivering. Requires the iCloud container to be set up.")
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(ShioColor.Chrome.background)
@@ -104,6 +125,22 @@ struct SettingsView: View {
             } message: {
                 Text("Pro Mode unlocks raw SSH, ProxyJump, custom ports, and manual key management. Shio can't protect you from misconfigurations in this mode.")
             }
+            .alert("Test notification", isPresented: Binding(get: { testPushResult != nil }, set: { if !$0 { testPushResult = nil } })) {
+                Button("OK") { testPushResult = nil }
+            } message: {
+                Text(testPushResult ?? "")
+            }
+        }
+    }
+
+    private func sendTestPush() async {
+        sendingTestPush = true
+        defer { sendingTestPush = false }
+        do {
+            try await CloudKitSignalService.shared.sendTestSignal()
+            testPushResult = "Signal sent. The push should arrive in a few seconds (works on a real device with iCloud signed in)."
+        } catch {
+            testPushResult = "Couldn't send: \(error.localizedDescription)"
         }
     }
 
