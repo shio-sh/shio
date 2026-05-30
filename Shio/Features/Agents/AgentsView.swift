@@ -37,7 +37,7 @@ struct AgentsView: View {
                 }
             }
             .background(ShioColor.Chrome.background)
-            .navigationTitle("Agents")
+            .shioNavTitle("Agents")
             .fullScreenCover(isPresented: $showingTerminal) {
                 TerminalScene()
             }

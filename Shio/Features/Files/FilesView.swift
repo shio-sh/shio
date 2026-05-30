@@ -24,7 +24,7 @@ struct FilesView: View {
                 }
             }
             .background(ShioColor.Chrome.background)
-            .navigationTitle("Files")
+            .shioNavTitle("Files")
         }
     }
 

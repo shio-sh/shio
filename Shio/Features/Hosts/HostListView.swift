@@ -43,7 +43,7 @@ struct HostListView: View {
                 .scrollContentBackground(.hidden)
             }
             .background(ShioColor.Chrome.background)
-            .navigationTitle("shio")
+            .shioNavTitle("Hosts")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

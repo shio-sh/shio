@@ -34,14 +34,8 @@ struct ProjectsView: View {
                 }
             }
             .background(ShioColor.Chrome.background)
+            .shioNavTitle("shio")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    // TODO(polish): swap for the Departure Mono wordmark.
-                    Text("shio")
-                        .font(.system(.title3, design: .monospaced))
-                        .fontWeight(.semibold)
-                        .foregroundStyle(ShioColor.Text.primary)
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         isAddingProject = true
