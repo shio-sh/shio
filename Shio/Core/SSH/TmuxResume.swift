@@ -61,8 +61,18 @@ enum TmuxResume {
     /// starting in `startDir` (project sessions: `shio-<project>` opened in
     /// the repo directory). `-A` attaches-or-creates; mouse mode is scoped
     /// to the session.
-    static func resumeCommand(named name: String, startDir: String? = nil) -> String {
-        var cmd = "tmux new-session -A -s \(name)"
+    ///
+    /// If `cloneURL` is given alongside `startDir`, a guarded `git clone`
+    /// runs first — only when `startDir` doesn't already exist — so a
+    /// project created from a git URL clones itself on first open and is a
+    /// plain resume thereafter. The clone rides the host's own git auth.
+    static func resumeCommand(named name: String, startDir: String? = nil, cloneURL: String? = nil) -> String {
+        var cmd = ""
+        if let cloneURL, !cloneURL.isEmpty, let startDir, !startDir.isEmpty {
+            // `[ -d dir ] || git clone url dir` — clone only if missing.
+            cmd += "[ -d \(singleQuoted(startDir)) ] || git clone \(singleQuoted(cloneURL)) \(singleQuoted(startDir)); "
+        }
+        cmd += "tmux new-session -A -s \(name)"
         if let startDir, !startDir.isEmpty {
             cmd += " -c \(singleQuoted(startDir))"
         }

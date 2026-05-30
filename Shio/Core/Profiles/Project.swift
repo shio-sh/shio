@@ -13,6 +13,11 @@ final class Project {
     /// Absolute path to the repo/folder on the host (e.g. /Users/amrith/shio.sh).
     var path: String
 
+    /// If this project was created from a git URL, the URL to clone. The clone
+    /// runs lazily on first open (only if `path` doesn't already exist on the
+    /// host), riding the host's existing git auth. nil for path-based projects.
+    var cloneURL: String?
+
     /// The machine this project lives on.
     var host: Host?
 

@@ -8,11 +8,30 @@ struct AddProjectSheet: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var hosts: [Host]
 
+    /// Where the project's files come from: an existing path on the host, or
+    /// a git URL Shio clones on the host on first open.
+    private enum Source: String, CaseIterable {
+        case path = "On host"
+        case clone = "Clone URL"
+    }
+
     @State private var selectedHost: Host?
     @State private var path: String = ""
+    @State private var source: Source = .path
+    @State private var gitURL: String = ""
 
     private var trimmedPath: String {
         path.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedURL: String {
+        gitURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canAdd: Bool {
+        guard selectedHost != nil, !trimmedPath.isEmpty else { return false }
+        if source == .clone, trimmedURL.isEmpty { return false }
+        return true
     }
 
     var body: some View {
@@ -33,14 +52,37 @@ struct AddProjectSheet: View {
                         }
                     }
                     Section {
+                        Picker("Source", selection: $source) {
+                            ForEach(Source.allCases, id: \.self) { s in
+                                Text(s.rawValue).tag(s)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    if source == .clone {
+                        Section {
+                            TextField("https://github.com/you/your-repo.git", text: $gitURL)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .font(ShioFont.Mono.inline)
+                                .keyboardType(.URL)
+                        } header: {
+                            Text("Git URL")
+                        } footer: {
+                            Text("Shio runs git clone on the machine, using its own git auth, the first time you open the project.")
+                        }
+                    }
+                    Section {
                         TextField("/Users/you/code/your-repo", text: $path)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                             .font(ShioFont.Mono.inline)
                     } header: {
-                        Text("Repo path")
+                        Text(source == .clone ? "Clone into" : "Repo path")
                     } footer: {
-                        Text("The absolute path to the repo on that machine. Shio opens a terminal here.")
+                        Text(source == .clone
+                             ? "Absolute path on the machine to clone into. Shio opens a terminal here once it's cloned."
+                             : "The absolute path to the repo on that machine. Shio opens a terminal here.")
                     }
                 }
             }
@@ -52,7 +94,7 @@ struct AddProjectSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") { addProject() }
-                        .disabled(selectedHost == nil || trimmedPath.isEmpty)
+                        .disabled(!canAdd)
                 }
             }
             .onAppear {
@@ -66,6 +108,9 @@ struct AddProjectSheet: View {
         let leaf = (trimmedPath as NSString).lastPathComponent
         let name = leaf.isEmpty ? trimmedPath : leaf
         let project = Project(name: name, path: trimmedPath, host: host)
+        if source == .clone, !trimmedURL.isEmpty {
+            project.cloneURL = trimmedURL
+        }
         context.insert(project)
         try? context.save()
         dismiss()

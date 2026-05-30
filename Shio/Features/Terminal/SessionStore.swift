@@ -116,16 +116,19 @@ final class SessionStore {
 
         let tmuxName: String?
         let startDir: String?
+        let cloneURL: String?
         let baseName: String
         if let project {
             let scrubbed = TmuxResume.scrubName(project.name)
             tmuxName = nextIndex == 0 ? "shio-\(scrubbed)" : "shio-\(scrubbed)-\(nextIndex)"
             startDir = project.path
+            cloneURL = project.cloneURL
             baseName = project.name
             project.lastOpenedAt = .now
         } else {
             tmuxName = nil      // SessionViewModel derives `shio-<host>`
             startDir = nil
+            cloneURL = nil
             baseName = host.name
         }
 
@@ -134,7 +137,8 @@ final class SessionStore {
             persistenceMode: project?.persistenceModeOverride ?? host.persistenceMode,
             sessionIndex: nextIndex,
             tmuxSessionName: tmuxName,
-            startDirectory: startDir
+            startDirectory: startDir,
+            cloneURL: cloneURL
         )
         let displayName = nextIndex == 0 ? baseName : "\(baseName) (\(nextIndex + 1))"
         let session = Session(

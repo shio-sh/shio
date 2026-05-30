@@ -40,6 +40,9 @@ final class SessionViewModel {
     /// Directory to open the session in (the repo path for a project
     /// session), or nil to start in the login shell's default.
     let startDirectory: String?
+    /// For projects created from a git URL: the URL to clone into
+    /// `startDirectory` on first open (guarded — only if it doesn't exist).
+    let cloneURL: String?
     var targetPort: Int { configuration.port }
 
     private var client: SSHClient?
@@ -77,7 +80,8 @@ final class SessionViewModel {
         persistenceMode: Host.PersistenceMode = .tmuxAutoResume,
         sessionIndex: Int = 0,
         tmuxSessionName: String? = nil,
-        startDirectory: String? = nil
+        startDirectory: String? = nil,
+        cloneURL: String? = nil
     ) {
         self.configuration = configuration
         self.hostName = configuration.host
@@ -86,6 +90,7 @@ final class SessionViewModel {
         self.tmuxSessionName = tmuxSessionName
             ?? TmuxResume.sessionName(for: configuration.host, index: sessionIndex)
         self.startDirectory = startDirectory
+        self.cloneURL = cloneURL
         self.terminal = LibGhosttyTerminalController()
         wire()
         startPathMonitor()
@@ -193,7 +198,7 @@ final class SessionViewModel {
             }
             reconnectAttempt = 0
             if persistenceMode == .tmuxAutoResume {
-                client.write(TmuxResume.resumeCommand(named: tmuxSessionName, startDir: startDirectory))
+                client.write(TmuxResume.resumeCommand(named: tmuxSessionName, startDir: startDirectory, cloneURL: cloneURL))
             }
         } catch {
             // Connect itself failed. Either kick the backoff (if a retry
