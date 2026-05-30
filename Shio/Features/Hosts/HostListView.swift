@@ -9,6 +9,7 @@ struct HostListView: View {
     @Environment(\.modelContext) private var context
 
     @State private var isAddingHost = false
+    @State private var isPairing = false
     @State private var showingTerminal = false
     private let sessionStore = SessionStore.shared
 
@@ -47,6 +48,15 @@ struct HostListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        isPairing = true
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                            .foregroundStyle(ShioColor.Text.primary)
+                    }
+                    .accessibilityLabel("Pair a machine")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         isAddingHost = true
                     } label: {
                         Image(systemName: "plus")
@@ -56,6 +66,9 @@ struct HostListView: View {
             }
             .sheet(isPresented: $isAddingHost) {
                 AddHostSheet(proModeEnabled: proModeEnabled)
+            }
+            .sheet(isPresented: $isPairing) {
+                PairingView()
             }
             .fullScreenCover(isPresented: $showingTerminal) {
                 TerminalScene()

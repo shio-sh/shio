@@ -4,6 +4,8 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Shio uses the camera to scan the pairing QR code your machine shows, so it can connect securely.</string>
 	<key>CFBundleDisplayName</key>
 	<string>Shio</string>
 	<key>CFBundleExecutable</key>
