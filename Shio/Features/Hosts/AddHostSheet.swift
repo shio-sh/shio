@@ -229,9 +229,12 @@ private struct DirectSSHAddView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(ShioFont.Mono.inline)
+                // Mosh (.mosh) is intentionally omitted — it's a model
+                // placeholder with no transport yet (SSH-only). Shio's
+                // resilience is SSH + tmux + smart auto-reconnect; see
+                // SessionViewModel. Re-add when/if a Mosh transport lands.
                 Picker("Persistence", selection: $persistenceMode) {
                     Text("Tmux auto-resume").tag(Host.PersistenceMode.tmuxAutoResume)
-                    Text("Mosh").tag(Host.PersistenceMode.mosh)
                     Text("None").tag(Host.PersistenceMode.plain)
                 }
             }

@@ -45,6 +45,10 @@ struct ShioApp: App {
                     // pushes the real state and ends activities for
                     // sessions that aren't recoverable.
                     if newPhase == .active {
+                        // Nudge the visible session back to life — iOS killed
+                        // our sockets while suspended — then reconcile the
+                        // Live Activity state.
+                        SessionStore.shared.reconnectActiveOnForeground()
                         Task { await SessionStore.shared.reconcileLiveActivities() }
                     }
                 }

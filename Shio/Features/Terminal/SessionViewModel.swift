@@ -101,6 +101,10 @@ final class SessionViewModel {
     private let pathMonitor = NWPathMonitor()
     private let monitorQueue = DispatchQueue(label: "sh.shio.session.path")
     private var lastPathSatisfied: Bool = true
+    /// The interface the connection was last riding (WiFi / cellular / wired).
+    /// A change while we believe we're connected means the old socket is dead,
+    /// so we reconnect immediately instead of waiting for the TCP timeout.
+    private var lastPrimaryInterface: NWInterface.InterfaceType?
 
     init(
         configuration: SSHClient.Configuration,
@@ -198,19 +202,73 @@ final class SessionViewModel {
     private func startPathMonitor() {
         pathMonitor.pathUpdateHandler = { [weak self] path in
             let isSatisfied = (path.status == .satisfied)
+            let primary = SessionViewModel.primaryInterface(of: path)
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 let wasSatisfied = self.lastPathSatisfied
+                let previousPrimary = self.lastPrimaryInterface
                 self.lastPathSatisfied = isSatisfied
+                self.lastPrimaryInterface = primary
+
                 // If the network just came back AND we're in the middle of
                 // a reconnect backoff, jump the queue and retry now.
                 if !wasSatisfied, isSatisfied, case .reconnecting = self.state {
                     self.reconnectTask?.cancel()
                     self.kickReconnect(immediate: true)
+                    return
+                }
+
+                // The interface switched (WiFi ↔ cellular ↔ wired) while we
+                // thought we were connected. The old socket is dead even
+                // though it hasn't timed out yet — reconnect now so the user
+                // doesn't stare at a frozen terminal. tmux re-attach lands
+                // them exactly where they were.
+                if isSatisfied, case .connected = self.state,
+                   let previousPrimary, let primary, previousPrimary != primary {
+                    self.forceReconnect()
                 }
             }
         }
         pathMonitor.start(queue: monitorQueue)
+    }
+
+    /// The interface a path is primarily using, in priority order. Pure, so
+    /// it's safe to call from the nonisolated path-monitor callback.
+    private nonisolated static func primaryInterface(of path: NWPath) -> NWInterface.InterfaceType? {
+        for type in [NWInterface.InterfaceType.wifi, .wiredEthernet, .cellular] where path.usesInterfaceType(type) {
+            return type
+        }
+        return path.availableInterfaces.first?.type
+    }
+
+    /// Tear down the current (now-dead) client and reconnect immediately,
+    /// surfaced as a reconnect so the screen stays put and tmux re-attaches.
+    private func forceReconnect() {
+        guard !userInitiatedStop else { return }
+        reconnectAttempt = 0
+        reconnectTask?.cancel()
+        let stale = client
+        client = nil
+        Task { await stale?.disconnect() }
+        state = .reconnecting
+        kickReconnect(immediate: true)
+    }
+
+    /// Called when the app returns to the foreground. iOS suspends us in the
+    /// background and kills sockets, so a session that knows it's down (or was
+    /// mid-backoff when we got frozen) should retry instantly rather than
+    /// leave the user on a stale screen or the disconnected overlay.
+    func reconnectIfNeeded() {
+        guard !userInitiatedStop else { return }
+        switch state {
+        case .connected, .connecting:
+            return
+        case .idle, .reconnecting, .disconnected:
+            reconnectAttempt = 0
+            reconnectTask?.cancel()
+            state = .reconnecting
+            kickReconnect(immediate: true)
+        }
     }
 
     // MARK: - Lifecycle

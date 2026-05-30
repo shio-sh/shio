@@ -166,6 +166,12 @@ final class SessionStore {
         }
     }
 
+    /// On app foreground, nudge the visible session back to life if it
+    /// dropped while we were suspended. tmux re-attach makes this seamless.
+    func reconnectActiveOnForeground() {
+        activeSession?.viewModel.reconnectIfNeeded()
+    }
+
     /// Make a session the active one without creating or destroying.
     func switchTo(_ session: Session) {
         guard sessions.contains(session) else { return }
