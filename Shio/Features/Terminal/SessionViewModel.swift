@@ -35,6 +35,11 @@ final class SessionViewModel {
     /// concurrent sessions on the same host. Drives the tmux session name
     /// so they don't collide.
     let sessionIndex: Int
+    /// Explicit tmux session name, e.g. `shio-<project>` or `shio-<host>`.
+    let tmuxSessionName: String
+    /// Directory to open the session in (the repo path for a project
+    /// session), or nil to start in the login shell's default.
+    let startDirectory: String?
     var targetPort: Int { configuration.port }
 
     private var client: SSHClient?
@@ -70,12 +75,17 @@ final class SessionViewModel {
     init(
         configuration: SSHClient.Configuration,
         persistenceMode: Host.PersistenceMode = .tmuxAutoResume,
-        sessionIndex: Int = 0
+        sessionIndex: Int = 0,
+        tmuxSessionName: String? = nil,
+        startDirectory: String? = nil
     ) {
         self.configuration = configuration
         self.hostName = configuration.host
         self.persistenceMode = persistenceMode
         self.sessionIndex = sessionIndex
+        self.tmuxSessionName = tmuxSessionName
+            ?? TmuxResume.sessionName(for: configuration.host, index: sessionIndex)
+        self.startDirectory = startDirectory
         self.terminal = LibGhosttyTerminalController()
         wire()
         startPathMonitor()
@@ -183,7 +193,7 @@ final class SessionViewModel {
             }
             reconnectAttempt = 0
             if persistenceMode == .tmuxAutoResume {
-                client.write(TmuxResume.resumeCommand(for: hostName, index: sessionIndex))
+                client.write(TmuxResume.resumeCommand(named: tmuxSessionName, startDir: startDirectory))
             }
         } catch {
             // Connect itself failed. Either kick the backoff (if a retry

@@ -46,8 +46,31 @@ enum TmuxResume {
     }
 
     static func sessionName(for hostName: String, index: Int = 0) -> String {
-        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
-        let scrubbed = String(hostName.map { allowed.contains($0) ? $0 : "-" })
+        let scrubbed = scrubName(hostName)
         return index == 0 ? "shio-\(scrubbed)" : "shio-\(scrubbed)-\(index)"
+    }
+
+    /// Scrub an arbitrary string (host or project name) down to tmux-safe
+    /// characters. Used when building project session names.
+    static func scrubName(_ s: String) -> String {
+        let allowed = Set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_")
+        return String(s.map { allowed.contains($0) ? $0 : "-" })
+    }
+
+    /// Resume command for an explicitly-named tmux session, optionally
+    /// starting in `startDir` (project sessions: `shio-<project>` opened in
+    /// the repo directory). `-A` attaches-or-creates; mouse mode is scoped
+    /// to the session.
+    static func resumeCommand(named name: String, startDir: String? = nil) -> String {
+        var cmd = "tmux new-session -A -s \(name)"
+        if let startDir, !startDir.isEmpty {
+            cmd += " -c \(singleQuoted(startDir))"
+        }
+        cmd += " \\; set mouse on\n"
+        return cmd
+    }
+
+    private static func singleQuoted(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }

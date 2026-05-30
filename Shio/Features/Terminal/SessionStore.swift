@@ -25,11 +25,15 @@ final class SessionStore {
     final class Session: Identifiable, Equatable, Hashable {
         let id: UUID = UUID()
         let hostID: PersistentIdentifier
+        /// The project (repo) this session belongs to, or nil for a
+        /// host-level raw shell opened from the Hosts tab.
+        let projectID: PersistentIdentifier?
         let displayName: String
         let viewModel: SessionViewModel
 
-        init(hostID: PersistentIdentifier, displayName: String, viewModel: SessionViewModel) {
+        init(hostID: PersistentIdentifier, projectID: PersistentIdentifier? = nil, displayName: String, viewModel: SessionViewModel) {
             self.hostID = hostID
+            self.projectID = projectID
             self.displayName = displayName
             self.viewModel = viewModel
         }
@@ -58,44 +62,84 @@ final class SessionStore {
     /// picked up). Sets it as active.
     @discardableResult
     func openOrCreate(host: Host) -> Session {
-        if let existing = sessions.first(where: { $0.hostID == host.persistentModelID }) {
+        if let existing = sessions.first(where: { $0.hostID == host.persistentModelID && $0.projectID == nil }) {
             activeSession = existing
             return existing
         }
         return createNewSession(on: host)
     }
 
+    /// Sessions belonging to a particular project, in creation order.
+    func sessions(forProject projectID: PersistentIdentifier) -> [Session] {
+        sessions.filter { $0.projectID == projectID }
+    }
+
+    /// Open the first existing session for this project, or create one: a
+    /// tmux session named `shio-<project>` opened in the repo directory.
+    /// Returns nil if the project has no host yet.
+    @discardableResult
+    func openOrCreate(project: Project) -> Session? {
+        guard let host = project.host else { return nil }
+        if let existing = sessions.first(where: { $0.projectID == project.persistentModelID }) {
+            activeSession = existing
+            return existing
+        }
+        return createNewSession(on: host, project: project)
+    }
+
     /// Always create a new session on this host. The tmux session name
     /// picks the lowest unused index for the host, so concurrent tabs
     /// on the same Mac persist independently.
+    /// Create a new session on this host. If `project` is given, the tmux
+    /// session is named `shio-<project>` and opened in the repo directory;
+    /// otherwise it is a host-level shell (`shio-<host>`). Indices are scoped
+    /// to the (host[, project]) bucket so concurrent sessions persist
+    /// independently. Reusing index 0 is intentional — the single-session
+    /// user's existing tmux session survives.
     @discardableResult
-    func createNewSession(on host: Host) -> Session {
-        // Push to the widget cache so a fresh "recent hosts" surface
-        // is available to home-screen widgets without IPC. Reload the
-        // widget so the home-screen tile reflects the change.
+    func createNewSession(on host: Host, project: Project? = nil) -> Session {
         WidgetSharedState.recordConnect(
             id: "\(host.persistentModelID)",
             name: host.name
         )
         WidgetCenter.shared.reloadAllTimelines()
-        let existing = sessions(for: host.persistentModelID)
-        // Choose the next free index: 0 if no sessions yet, otherwise
-        // max-existing-index + 1. Reusing zero is intentional — the
-        // single-session user's existing `shio-<host>` tmux survives.
-        let nextIndex: Int = existing.isEmpty
+
+        let bucket: [Session]
+        if let project {
+            bucket = sessions(forProject: project.persistentModelID)
+        } else {
+            bucket = sessions.filter { $0.hostID == host.persistentModelID && $0.projectID == nil }
+        }
+        let nextIndex: Int = bucket.isEmpty
             ? 0
-            : ((existing.compactMap { $0.viewModel.sessionIndex }.max() ?? 0) + 1)
+            : ((bucket.compactMap { $0.viewModel.sessionIndex }.max() ?? 0) + 1)
+
+        let tmuxName: String?
+        let startDir: String?
+        let baseName: String
+        if let project {
+            let scrubbed = TmuxResume.scrubName(project.name)
+            tmuxName = nextIndex == 0 ? "shio-\(scrubbed)" : "shio-\(scrubbed)-\(nextIndex)"
+            startDir = project.path
+            baseName = project.name
+            project.lastOpenedAt = .now
+        } else {
+            tmuxName = nil      // SessionViewModel derives `shio-<host>`
+            startDir = nil
+            baseName = host.name
+        }
 
         let vm = SessionViewModel(
             configuration: host.makeClientConfiguration(),
-            persistenceMode: host.persistenceMode,
-            sessionIndex: nextIndex
+            persistenceMode: project?.persistenceModeOverride ?? host.persistenceMode,
+            sessionIndex: nextIndex,
+            tmuxSessionName: tmuxName,
+            startDirectory: startDir
         )
-        let displayName = nextIndex == 0
-            ? host.name
-            : "\(host.name) (\(nextIndex + 1))"
+        let displayName = nextIndex == 0 ? baseName : "\(baseName) (\(nextIndex + 1))"
         let session = Session(
             hostID: host.persistentModelID,
+            projectID: project?.persistentModelID,
             displayName: displayName,
             viewModel: vm
         )
