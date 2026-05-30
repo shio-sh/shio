@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PhotosUI
 
 /// SFTP file browser for one host. Navigate directories, preview/download
 /// files, create folders, rename, delete, and upload.
@@ -12,6 +13,8 @@ struct FileBrowserView: View {
     @State private var showingNewFolder = false
     @State private var newFolderName = ""
     @State private var showingUpload = false
+    @State private var showingPhotoPicker = false
+    @State private var photoSelection: [PhotosPickerItem] = []
 
     init(host: Host, startPath: String? = nil) {
         _vm = State(initialValue: FilesViewModel(host: host, startPath: startPath))
@@ -36,6 +39,13 @@ struct FileBrowserView: View {
                         }
                     }
                 }
+            }
+            .photosPicker(isPresented: $showingPhotoPicker, selection: $photoSelection, maxSelectionCount: 10, matching: .images)
+            .onChange(of: photoSelection) { _, items in
+                guard !items.isEmpty else { return }
+                let picked = items
+                photoSelection = []
+                Task { await uploadPhotos(picked) }
             }
             .alert("New folder", isPresented: $showingNewFolder) {
                 TextField("Name", text: $newFolderName)
@@ -64,6 +74,19 @@ struct FileBrowserView: View {
     private var titleComponent: String {
         let leaf = (vm.path as NSString).lastPathComponent
         return leaf.isEmpty ? "/" : leaf
+    }
+
+    /// Upload picked photos to the current directory. PhotosPicker carries no
+    /// filename, so we synthesize one from the item's content type (png for
+    /// screenshots, jpg/heic for camera shots).
+    private func uploadPhotos(_ items: [PhotosPickerItem]) async {
+        let stamp = Int(Date().timeIntervalSince1970)
+        for (i, item) in items.enumerated() {
+            guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
+            let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "img"
+            let name = items.count == 1 ? "shio-\(stamp).\(ext)" : "shio-\(stamp)-\(i + 1).\(ext)"
+            await vm.upload(data, name: name)
+        }
     }
 
     @ViewBuilder
@@ -142,6 +165,7 @@ struct FileBrowserView: View {
         ToolbarItemGroup(placement: .topBarTrailing) {
             Menu {
                 Button { showingNewFolder = true } label: { Label("New Folder", systemImage: "folder.badge.plus") }
+                Button { showingPhotoPicker = true } label: { Label("Upload Photo", systemImage: "photo") }
                 Button { showingUpload = true } label: { Label("Upload File", systemImage: "arrow.up.doc") }
                 Button { Task { await vm.refresh() } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
             } label: {
