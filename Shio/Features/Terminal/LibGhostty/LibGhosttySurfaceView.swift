@@ -188,7 +188,10 @@ final class LibGhosttySurfaceView: UIView {
     /// fractional deltas are accumulated by the caller (`TerminalContainerView`).
     func scrollLines(_ lines: Int) {
         guard let surface = self.surface, lines != 0 else { return }
-        let arg = "scroll_page_lines:\(lines)"
+        // `scroll_lines:N` is the real ghostty action — `scroll_page_lines`
+        // doesn't exist, so the binding silently no-ops. Positive scrolls
+        // down toward the live tail, negative scrolls up into history.
+        let arg = "scroll_lines:\(lines)"
         arg.withCString { cstr in
             _ = ghostty_surface_binding_action(surface, cstr, UInt(strlen(cstr)))
         }
