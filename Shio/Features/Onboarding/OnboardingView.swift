@@ -113,9 +113,9 @@ struct OnboardingView: View {
 
         case .welcome:
             stepLayout(
-                title: "Your machines, in your pocket.",
-                body: "Pair a machine you own — scan the QR it shows and Shio is in. Your terminal, your projects, your agents, wherever you are.",
-                primary: "Pair with QR",
+                title: "Your agents, in your pocket.",
+                body: "Run coding agents on your own machines and drive them from anywhere. Add a machine to begin — scan the QR it shows and Shio is in.",
+                primary: "Add a machine",
                 primaryAction: { showingPairing = true },
                 secondary: "Set up with Tailscale instead",
                 secondaryAction: { step = nextStepFromWelcome() }

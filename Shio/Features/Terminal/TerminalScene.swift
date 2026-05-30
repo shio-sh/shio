@@ -5,9 +5,16 @@ import SwiftData
 /// currently `activeSession`. Switching sessions, spawning new ones, and
 /// closing the active one all flow through the store — TerminalScene
 /// just renders whatever's active.
+/// Wraps a URL so it can drive a `.sheet(item:)`.
+private struct IdentifiableURL: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
 struct TerminalScene: View {
 
     @State private var showingDiagnose: Bool = false
+    @State private var presentedLink: IdentifiableURL?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
 
@@ -42,7 +49,12 @@ struct TerminalScene: View {
                 case .disconnected(let reason):
                     disconnectedOverlay(reason: reason)
                 case .connected:
-                    scrollButtons(for: viewModel)
+                    ZStack {
+                        scrollButtons(for: viewModel)
+                        if let url = viewModel.detectedURL {
+                            linkBanner(url: url, viewModel: viewModel)
+                        }
+                    }
                 default:
                     EmptyView()
                 }
@@ -80,6 +92,10 @@ struct TerminalScene: View {
             if case .idle = active.viewModel.state {
                 await active.viewModel.start()
             }
+        }
+        .sheet(item: $presentedLink) { link in
+            SafariView(url: link.url)
+                .ignoresSafeArea()
         }
         .sheet(isPresented: $showingDiagnose) {
             if let viewModel {
@@ -215,6 +231,44 @@ struct TerminalScene: View {
     }
 
     // MARK: - Overlays
+
+    /// Bottom banner offering to open a URL printed in the output (an OAuth
+    /// link from `claude` / `gh auth`, etc.) in an in-app browser — so a login
+    /// triggered from your phone doesn't strand you waiting on a browser popup
+    /// on the remote machine.
+    @ViewBuilder
+    private func linkBanner(url: URL, viewModel: SessionViewModel) -> some View {
+        HStack(spacing: ShioSpace.sm) {
+            Image(systemName: "link")
+                .font(.system(size: 13, weight: .semibold))
+            Text("Open \(url.host ?? "link")")
+                .font(.system(.footnote, design: .monospaced).weight(.medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Button {
+                viewModel.clearDetectedURL()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .padding(.leading, 2)
+            }
+            .accessibilityLabel("Dismiss link")
+        }
+        .foregroundStyle(ShioColor.Text.primary)
+        .padding(.horizontal, ShioSpace.md)
+        .padding(.vertical, ShioSpace.sm)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(ShioColor.Text.tertiary.opacity(0.25)))
+        .contentShape(Capsule())
+        .onTapGesture {
+            Haptics.tap()
+            presentedLink = IdentifiableURL(url: url)
+            viewModel.clearDetectedURL()
+        }
+        .padding(.bottom, ShioSpace.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+    }
 
     /// Floating Page Up / Page Down controls, top-right of the terminal.
     /// They page libghostty's scrollback (or, in a full-screen TUI, send a

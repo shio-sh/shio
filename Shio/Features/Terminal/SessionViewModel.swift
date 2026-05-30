@@ -68,6 +68,15 @@ final class SessionViewModel {
     /// Last activity we pushed, so we only update on transitions.
     private var lastAgentActivity: AgentActivity = .none
 
+    // MARK: Link detection
+    /// The most recent http(s) URL seen in output, surfaced so the user can
+    /// open it in an in-app browser — chiefly for CLIs (Claude Code login,
+    /// `gh auth`, etc.) that would otherwise open a browser on the remote
+    /// machine you can't reach from your phone. Cleared by the UI once used.
+    private(set) var detectedURL: URL?
+    private static let urlRegex = try? NSRegularExpression(
+        pattern: "https?://[^\\s\"'<>)\\]}]+", options: [])
+
     // MARK: Reconnect state
 
     /// True once the user (or the parent view's onDisappear) explicitly
@@ -131,8 +140,11 @@ final class SessionViewModel {
     /// (especially → waiting) on the Live Activity.
     private func ingestForAgentDetection(_ raw: String) {
         guard let id = ownerSessionID else { return }
-        agentTail += AgentDetector.strip(raw)
+        let cleaned = AgentDetector.strip(raw)
+        agentTail += cleaned
         if agentTail.count > 4000 { agentTail = String(agentTail.suffix(4000)) }
+
+        detectLatestURL(in: cleaned)
 
         let snapshot = AgentDetector.classify(cleanTail: agentTail)
         AgentStateStore.shared.update(sessionID: id, snapshot)
@@ -150,6 +162,24 @@ final class SessionViewModel {
             }
         }
     }
+
+    /// Scan a freshly arrived (ANSI-stripped) chunk for an http(s) URL and
+    /// surface the last one found. Trailing punctuation is trimmed so a URL
+    /// printed at the end of a sentence still opens cleanly.
+    private func detectLatestURL(in chunk: String) {
+        guard let regex = Self.urlRegex else { return }
+        let range = NSRange(chunk.startIndex..., in: chunk)
+        let matches = regex.matches(in: chunk, range: range)
+        guard let last = matches.last, let r = Range(last.range, in: chunk) else { return }
+        var candidate = String(chunk[r])
+        while let trailing = candidate.last, ".,;:".contains(trailing) { candidate.removeLast() }
+        if let url = URL(string: candidate), url != detectedURL {
+            detectedURL = url
+        }
+    }
+
+    /// Called by the UI after opening (or dismissing) the surfaced link.
+    func clearDetectedURL() { detectedURL = nil }
 
     /// Debounce remote PTY resizes (~120ms trailing). The last size in a
     /// burst wins, so a rotation that sweeps through intermediate grid sizes
