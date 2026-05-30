@@ -98,10 +98,10 @@ final class CloudKitSignalService {
     /// exists. Throws so the caller can surface setup problems.
     func sendTestSignal(hostId: String? = nil) async throws {
         let record = CKRecord(recordType: Self.recordType)
-        record["hostId"] = (hostId ?? "") as CKRecordValue
-        record["sessionId"] = "" as CKRecordValue
-        record["title"] = "Test from Shio" as CKRecordValue
-        record["body"] = "If you see this, CloudKit away-push works." as CKRecordValue
+        record["hostId"] = hostId ?? ""
+        record["sessionId"] = ""
+        record["title"] = "Test from Shio"
+        record["body"] = "If you see this, CloudKit away-push works."
         _ = try await database.save(record)
     }
 }

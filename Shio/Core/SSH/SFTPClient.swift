@@ -107,7 +107,7 @@ final class SFTPClient: @unchecked Sendable {
         return promise.futureResult
     }
 
-    private func request(_ type: PacketType, _ build: @escaping (inout ByteBuffer) -> Void) -> EventLoopFuture<Response> {
+    private func request(_ type: PacketType, _ build: @escaping @Sendable (inout ByteBuffer) -> Void) -> EventLoopFuture<Response> {
         guard let eventLoop, let channel else {
             return SSHClient.sftpEventLoop.makeFailedFuture(SFTPError.notReady)
         }
@@ -193,9 +193,10 @@ final class SFTPClient: @unchecked Sendable {
         var data = Data()
         var offset: UInt64 = 0
         while true {
+            let readOffset = offset   // immutable copy for the @Sendable closure
             let resp = try await request(.read) {
                 $0.writeSFTPRawString(handle)
-                $0.writeInteger(offset)
+                $0.writeInteger(readOffset)
                 $0.writeInteger(self.chunkSize)
             }.get()
             if resp.type == PacketType.status.rawValue { break }  // EOF
@@ -226,9 +227,10 @@ final class SFTPClient: @unchecked Sendable {
         while index < data.count {
             let end = min(index + Int(chunkSize), data.count)
             let slice = data.subdata(in: index..<end)
+            let writeOffset = offset   // immutable copy for the @Sendable closure
             let resp = try await request(.write) {
                 $0.writeSFTPRawString(handle)
-                $0.writeInteger(offset)
+                $0.writeInteger(writeOffset)
                 $0.writeSFTPData(slice)
             }.get()
             try expectOK(resp)
