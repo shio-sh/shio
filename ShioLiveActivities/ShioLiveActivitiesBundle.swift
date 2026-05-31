@@ -121,7 +121,7 @@ struct ShioSessionLiveActivity: Widget {
             if let line = agentStatusText(name: agentName, activity: agentActivity) {
                 Text(line)
             } else {
-                Text("Live · ") + Text(startedAt, style: .timer)
+                Text("Live · \(startedAt, style: .timer)")
             }
         }
     }
