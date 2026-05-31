@@ -6,14 +6,10 @@ import Foundation
 /// `ShioLiveActivities` widget extension (which renders it).
 public struct ShioSessionAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
-        /// Most-recently-issued shell line, truncated. Surfaces on the
-        /// lock screen and in the Dynamic Island expanded view.
-        public var lastCommand: String?
-        /// Seconds the session has been live. Drives the duration label.
-        public var duration: TimeInterval
         /// Coarse connection state — "connected", "reconnecting",
-        /// "disconnected". Stringly typed because Codable + cross-target
-        /// enum sharing in widget extensions has historically been finicky.
+        /// "disconnected", "ended". Stringly typed because Codable +
+        /// cross-target enum sharing in widget extensions has historically
+        /// been finicky.
         public var connectionState: String
         /// Detected agent in this session ("Claude Code", "Codex", …), or nil.
         public var agentName: String?
@@ -23,14 +19,10 @@ public struct ShioSessionAttributes: ActivityAttributes {
         public var agentActivity: String?
 
         public init(
-            lastCommand: String? = nil,
-            duration: TimeInterval = 0,
             connectionState: String = "connected",
             agentName: String? = nil,
             agentActivity: String? = nil
         ) {
-            self.lastCommand = lastCommand
-            self.duration = duration
             self.connectionState = connectionState
             self.agentName = agentName
             self.agentActivity = agentActivity
@@ -38,8 +30,12 @@ public struct ShioSessionAttributes: ActivityAttributes {
     }
 
     public var hostName: String
+    /// When the session started, fixed for the activity's lifetime. Drives the
+    /// live "Live · 12:34" timer on the lock screen / expanded island.
+    public var startedAt: Date
 
-    public init(hostName: String) {
+    public init(hostName: String, startedAt: Date) {
         self.hostName = hostName
+        self.startedAt = startedAt
     }
 }

@@ -9,18 +9,20 @@ struct ShioLiveActivitiesBundle: WidgetBundle {
     }
 }
 
+private let shioCream = Color(red: 0.957, green: 0.933, blue: 0.875)
+
 /// Live Activity for an active SSH session.
 ///
 /// Design intent:
-///   - Lock screen: rich view. The user glances at their lock screen
-///     and sees "you have a live session on <host>" — a useful reminder
-///     so they know to disconnect before bed, etc.
-///   - Dynamic Island: deliberately minimal — just the brand kanji in
-///     cream. iOS reserves green and orange in this region for the
-///     system's camera / microphone privacy indicators; rendering any
-///     colored status dot here would mimic those, misleading users
-///     about hardware state and inviting App Review rejection. Kanji
-///     only.
+///   - Lock screen: rich view — host, live state, and the agent glance.
+///   - Dynamic Island compact / minimal: deliberately just the brand kanji in
+///     cream. iOS reserves green and orange in this region for the system's
+///     camera / microphone privacy indicators; any colored status dot here
+///     would mimic those, mislead about hardware state, and risk App Review.
+///     Kanji only there.
+///   - Dynamic Island expanded (long-press): a richer glance is fine — it's a
+///     popover, not the privacy-indicator pill — so it carries the same
+///     state + agent line as the lock screen (still no green/orange dot).
 struct ShioSessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShioSessionAttributes.self) { context in
@@ -28,16 +30,20 @@ struct ShioSessionLiveActivity: Widget {
             HStack(spacing: 12) {
                 Text("塩")
                     .font(.custom("DotGothic16-Regular", size: 28))
-                    .foregroundStyle(Color(red: 0.957, green: 0.933, blue: 0.875))
+                    .foregroundStyle(shioCream)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Connected to \(context.attributes.hostName)")
+                    Text(primaryLine(host: context.attributes.hostName, state: context.state.connectionState))
                         .font(.system(.subheadline, design: .monospaced).weight(.medium))
                         .foregroundStyle(.white)
                         .lineLimit(1)
-                    Text(agentStatusText(name: context.state.agentName, activity: context.state.agentActivity)
-                         ?? statusText(for: context.state.connectionState))
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.55))
+                    secondaryLine(
+                        state: context.state.connectionState,
+                        agentName: context.state.agentName,
+                        agentActivity: context.state.agentActivity,
+                        startedAt: context.attributes.startedAt
+                    )
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.55))
                 }
                 Spacer(minLength: 0)
                 Circle()
@@ -50,63 +56,91 @@ struct ShioSessionLiveActivity: Widget {
             .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { context in
             DynamicIsland {
-                // Expanded view (shown on long-press of the pill). Kept
-                // empty by design — we don't want this to be a content
-                // surface for a terminal app.
-                DynamicIslandExpandedRegion(.center) {
-                    EmptyView()
+                DynamicIslandExpandedRegion(.leading) {
+                    Text("塩")
+                        .font(.custom("DotGothic16-Regular", size: 20))
+                        .foregroundStyle(shioCream)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(primaryLine(host: context.attributes.hostName, state: context.state.connectionState))
+                            .font(.system(.subheadline, design: .monospaced).weight(.medium))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                        secondaryLine(
+                            state: context.state.connectionState,
+                            agentName: context.state.agentName,
+                            agentActivity: context.state.agentActivity,
+                            startedAt: context.attributes.startedAt
+                        )
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.55))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             } compactLeading: {
-                // CRITICAL: never use green or orange in the Dynamic
-                // Island. iOS reserves green (camera) and orange (mic)
-                // for system privacy indicators in this region — painting
-                // either color here mimics those indicators and risks App
-                // Review rejection AND, worse, misleads the user into
-                // thinking their hardware is in use. Only the kanji,
-                // only in our brand cream.
+                // Kanji only — never green/orange here (privacy indicators).
                 Text("塩")
                     .font(.custom("DotGothic16-Regular", size: 14))
-                    .foregroundStyle(Color(red: 0.957, green: 0.933, blue: 0.875))
+                    .foregroundStyle(shioCream)
             } compactTrailing: {
                 EmptyView()
             } minimal: {
                 Text("塩")
                     .font(.custom("DotGothic16-Regular", size: 14))
-                    .foregroundStyle(Color(red: 0.957, green: 0.933, blue: 0.875))
+                    .foregroundStyle(shioCream)
             }
         }
     }
 
-    /// Agent status line for the lock screen, or nil when no agent is active.
-    /// e.g. "Claude Code · Waiting on you". The Dynamic Island never shows
-    /// this — it stays kanji-only by design.
+    /// Primary line — host-anchored and state-aware, so it never claims
+    /// "Connected" while disconnected.
+    private func primaryLine(host: String, state: String) -> String {
+        switch state {
+        case "connected":    return "Connected to \(host)"
+        case "reconnecting": return "Reconnecting to \(host)…"
+        case "disconnected": return "Lost connection to \(host)"
+        case "ended":        return "Session on \(host) ended"
+        default:             return "Connected to \(host)"
+        }
+    }
+
+    /// Secondary line. Connection trouble takes priority over agent state —
+    /// a stale "waiting on you" during a drop would mislead. When connected,
+    /// show the agent glance if there is one, else a live session timer.
+    @ViewBuilder
+    private func secondaryLine(state: String, agentName: String?, agentActivity: String?, startedAt: Date) -> some View {
+        switch state {
+        case "reconnecting":
+            Text("Hang tight, picking the session back up…")
+        case "disconnected":
+            Text("Tap to reconnect — your session is waiting.")
+        case "ended":
+            Text("Disconnected.")
+        default:
+            if let line = agentStatusText(name: agentName, activity: agentActivity) {
+                Text(line)
+            } else {
+                Text("Live · ") + Text(startedAt, style: .timer)
+            }
+        }
+    }
+
+    /// Agent glance, e.g. "Claude Code · waiting on you", or nil when idle.
     private func agentStatusText(name: String?, activity: String?) -> String? {
         guard let activity, !activity.isEmpty else { return nil }
         let label: String
         switch activity {
-        case "waiting":  label = "Waiting on you"
-        case "running":  label = "Working…"
-        case "finished": label = "Finished"
+        case "waiting":  label = "waiting on you"
+        case "running":  label = "working…"
+        case "finished": label = "finished — your turn"
         default:         return nil
         }
         if let name { return "\(name) · \(label)" }
-        return label
+        return "Agent \(label)"
     }
 
-    private func statusText(for state: String) -> String {
-        switch state {
-        case "connected":    return "Live"
-        case "reconnecting": return "Reconnecting…"
-        case "disconnected": return "Disconnected"
-        case "ended":        return "Ended"
-        default:             return state
-        }
-    }
-
-    /// Status color used ONLY in the lock-screen banner — never in the
-    /// Dynamic Island. The lock screen is far from the camera/mic
-    /// privacy indicators, so a small colored dot here doesn't mimic
-    /// system semantics.
+    /// Status dot — lock screen / expanded only, never the compact pill.
     private func statusColor(for state: String) -> Color {
         switch state {
         case "connected":    return .green

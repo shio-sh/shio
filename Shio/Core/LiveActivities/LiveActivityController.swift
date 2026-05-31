@@ -17,7 +17,6 @@ final class LiveActivityController {
     /// need it; that sidesteps storing a non-Sendable Activity across
     /// the awaits in `update`/`end`.
     nonisolated(unsafe) private var activityIDs: [UUID: String] = [:]
-    nonisolated(unsafe) private var startTimes: [UUID: Date] = [:]
 
     private init() {}
 
@@ -38,12 +37,8 @@ final class LiveActivityController {
         guard activityIDs[sessionID] == nil else { return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
 
-        let attributes = ShioSessionAttributes(hostName: hostName)
-        let state = ShioSessionAttributes.ContentState(
-            lastCommand: nil,
-            duration: 0,
-            connectionState: "connected"
-        )
+        let attributes = ShioSessionAttributes(hostName: hostName, startedAt: Date())
+        let state = ShioSessionAttributes.ContentState(connectionState: "connected")
         let content = ActivityContent(
             state: state,
             staleDate: Date().addingTimeInterval(Self.defaultStaleSeconds)
@@ -56,7 +51,6 @@ final class LiveActivityController {
                 pushType: .token
             )
             activityIDs[sessionID] = activity.id
-            startTimes[sessionID] = Date()
             observePushToken(for: activity, sessionID: sessionID)
         } catch {
             print("[shio] LiveActivity start failed: \(error)")
@@ -94,15 +88,11 @@ final class LiveActivityController {
     func update(
         sessionID: UUID,
         connectionState: String,
-        lastCommand: String? = nil,
         agentName: String? = nil,
         agentActivity: String? = nil
     ) async {
         guard let activity = lookupActivity(sessionID) else { return }
-        let duration = startTimes[sessionID].map { Date().timeIntervalSince($0) } ?? 0
         let state = ShioSessionAttributes.ContentState(
-            lastCommand: lastCommand,
-            duration: duration,
             connectionState: connectionState,
             agentName: agentName,
             agentActivity: agentActivity
@@ -123,20 +113,13 @@ final class LiveActivityController {
     func end(sessionID: UUID, finalState: String = "ended") async {
         guard let activity = lookupActivity(sessionID) else {
             activityIDs.removeValue(forKey: sessionID)
-            startTimes.removeValue(forKey: sessionID)
             return
         }
-        let duration = startTimes[sessionID].map { Date().timeIntervalSince($0) } ?? 0
-        let state = ShioSessionAttributes.ContentState(
-            lastCommand: nil,
-            duration: duration,
-            connectionState: finalState
-        )
+        let state = ShioSessionAttributes.ContentState(connectionState: finalState)
         await activity.end(
             ActivityContent(state: state, staleDate: nil),
             dismissalPolicy: .after(.now + 4)
         )
         activityIDs.removeValue(forKey: sessionID)
-        startTimes.removeValue(forKey: sessionID)
     }
 }
