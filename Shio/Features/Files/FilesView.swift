@@ -4,7 +4,18 @@ import SwiftData
 /// Files tab. Pick a machine, then browse it over SFTP — a Finder-grade file
 /// surface on the same connection model as the terminal.
 struct FilesView: View {
+    private enum Sort { case name, recent }
+
     @Query(sort: \Host.name) private var hosts: [Host]
+    @State private var showingSettings = false
+    @State private var sort: Sort = .name
+
+    private var sortedHosts: [Host] {
+        switch sort {
+        case .name:   return hosts   // query is already name-sorted
+        case .recent: return hosts.sorted { $0.createdAt > $1.createdAt }
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -12,7 +23,7 @@ struct FilesView: View {
                 if hosts.isEmpty {
                     emptyState
                 } else {
-                    List(hosts) { host in
+                    List(sortedHosts) { host in
                         NavigationLink {
                             FileBrowserView(host: host)
                         } label: {
@@ -25,6 +36,32 @@ struct FilesView: View {
             }
             .background(ShioColor.Chrome.background)
             .shioNavTitle("Files")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Sort", selection: $sort) {
+                            Label("Name", systemImage: "textformat").tag(Sort.name)
+                            Label("Recently added", systemImage: "clock").tag(Sort.recent)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                            .foregroundStyle(ShioColor.Text.primary)
+                    }
+                    .accessibilityLabel("Sort machines")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "person.crop.circle")
+                            .foregroundStyle(ShioColor.Text.primary)
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
+            .sheet(isPresented: $showingSettings) {
+                NavigationStack { SettingsView() }
+            }
         }
     }
 

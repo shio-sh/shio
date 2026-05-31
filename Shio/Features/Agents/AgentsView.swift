@@ -8,14 +8,24 @@ import SwiftUI
 /// sessions that are currently open in the app. The Phase 6 away-watcher
 /// extends this to agents you're not actively connected to.
 struct AgentsView: View {
+    private enum Filter { case all, needsYou }
+
     private let store = SessionStore.shared
     private let agents = AgentStateStore.shared
     @State private var showingTerminal = false
+    @State private var showingSettings = false
+    @State private var filter: Filter = .all
+
+    private var visibleIDs: [UUID] {
+        let ids = agents.liveSessionIDs
+        guard filter == .needsYou else { return ids }
+        return ids.filter { agents.snapshot(for: $0)?.activity == .waiting }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                let ids = agents.liveSessionIDs
+                let ids = visibleIDs
                 if ids.isEmpty {
                     emptyState
                 } else {
@@ -38,6 +48,32 @@ struct AgentsView: View {
             }
             .background(ShioColor.Chrome.background)
             .shioNavTitle("Agents")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Filter", selection: $filter) {
+                            Label("All agents", systemImage: "sparkles").tag(Filter.all)
+                            Label("Needs you", systemImage: "bell.badge").tag(Filter.needsYou)
+                        }
+                    } label: {
+                        Image(systemName: filter == .needsYou ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                            .foregroundStyle(ShioColor.Text.primary)
+                    }
+                    .accessibilityLabel("Filter agents")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "person.crop.circle")
+                            .foregroundStyle(ShioColor.Text.primary)
+                    }
+                    .accessibilityLabel("Settings")
+                }
+            }
+            .sheet(isPresented: $showingSettings) {
+                NavigationStack { SettingsView() }
+            }
             .fullScreenCover(isPresented: $showingTerminal) {
                 TerminalScene()
             }
