@@ -11,6 +11,7 @@ struct HostListView: View {
     @State private var isAddingHost = false
     @State private var isPairing = false
     @State private var showingTerminal = false
+    @State private var showingSettings = false
     private let sessionStore = SessionStore.shared
 
     /// Set by the parent: which kind of "add" sheet to show (Tailscale picker vs Pro Mode).
@@ -44,24 +45,33 @@ struct HostListView: View {
             }
             .background(ShioColor.Chrome.background)
             .shioNavTitle("Hosts")
-            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isPairing = true
-                    } label: {
-                        Image(systemName: "qrcode.viewfinder")
-                            .foregroundStyle(ShioColor.Text.primary)
-                    }
-                    .accessibilityLabel("Pair a machine")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isAddingHost = true
+                    Menu {
+                        Button {
+                            isPairing = true
+                        } label: {
+                            Label("Pair with QR", systemImage: "qrcode.viewfinder")
+                        }
+                        Button {
+                            isAddingHost = true
+                        } label: {
+                            Label("Add manually", systemImage: "square.and.pencil")
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .foregroundStyle(ShioColor.Text.primary)
                     }
+                    .accessibilityLabel("Add a machine")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingSettings = true
+                    } label: {
+                        Image(systemName: "person.crop.circle")
+                            .foregroundStyle(ShioColor.Text.primary)
+                    }
+                    .accessibilityLabel("Settings")
                 }
             }
             .sheet(isPresented: $isAddingHost) {
@@ -69,6 +79,9 @@ struct HostListView: View {
             }
             .sheet(isPresented: $isPairing) {
                 PairingView()
+            }
+            .sheet(isPresented: $showingSettings) {
+                NavigationStack { SettingsView() }
             }
             .fullScreenCover(isPresented: $showingTerminal) {
                 TerminalScene()
