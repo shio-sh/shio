@@ -66,9 +66,8 @@ private struct HostFileRow: View {
                     .truncationMode(.middle)
             }
             Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(ShioColor.Text.tertiary)
+            // No manual chevron — the NavigationLink supplies the disclosure
+            // indicator; drawing our own produced a double ">>".
         }
         .padding(.vertical, ShioSpace.xs)
     }
