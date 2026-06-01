@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: sh.shio
   deploymentTarget:
     iOS: "26.0"
+    macOS: "26.0"
   developmentLanguage: en
   groupSortPosition: top
   generateEmptyDirectories: true
@@ -185,6 +186,39 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.liveactivities
         CODE_SIGN_ENTITLEMENTS: ShioLiveActivities/ShioLiveActivities.entitlements
 
+  # Shio for Mac — native macOS terminal (NOT Catalyst). Shares the
+  # platform-agnostic core with the iOS app by adding those sources here
+  # explicitly as the Mac UI/terminal layer is built out (M2+). For now
+  # (M1) it's a standalone empty window so the target builds green.
+  ShioMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: ShioMac
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - package: swift-nio-ssh
+        product: NIOSSH
+      - package: swift-nio
+        product: NIOCore
+      - package: swift-nio
+        product: NIOPosix
+      - framework: Frameworks/GhosttyKit.xcframework
+        embed: true
+    info:
+      path: ShioMac/Info.plist
+      properties:
+        CFBundleDisplayName: Shio
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSApplicationCategoryType: public.app-category.developer-tools
+        LSMinimumSystemVersion: "26.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.mac
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
+
 schemes:
   Shio:
     build:
@@ -195,6 +229,18 @@ schemes:
     run:
       config: Debug
     test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+  ShioMac:
+    build:
+      targets:
+        ShioMac: all
+    run:
       config: Debug
     profile:
       config: Release
