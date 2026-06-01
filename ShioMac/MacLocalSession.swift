@@ -17,23 +17,35 @@ import SwiftUI
 /// hazard from spaces in the project path.
 enum MacLocalLaunch {
 
-    static func forProject(name: String, path: String) -> GhosttyMacSurface.LocalLaunch {
+    static func forProject(name: String, path: String, cloneURL: String? = nil) -> GhosttyMacSurface.LocalLaunch {
         // Match the tmux name iOS computes for a project (index 0): `shio-<scrubbed>`.
         // This is what makes a local Mac project and the same project opened
         // from the phone (over SSH to this Mac) attach the one tmux session.
         let tmuxName = "shio-\(TmuxResume.scrubName(name))"
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
 
-        // tmux if present → attach/create the invisible session (mouse mode on,
-        // scoped to the session, for scrollback parity); else a plain login
-        // shell. `exec` so the terminal closes cleanly when the session ends.
-        let script = #"command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" \; set mouse on || exec "$SHIO_SHELL" -l"#
+        // 1. If created from a git URL, clone once (only when the dir is
+        //    missing) — mirrors the SSH path's clone-on-first-open.
+        // 2. tmux if present → attach/create the invisible session (mouse mode
+        //    on, scoped, for scrollback parity), opened in the repo dir; else a
+        //    plain login shell there. `exec` so the terminal closes cleanly.
+        // Everything rides $SHIO_* env vars (double quotes only, no single
+        // quotes) so the path survives spaces and the outer single-quoting.
+        let script = #"[ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR"; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR" \; set mouse on || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
         let command = "\(shell) -lc '\(script)'"
 
+        // Start in the repo's *parent* so the cwd is valid even before a clone
+        // creates the repo dir; the script then enters $SHIO_DIR itself.
+        let parent = (path as NSString).deletingLastPathComponent
         return .init(
-            workingDirectory: path,
+            workingDirectory: parent.isEmpty ? path : parent,
             command: command,
-            env: ["SHIO_TMUX": tmuxName, "SHIO_SHELL": shell]
+            env: [
+                "SHIO_TMUX": tmuxName,
+                "SHIO_SHELL": shell,
+                "SHIO_DIR": path,
+                "SHIO_CLONE": cloneURL ?? "",
+            ]
         )
     }
 }
@@ -50,7 +62,7 @@ final class MacLocalProjectSession: Identifiable {
 
     init(project: Project) {
         self.displayName = project.name
-        let launch = MacLocalLaunch.forProject(name: project.name, path: project.path)
+        let launch = MacLocalLaunch.forProject(name: project.name, path: project.path, cloneURL: project.cloneURL)
         self.surface = GhosttyMacSurface(backend: .local, launch: launch)
     }
 

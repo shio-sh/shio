@@ -86,6 +86,7 @@ private struct ProjectsPane: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
+    @State private var showingAddProject = false
 
     var body: some View {
         Group {
@@ -93,9 +94,10 @@ private struct ProjectsPane: View {
                 VStack(spacing: 10) {
                     Image(systemName: "folder.fill").font(.largeTitle).foregroundStyle(.secondary)
                     Text("No projects yet").font(.system(.title2, design: .monospaced))
-                    Text("A repo on a machine you own. Syncs with your iPhone.")
+                    Text("A repo on this Mac or any machine — open a folder, or clone from Git.")
                         .font(.callout).foregroundStyle(.secondary)
-                    Button("Add a folder on this Mac") { addLocalProject() }
+                        .multilineTextAlignment(.center)
+                    Button("Add a project") { showingAddProject = true }
                         .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -121,11 +123,12 @@ private struct ProjectsPane: View {
                 .navigationTitle("Projects")
                 .toolbar {
                     ToolbarItem {
-                        Button { addLocalProject() } label: { Image(systemName: "plus") }
+                        Button { showingAddProject = true } label: { Image(systemName: "plus") }
                     }
                 }
             }
         }
+        .sheet(isPresented: $showingAddProject) { MacAddProjectForm(model: model) }
     }
 
     private func subtitle(_ project: Project) -> String {
@@ -136,37 +139,7 @@ private struct ProjectsPane: View {
     private func open(_ project: Project) {
         project.lastOpenedAt = .now
         try? context.save()
-        if let host = project.host {
-            // Remote project: SSH to the host, attach `shio-<project>` in the
-            // repo dir (cloning first if it was created from a git URL).
-            let resume = TmuxResume.resumeCommand(
-                named: "shio-\(TmuxResume.scrubName(project.name))",
-                startDir: project.path,
-                cloneURL: project.cloneURL
-            )
-            let session = MacSSHSession(host: host.hostname, port: host.port,
-                                        username: host.username, password: nil,
-                                        resumeCommand: resume)
-            model.openSSH(session, title: project.name)
-        } else {
-            // Local project on this Mac: a `.local` invisible-tmux tab.
-            model.openProject(project)
-        }
-    }
-
-    /// Pick a folder on this Mac and save it as a local project.
-    private func addLocalProject() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Add Project"
-        panel.message = "Pick a repo or folder on this Mac to work on in Shio."
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        let project = Project(name: url.lastPathComponent, path: url.path, host: nil)
-        context.insert(project)
-        try? context.save()
-        open(project)
+        model.open(project: project)
     }
 }
 

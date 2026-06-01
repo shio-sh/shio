@@ -110,9 +110,24 @@ final class MacTerminalModel {
         addTab(.shell(GhosttyMacSurface(backend: .local)), title: "Terminal")
     }
 
-    /// Open a Project as a tab — local invisible-tmux via the `.local` backend.
-    func openProject(_ project: Project) {
-        addTab(.project(MacLocalProjectSession(project: project)), title: project.name)
+    /// Open a Project as a tab: local invisible-tmux (`.local` backend) for
+    /// This-Mac projects; SSH (attach `shio-<project>`, clone-on-first-open)
+    /// for projects that live on a machine. Used by the Projects list and the
+    /// Add-Project sheet alike.
+    func open(project: Project) {
+        if let host = project.host {
+            let resume = TmuxResume.resumeCommand(
+                named: "shio-\(TmuxResume.scrubName(project.name))",
+                startDir: project.path,
+                cloneURL: project.cloneURL
+            )
+            let session = MacSSHSession(host: host.hostname, port: host.port,
+                                        username: host.username, password: nil,
+                                        resumeCommand: resume)
+            openSSH(session, title: project.name)
+        } else {
+            addTab(.project(MacLocalProjectSession(project: project)), title: project.name)
+        }
     }
 
     /// Open an SSH session as a tab and connect it.
