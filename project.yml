@@ -197,9 +197,12 @@ targets:
       - path: ShioMac
         excludes:
           - "**/.DS_Store"
-      # Shared platform-agnostic core, added file-by-file as the Mac UI is
-      # built (keeps the macOS target green vs. importing iOS-only files).
+      # Shared platform-agnostic core, added directory-by-directory as the Mac
+      # layer is built (keeps the macOS target green vs. importing iOS-only
+      # files). All of these are UIKit-free (NIO / CryptoKit / Foundation).
       - path: Shio/Features/Terminal/LibGhostty/LibGhosttyBridge.swift
+      - path: Shio/Core/SSH
+      - path: Shio/Core/Keys
     dependencies:
       # libghostty's macOS slice uses Carbon's Text Input Source (TIS) APIs
       # for keyboard-layout handling; link it explicitly.
