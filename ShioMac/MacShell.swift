@@ -48,12 +48,8 @@ struct MacShell: View {
         } detail: {
             detail
         }
-        .sheet(isPresented: $model.showingConnect) {
-            ConnectSheet { host, port, user, password in
-                let session = MacSSHSession(host: host, port: port, username: user, password: password)
-                model.active = .ssh(session)
-                Task { await session.connect() }
-            }
+        .sheet(isPresented: $model.showingAddHost) {
+            MacAddHostForm(model: model)
         }
     }
 
@@ -187,21 +183,16 @@ private struct HostsPane: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var hosts: [Host]
-    @State private var showingAddHost = false
-
     var body: some View {
         Group {
             if hosts.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "desktopcomputer").font(.largeTitle).foregroundStyle(.secondary)
                     Text("No machines yet").font(.system(.title2, design: .monospaced))
-                    Text("Add a server, or quick-connect to one.")
+                    Text("Add a machine you own, then tap it to connect.")
                         .font(.callout).foregroundStyle(.secondary)
-                    HStack {
-                        Button("Add a machine") { showingAddHost = true }
-                        Button("Quick connect…") { model.showingConnect = true }
-                    }
-                    .padding(.top, 4)
+                    Button("Add a machine") { model.showingAddHost = true }
+                        .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -226,35 +217,37 @@ private struct HostsPane: View {
                 .navigationTitle("Hosts")
                 .toolbar {
                     ToolbarItem {
-                        Button { showingAddHost = true } label: { Image(systemName: "plus") }
+                        Button { model.showingAddHost = true } label: { Image(systemName: "plus") }
                     }
                 }
             }
         }
-        .sheet(isPresented: $showingAddHost) { MacAddHostForm() }
     }
 
+    /// Tap a saved host to (re)connect with the Shio key.
     private func open(host: Host) {
         host.lastConnectedAt = .now
         try? context.save()
-        let session = MacSSHSession(host: host.hostname, port: host.port,
-                                    username: host.username, password: nil)
-        model.active = .ssh(session)
-        Task { await session.connect() }
+        model.connect(to: host)
     }
     // Trailing-closure label needs an argument label match; bridge it.
     private func open(_ host: Host) { open(host: host) }
 }
 
-/// Add a saved machine. (Full pairing / Pro-mode options come with the host
-/// detail screen; this is the core add.)
+/// Add a machine and connect to it. One sheet: saves the `Host` for next time
+/// AND opens a session now. The password is optional — leave it empty to use
+/// your Shio key (once the host has it authorized); it's used for this first
+/// connect only and never stored. (Full pairing / Pro-mode options come with
+/// the host detail screen.)
 private struct MacAddHostForm: View {
+    @Bindable var model: MacTerminalModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @State private var name = ""
     @State private var hostname = ""
     @State private var user = NSUserName()
     @State private var port = "22"
+    @State private var password = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -265,12 +258,13 @@ private struct MacAddHostForm: View {
                 TextField("Host", text: $hostname, prompt: Text("hostname or IP"))
                 TextField("User", text: $user)
                 TextField("Port", text: $port)
+                SecureField("Password", text: $password, prompt: Text("optional — leave empty to use your Shio key"))
             }
             .formStyle(.grouped)
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
-                Button("Add") { add() }
+                Button("Add & Connect") { addAndConnect() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(hostname.trimmingCharacters(in: .whitespaces).isEmpty || user.isEmpty)
             }
@@ -279,7 +273,7 @@ private struct MacAddHostForm: View {
         .frame(width: 420)
     }
 
-    private func add() {
+    private func addAndConnect() {
         let cleanHost = hostname.trimmingCharacters(in: .whitespaces)
         let host = Host(
             name: name.isEmpty ? cleanHost : name,
@@ -289,7 +283,9 @@ private struct MacAddHostForm: View {
             kind: .directSSH
         )
         context.insert(host)
+        host.lastConnectedAt = .now
         try? context.save()
+        model.connect(to: host, password: password.isEmpty ? nil : password)
         dismiss()
     }
 }
