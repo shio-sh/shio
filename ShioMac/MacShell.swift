@@ -9,32 +9,31 @@ import SwiftData
 /// terminal) backed by the shared SwiftData models. Opening project/host
 /// sessions, iCloud sync, Agents/Files content, and the proper chrome fill in
 /// next.
+/// Sidebar sections (top-level so `MacTerminalModel` can drive the selection).
+enum MacSection: String, CaseIterable, Identifiable {
+    case terminal = "Terminal"
+    case projects = "Projects"
+    case hosts = "Machines"
+    case agents = "Agents"
+    case files = "Files"
+    var id: String { rawValue }
+    var icon: String {
+        switch self {
+        case .terminal: return "terminal"
+        case .projects: return "folder.fill"
+        case .hosts: return "desktopcomputer"
+        case .agents: return "sparkles"
+        case .files: return "tray.full.fill"
+        }
+    }
+}
+
 struct MacShell: View {
     @Bindable var model: MacTerminalModel
 
-    enum Section: String, CaseIterable, Identifiable {
-        case terminal = "Terminal"
-        case projects = "Projects"
-        case hosts = "Machines"
-        case agents = "Agents"
-        case files = "Files"
-        var id: String { rawValue }
-        var icon: String {
-            switch self {
-            case .terminal: return "terminal"
-            case .projects: return "folder.fill"
-            case .hosts: return "desktopcomputer"
-            case .agents: return "sparkles"
-            case .files: return "tray.full.fill"
-            }
-        }
-    }
-
-    @State private var selection: Section? = .terminal
-
     var body: some View {
         NavigationSplitView {
-            List(Section.allCases, selection: $selection) { section in
+            List(MacSection.allCases, selection: sectionBinding) { section in
                 Label(section.rawValue, systemImage: section.icon).tag(section)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
@@ -53,26 +52,20 @@ struct MacShell: View {
         }
     }
 
+    /// List wants an optional selection binding; the model's section is always
+    /// set, so bridge it (ignore deselection).
+    private var sectionBinding: Binding<MacSection?> {
+        Binding(get: { model.section }, set: { if let v = $0 { model.section = v } })
+    }
+
     @ViewBuilder
     private var detail: some View {
-        if let active = model.active {
-            // The active session takes the detail pane (tabs/splits later).
-            ZStack(alignment: .topTrailing) {
-                GhosttySurfaceHost(surface: active.surface).id(active.id)
-                Button { model.closeActive() } label: {
-                    Label("Close", systemImage: "xmark.circle.fill")
-                }
-                .buttonStyle(.plain)
-                .padding(8)
-            }
-        } else {
-            switch selection ?? .terminal {
-            case .terminal: GhosttyMacTerminal()
-            case .projects: ProjectsPane(model: model)
-            case .hosts:    HostsPane(model: model)
-            case .agents:   placeholder("Agents", "sparkles", "Agents across your sessions show up here.")
-            case .files:    MacFilesPane()
-            }
+        switch model.section {
+        case .terminal: TerminalWorkspaceView(model: model)
+        case .projects: ProjectsPane(model: model)
+        case .hosts:    HostsPane(model: model)
+        case .agents:   placeholder("Agents", "sparkles", "Agents across your sessions show up here.")
+        case .files:    MacFilesPane()
         }
     }
 
@@ -154,11 +147,10 @@ private struct ProjectsPane: View {
             let session = MacSSHSession(host: host.hostname, port: host.port,
                                         username: host.username, password: nil,
                                         resumeCommand: resume)
-            model.active = .ssh(session)
-            Task { await session.connect() }
+            model.openSSH(session, title: project.name)
         } else {
-            // Local project on this Mac: a `.local` invisible-tmux surface.
-            model.active = .project(MacLocalProjectSession(project: project))
+            // Local project on this Mac: a `.local` invisible-tmux tab.
+            model.openProject(project)
         }
     }
 

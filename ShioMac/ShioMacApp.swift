@@ -22,12 +22,28 @@ struct ShioMacApp: App {
             // Copy/Paste come from SwiftUI's default Edit menu — those route
             // copy:/paste: to the focused GhosttyMacSurface via the responder
             // chain, so no custom Edit items are needed.
+            CommandGroup(after: .newItem) {
+                Button("New Tab") { model.newLocalTab() }
+                    .keyboardShortcut("t", modifiers: .command)
+            }
             CommandMenu("Session") {
                 Button("Add Machine…") { model.showingAddHost = true }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
-                if model.active != nil {
-                    Button("Close Session") { model.closeActive() }
-                        .keyboardShortcut("w", modifiers: [.command, .shift])
+            }
+            CommandMenu("Tabs") {
+                Button("New Tab") { model.newLocalTab() }
+                    .keyboardShortcut("t", modifiers: .command)
+                Button("Close Tab") { model.closeSelectedTab() }
+                    .keyboardShortcut("w", modifiers: .command)
+                Divider()
+                Button("Next Tab") { model.selectAdjacentTab(1) }
+                    .keyboardShortcut("]", modifiers: [.command, .shift])
+                Button("Previous Tab") { model.selectAdjacentTab(-1) }
+                    .keyboardShortcut("[", modifiers: [.command, .shift])
+                Divider()
+                ForEach(1...9, id: \.self) { n in
+                    Button("Select Tab \(n)") { model.selectTab(at: n - 1) }
+                        .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
                 }
             }
             CommandMenu("Terminal") {
@@ -60,52 +76,83 @@ struct ShioMacApp: App {
     }
 }
 
-/// App-level state shared between the window and the menu commands.
+/// App-level state shared between the window and the menu commands: the
+/// terminal workspace's tabs + which sidebar section is showing.
 @Observable
 @MainActor
 final class MacTerminalModel {
-    /// The session occupying the detail pane: a live SSH session or a local
-    /// Project terminal. (Tabs/splits hold several of these later.)
-    enum Active: Identifiable {
-        case ssh(MacSSHSession)
-        case project(MacLocalProjectSession)
-
-        var id: UUID {
-            switch self {
-            case .ssh(let s): return s.id
-            case .project(let p): return p.id
-            }
-        }
-        var surface: GhosttyMacSurface {
-            switch self {
-            case .ssh(let s): return s.surface
-            case .project(let p): return p.surface
-            }
-        }
-    }
-
-    var active: Active?
+    /// Open terminal tabs (each owns its surface). The detail pane shows the
+    /// selected one when `section == .terminal`.
+    var tabs: [WorkspaceTab] = []
+    var selectedTabID: UUID?
+    /// Which sidebar section is selected. On the model (not local @State) so
+    /// opening a Project / connecting can flip back to the terminal.
+    var section: MacSection = .terminal
     var showingAddHost = false
 
-    /// Open a live SSH session to a saved host (key auth), or with a one-shot
-    /// password for the first connect before the host has authorized the key.
-    func connect(to host: Host, password: String? = nil) {
-        let session = MacSSHSession(host: host.hostname, port: host.port,
-                                    username: host.username, password: password)
-        active = .ssh(session)
+    var selectedTab: WorkspaceTab? { tabs.first { $0.id == selectedTabID } }
+
+    /// The terminal is never empty — open a plain shell tab if there are none.
+    func ensureTerminalTab() {
+        if tabs.isEmpty { newLocalTab() }
+    }
+
+    @discardableResult
+    private func addTab(_ content: WorkspaceTab.Content, title: String) -> WorkspaceTab {
+        let tab = WorkspaceTab(content: content, title: title)
+        tabs.append(tab)
+        selectedTabID = tab.id
+        section = .terminal     // surface the new tab
+        return tab
+    }
+
+    func newLocalTab() {
+        addTab(.shell(GhosttyMacSurface(backend: .local)), title: "Terminal")
+    }
+
+    /// Open a Project as a tab — local invisible-tmux via the `.local` backend.
+    func openProject(_ project: Project) {
+        addTab(.project(MacLocalProjectSession(project: project)), title: project.name)
+    }
+
+    /// Open an SSH session as a tab and connect it.
+    func openSSH(_ session: MacSSHSession, title: String) {
+        addTab(.ssh(session), title: title)
         Task { await session.connect() }
     }
 
-    func closeActive() {
-        let current = active
-        active = nil
-        Task {
-            switch current {
-            case .ssh(let s): await s.stop()
-            case .project(let p): await p.stop()
-            case .none: break
-            }
+    /// Connect to a saved machine (key auth, or a one-shot password for the
+    /// first connect before the machine has authorized the key).
+    func connect(to host: Host, password: String? = nil) {
+        let session = MacSSHSession(host: host.hostname, port: host.port,
+                                    username: host.username, password: password)
+        openSSH(session, title: host.name)
+    }
+
+    func closeTab(_ id: UUID) {
+        guard let idx = tabs.firstIndex(where: { $0.id == id }) else { return }
+        let tab = tabs.remove(at: idx)
+        Task { await tab.stop() }
+        if selectedTabID == id {
+            selectedTabID = (idx < tabs.count ? tabs[idx] : tabs.last)?.id
         }
+    }
+
+    func closeSelectedTab() {
+        if let id = selectedTabID { closeTab(id) }
+    }
+
+    func selectTab(at index: Int) {
+        if tabs.indices.contains(index) { selectedTabID = tabs[index].id }
+    }
+
+    /// Cycle the selection by `delta` (wraps around).
+    func selectAdjacentTab(_ delta: Int) {
+        guard !tabs.isEmpty,
+              let id = selectedTabID,
+              let i = tabs.firstIndex(where: { $0.id == id }) else { return }
+        let n = tabs.count
+        selectedTabID = tabs[((i + delta) % n + n) % n].id
     }
 }
 
