@@ -10,7 +10,7 @@ import GhosttyKit
 /// Invisible-tmux wrapping (for continuity), tabs/splits, and SSH sessions
 /// layer on in later milestones. Visual render + input feel need on-device
 /// verification (can't be validated by a headless build).
-final class GhosttyMacSurface: NSView {
+final class GhosttyMacSurface: NSView, NSUserInterfaceValidations {
 
     /// How the surface gets its bytes.
     ///   - `.local`: libghostty forks/execs a shell and owns the PTY (DEFAULT).
@@ -225,6 +225,112 @@ final class GhosttyMacSurface: NSView {
         guard let surface else { return }
         let precision: Int32 = event.hasPreciseScrollingDeltas ? 1 : 0
         ghostty_surface_mouse_scroll(surface, Double(event.scrollingDeltaX), Double(event.scrollingDeltaY), precision)
+    }
+
+    // MARK: Mouse — selection + hover
+
+    /// A tracking area so libghostty sees mouse movement (cursor shape, link
+    /// hover) while the surface is the active view.
+    private var trackingArea: NSTrackingArea?
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let trackingArea { removeTrackingArea(trackingArea) }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],
+            owner: self, userInfo: nil
+        )
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    /// Forward the cursor position in logical points. The view is `isFlipped`,
+    /// so converted coordinates already have ghostty's top-left origin — no Y
+    /// flip needed (unlike Ghostty's own bottom-left AppKit view).
+    private func sendMousePos(_ event: NSEvent) {
+        guard let surface else { return }
+        let p = convert(event.locationInWindow, from: nil)
+        ghostty_surface_mouse_pos(surface, Double(p.x), Double(p.y), Self.mods(from: event.modifierFlags))
+    }
+
+    override func mouseMoved(with event: NSEvent) { sendMousePos(event) }
+    override func mouseDragged(with event: NSEvent) { sendMousePos(event) }
+    override func rightMouseDragged(with event: NSEvent) { sendMousePos(event) }
+    override func otherMouseDragged(with event: NSEvent) { sendMousePos(event) }
+
+    override func mouseDown(with event: NSEvent) {
+        window?.makeFirstResponder(self)
+        sendMousePos(event)
+        sendMouseButton(GHOSTTY_MOUSE_PRESS, .left, event)
+    }
+    override func mouseUp(with event: NSEvent) {
+        sendMousePos(event)
+        sendMouseButton(GHOSTTY_MOUSE_RELEASE, .left, event)
+    }
+    override func rightMouseDown(with event: NSEvent) {
+        sendMousePos(event); sendMouseButton(GHOSTTY_MOUSE_PRESS, .right, event)
+    }
+    override func rightMouseUp(with event: NSEvent) {
+        sendMousePos(event); sendMouseButton(GHOSTTY_MOUSE_RELEASE, .right, event)
+    }
+
+    private enum MouseButton { case left, right }
+    private func sendMouseButton(_ state: ghostty_input_mouse_state_e, _ button: MouseButton, _ event: NSEvent) {
+        guard let surface else { return }
+        let b: ghostty_input_mouse_button_e = (button == .left) ? GHOSTTY_MOUSE_LEFT : GHOSTTY_MOUSE_RIGHT
+        _ = ghostty_surface_mouse_button(surface, state, b, Self.mods(from: event.modifierFlags))
+    }
+
+    // MARK: Menu actions (dispatched to the focused surface via the responder
+    // chain — see ShioMacApp's menu commands).
+
+    /// Trigger a libghostty keybind action by name (e.g. "clear_screen",
+    /// "increase_font_size:1", "scroll_page_up").
+    func perform(_ action: String) {
+        guard let surface else { return }
+        action.withCString { _ = ghostty_surface_binding_action(surface, $0, UInt(strlen($0))) }
+    }
+
+    @objc func terminalIncreaseFontSize(_ sender: Any?) { perform("increase_font_size:1") }
+    @objc func terminalDecreaseFontSize(_ sender: Any?) { perform("decrease_font_size:1") }
+    @objc func terminalResetFontSize(_ sender: Any?)    { perform("reset_font_size") }
+    @objc func terminalClearScreen(_ sender: Any?)      { perform("clear_screen") }
+    @objc func terminalScrollPageUp(_ sender: Any?)     { perform("scroll_page_up") }
+    @objc func terminalScrollPageDown(_ sender: Any?)   { perform("scroll_page_down") }
+    @objc func terminalScrollToTop(_ sender: Any?)      { perform("scroll_to_top") }
+    @objc func terminalScrollToBottom(_ sender: Any?)   { perform("scroll_to_bottom") }
+
+    /// Copy the current selection to the system pasteboard. The shared bridge
+    /// stubs libghostty's clipboard ferrying (iOS handles the pasteboard
+    /// directly), so we read the selection out and write NSPasteboard ourselves.
+    @objc func copy(_ sender: Any?) {
+        guard let surface, ghostty_surface_has_selection(surface) else { return }
+        var text = ghostty_text_s()
+        guard ghostty_surface_read_selection(surface, &text), let ptr = text.text else { return }
+        let s = String(decoding: UnsafeRawBufferPointer(start: ptr, count: Int(text.text_len)), as: UTF8.self)
+        ghostty_surface_free_text(surface, &text)
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(s, forType: .string)
+    }
+
+    /// Paste the pasteboard string by feeding it to the surface as typed text.
+    @objc func paste(_ sender: Any?) {
+        guard let surface, let s = NSPasteboard.general.string(forType: .string) else { return }
+        s.withCString { ghostty_surface_text(surface, $0, UInt(strlen($0))) }
+    }
+
+    /// Enable Copy only when there's a selection; Paste only when the
+    /// pasteboard has a string. Keeps the standard Edit menu honest.
+    func validateUserInterfaceItem(_ item: any NSValidatedUserInterfaceItem) -> Bool {
+        switch item.action {
+        case #selector(copy(_:)):
+            return surface.map { ghostty_surface_has_selection($0) } ?? false
+        case #selector(paste(_:)):
+            return NSPasteboard.general.string(forType: .string) != nil
+        default:
+            return true
+        }
     }
 
     // MARK: NSEvent → ghostty translation

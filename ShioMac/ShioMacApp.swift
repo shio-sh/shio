@@ -19,6 +19,9 @@ struct ShioMacApp: App {
         }
         .defaultSize(width: 1000, height: 640)
         .commands {
+            // Copy/Paste come from SwiftUI's default Edit menu — those route
+            // copy:/paste: to the focused GhosttyMacSurface via the responder
+            // chain, so no custom Edit items are needed.
             CommandMenu("Session") {
                 Button("Connect to Host…") { model.showingConnect = true }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
@@ -27,7 +30,33 @@ struct ShioMacApp: App {
                         .keyboardShortcut("w", modifiers: [.command, .shift])
                 }
             }
+            CommandMenu("Terminal") {
+                Button("Clear") { Self.send(#selector(GhosttyMacSurface.terminalClearScreen(_:))) }
+                    .keyboardShortcut("k", modifiers: .command)
+                Divider()
+                Button("Bigger Text") { Self.send(#selector(GhosttyMacSurface.terminalIncreaseFontSize(_:))) }
+                    .keyboardShortcut("+", modifiers: .command)
+                Button("Smaller Text") { Self.send(#selector(GhosttyMacSurface.terminalDecreaseFontSize(_:))) }
+                    .keyboardShortcut("-", modifiers: .command)
+                Button("Actual Size") { Self.send(#selector(GhosttyMacSurface.terminalResetFontSize(_:))) }
+                    .keyboardShortcut("0", modifiers: .command)
+                Divider()
+                Button("Scroll Up") { Self.send(#selector(GhosttyMacSurface.terminalScrollPageUp(_:))) }
+                    .keyboardShortcut(.upArrow, modifiers: [.command])
+                Button("Scroll Down") { Self.send(#selector(GhosttyMacSurface.terminalScrollPageDown(_:))) }
+                    .keyboardShortcut(.downArrow, modifiers: [.command])
+                Button("Scroll to Top") { Self.send(#selector(GhosttyMacSurface.terminalScrollToTop(_:))) }
+                    .keyboardShortcut(.upArrow, modifiers: [.command, .shift])
+                Button("Scroll to Bottom") { Self.send(#selector(GhosttyMacSurface.terminalScrollToBottom(_:))) }
+                    .keyboardShortcut(.downArrow, modifiers: [.command, .shift])
+            }
         }
+    }
+
+    /// Dispatch a terminal action to whichever GhosttyMacSurface is the first
+    /// responder (the focused terminal — plain, session, or future split).
+    private static func send(_ selector: Selector) {
+        NSApp.sendAction(selector, to: nil, from: nil)
     }
 }
 
