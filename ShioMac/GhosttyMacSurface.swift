@@ -121,7 +121,13 @@ final class GhosttyMacSurface: NSView {
             key.action = action
             key.mods = Self.mods(from: flags)
             key.consumed_mods = GHOSTTY_MODS_NONE
-            key.keycode = UInt32(Self.ghosttyKey(from: event.keyCode).rawValue)
+            // `keycode` is the RAW native macOS virtual keycode — libghostty
+            // translates it to a logical key via the system keyboard layout
+            // (the Carbon TIS APIs the macOS slice links). Passing a ghostty
+            // GHOSTTY_KEY_* enum here instead is wrong: it breaks Enter,
+            // Delete, arrows, and Ctrl-chords (text-producing keys still work
+            // because they ride the `text` field).
+            key.keycode = UInt32(event.keyCode)
             key.text = cText
             key.unshifted_codepoint = unshifted
             key.composing = false
@@ -145,44 +151,6 @@ final class GhosttyMacSurface: NSView {
         if flags.contains(.command) { m |= GHOSTTY_MODS_SUPER.rawValue }
         if flags.contains(.capsLock){ m |= GHOSTTY_MODS_CAPS.rawValue }
         return ghostty_input_mods_e(m)
-    }
-
-    /// Map the ANSI macOS virtual key codes to ghostty key constants. Covers
-    /// letters, digits, and the essential control keys; unmapped keys fall
-    /// back to UNIDENTIFIED and still type via the `text` field. (A complete
-    /// table — F-keys, keypad, punctuation — is a follow-up refinement.)
-    private static func ghosttyKey(from code: UInt16) -> ghostty_input_key_e {
-        switch code {
-        case 0: return GHOSTTY_KEY_A;  case 1: return GHOSTTY_KEY_S
-        case 2: return GHOSTTY_KEY_D;  case 3: return GHOSTTY_KEY_F
-        case 4: return GHOSTTY_KEY_H;  case 5: return GHOSTTY_KEY_G
-        case 6: return GHOSTTY_KEY_Z;  case 7: return GHOSTTY_KEY_X
-        case 8: return GHOSTTY_KEY_C;  case 9: return GHOSTTY_KEY_V
-        case 11: return GHOSTTY_KEY_B; case 12: return GHOSTTY_KEY_Q
-        case 13: return GHOSTTY_KEY_W; case 14: return GHOSTTY_KEY_E
-        case 15: return GHOSTTY_KEY_R; case 16: return GHOSTTY_KEY_Y
-        case 17: return GHOSTTY_KEY_T; case 31: return GHOSTTY_KEY_O
-        case 32: return GHOSTTY_KEY_U; case 34: return GHOSTTY_KEY_I
-        case 35: return GHOSTTY_KEY_P; case 37: return GHOSTTY_KEY_L
-        case 38: return GHOSTTY_KEY_J; case 40: return GHOSTTY_KEY_K
-        case 45: return GHOSTTY_KEY_N; case 46: return GHOSTTY_KEY_M
-        case 18: return GHOSTTY_KEY_DIGIT_1; case 19: return GHOSTTY_KEY_DIGIT_2
-        case 20: return GHOSTTY_KEY_DIGIT_3; case 21: return GHOSTTY_KEY_DIGIT_4
-        case 22: return GHOSTTY_KEY_DIGIT_6; case 23: return GHOSTTY_KEY_DIGIT_5
-        case 25: return GHOSTTY_KEY_DIGIT_9; case 26: return GHOSTTY_KEY_DIGIT_7
-        case 28: return GHOSTTY_KEY_DIGIT_8; case 29: return GHOSTTY_KEY_DIGIT_0
-        case 36: return GHOSTTY_KEY_ENTER
-        case 48: return GHOSTTY_KEY_TAB
-        case 49: return GHOSTTY_KEY_SPACE
-        case 51: return GHOSTTY_KEY_BACKSPACE
-        case 53: return GHOSTTY_KEY_ESCAPE
-        case 117: return GHOSTTY_KEY_DELETE
-        case 123: return GHOSTTY_KEY_ARROW_LEFT
-        case 124: return GHOSTTY_KEY_ARROW_RIGHT
-        case 125: return GHOSTTY_KEY_ARROW_DOWN
-        case 126: return GHOSTTY_KEY_ARROW_UP
-        default:  return GHOSTTY_KEY_UNIDENTIFIED
-        }
     }
 }
 
