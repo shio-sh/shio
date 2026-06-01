@@ -229,6 +229,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.mac
         MACOSX_DEPLOYMENT_TARGET: "26.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Ad-hoc "Sign to Run Locally" so the team-less project runs in Xcode
         # without signing friction. Switch to a Developer ID team when we
         # notarize/distribute (Apple-account end-batch).
