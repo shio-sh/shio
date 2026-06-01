@@ -118,29 +118,114 @@ private struct ProjectsPane: View {
     }
 }
 
-/// Hosts list (SwiftData-backed) + a quick connect.
+/// Hosts list (SwiftData-backed): add machines, connect, quick-connect.
 private struct HostsPane: View {
     @Bindable var model: MacTerminalModel
+    @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var hosts: [Host]
+    @State private var showingAddHost = false
+
     var body: some View {
-        VStack(spacing: 12) {
+        Group {
             if hosts.isEmpty {
-                Image(systemName: "desktopcomputer").font(.largeTitle).foregroundStyle(.secondary)
-                Text("No machines yet").font(.system(.title2, design: .monospaced))
-                Text("Connect to a server, or pair this Mac with your phone.")
-                    .font(.callout).foregroundStyle(.secondary)
+                VStack(spacing: 10) {
+                    Image(systemName: "desktopcomputer").font(.largeTitle).foregroundStyle(.secondary)
+                    Text("No machines yet").font(.system(.title2, design: .monospaced))
+                    Text("Add a server, or quick-connect to one.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    HStack {
+                        Button("Add a machine") { showingAddHost = true }
+                        Button("Quick connect…") { model.showingConnect = true }
+                    }
+                    .padding(.top, 4)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List(hosts) { host in
-                    VStack(alignment: .leading) {
-                        Text(host.name).font(.body)
-                        Text("\(host.username)@\(host.hostname)")
-                            .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                List {
+                    ForEach(hosts) { host in
+                        Button { open(host) } label: {
+                            VStack(alignment: .leading) {
+                                Text(host.name).font(.body)
+                                Text("\(host.username)@\(host.hostname)")
+                                    .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .onDelete { offsets in
+                        for i in offsets { context.delete(hosts[i]) }
+                        try? context.save()
+                    }
+                }
+                .navigationTitle("Hosts")
+                .toolbar {
+                    ToolbarItem {
+                        Button { showingAddHost = true } label: { Image(systemName: "plus") }
                     }
                 }
             }
-            Button("Connect to host…") { model.showingConnect = true }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding()
+        .sheet(isPresented: $showingAddHost) { MacAddHostForm() }
+    }
+
+    private func open(host: Host) {
+        host.lastConnectedAt = .now
+        try? context.save()
+        let session = MacSSHSession(host: host.hostname, port: host.port,
+                                    username: host.username, password: nil)
+        model.session = session
+        Task { await session.connect() }
+    }
+    // Trailing-closure label needs an argument label match; bridge it.
+    private func open(_ host: Host) { open(host: host) }
+}
+
+/// Add a saved machine. (Full pairing / Pro-mode options come with the host
+/// detail screen; this is the core add.)
+private struct MacAddHostForm: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var context
+    @State private var name = ""
+    @State private var hostname = ""
+    @State private var user = NSUserName()
+    @State private var port = "22"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Add a machine")
+                .font(.system(.title3, design: .monospaced).weight(.semibold))
+            Form {
+                TextField("Name", text: $name, prompt: Text("e.g. My Server"))
+                TextField("Host", text: $hostname, prompt: Text("hostname or IP"))
+                TextField("User", text: $user)
+                TextField("Port", text: $port)
+            }
+            .formStyle(.grouped)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button("Add") { add() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(hostname.trimmingCharacters(in: .whitespaces).isEmpty || user.isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+    }
+
+    private func add() {
+        let cleanHost = hostname.trimmingCharacters(in: .whitespaces)
+        let host = Host(
+            name: name.isEmpty ? cleanHost : name,
+            hostname: cleanHost,
+            port: Int(port) ?? 22,
+            username: user,
+            kind: .directSSH
+        )
+        context.insert(host)
+        try? context.save()
+        dismiss()
     }
 }
