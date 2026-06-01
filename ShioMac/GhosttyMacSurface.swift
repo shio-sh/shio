@@ -99,12 +99,27 @@ final class GhosttyMacSurface: NSView {
 
     private func sendKey(_ event: NSEvent, action: ghostty_input_action_e) {
         guard let surface else { return }
-        let text = event.characters ?? ""
+        let chars = event.characters ?? ""
         let unshifted = event.charactersIgnoringModifiers?.unicodeScalars.first?.value ?? 0
-        text.withCString { cText in
+        let flags = event.modifierFlags
+
+        // Only forward `text` for genuine printable input. Control characters
+        // (backspace 0x7F, return, tab…), the private-use codepoints AppKit
+        // uses for function keys / arrows (0xF700–0xF8FF), and Ctrl/Cmd chords
+        // must NOT be sent as text — ghostty would insert the raw character
+        // (e.g. a literal DEL, breaking backspace). Those are encoded from
+        // keycode + mods instead. Printable letters/digits/symbols still flow
+        // through `text` so non-US layouts and symbol keys work.
+        let nonText = chars.unicodeScalars.contains {
+            $0.value < 0x20 || $0.value == 0x7F || (0xF700...0xF8FF).contains($0.value)
+        }
+        let suppressText = nonText || flags.contains(.control) || flags.contains(.command)
+        let textToSend = suppressText ? "" : chars
+
+        textToSend.withCString { cText in
             var key = ghostty_input_key_s()
             key.action = action
-            key.mods = Self.mods(from: event.modifierFlags)
+            key.mods = Self.mods(from: flags)
             key.consumed_mods = GHOSTTY_MODS_NONE
             key.keycode = UInt32(Self.ghosttyKey(from: event.keyCode).rawValue)
             key.text = cText
