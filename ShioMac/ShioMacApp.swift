@@ -23,16 +23,10 @@ struct ShioMacApp: App {
 /// Hosts / Agents / Files) + terminal in a later milestone.
 private struct MacRootView: View {
     var body: some View {
-        VStack(spacing: 12) {
-            Text("塩")
-                .font(.system(size: 72))
-            Text("Shio for Mac")
-                .font(.system(.title2, design: .monospaced))
-            Text("a native terminal, coming together")
-                .font(.system(.callout, design: .monospaced))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.black)
+        // M2: a live local terminal via libghostty (DEFAULT backend). The
+        // 4-tab org shell wraps this in a later milestone.
+        GhosttyMacTerminal()
+            .frame(minWidth: 480, minHeight: 320)
+            .ignoresSafeArea()
     }
 }

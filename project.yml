@@ -197,7 +197,15 @@ targets:
       - path: ShioMac
         excludes:
           - "**/.DS_Store"
+      # Shared platform-agnostic core, added file-by-file as the Mac UI is
+      # built (keeps the macOS target green vs. importing iOS-only files).
+      - path: Shio/Features/Terminal/LibGhostty/LibGhosttyBridge.swift
     dependencies:
+      # libghostty's macOS slice uses Carbon's Text Input Source (TIS) APIs
+      # for keyboard-layout handling; link it explicitly.
+      - sdk: Carbon.framework
+      - sdk: Metal.framework
+      - sdk: QuartzCore.framework
       - package: swift-nio-ssh
         product: NIOSSH
       - package: swift-nio

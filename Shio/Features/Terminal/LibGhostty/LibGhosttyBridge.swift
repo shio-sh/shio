@@ -66,7 +66,18 @@ final class LibGhosttyBridge: @unchecked Sendable {
         var runtime = ghostty_runtime_config_s(
             userdata: Unmanaged.passUnretained(self).toOpaque(),
             supports_selection_clipboard: false,
-            wakeup_cb: { _ in },
+            // libghostty calls this (off the main thread) when it has work
+            // pending — chiefly the local-PTY read loop used by the macOS
+            // DEFAULT IO backend. We hop to main and tick the app so it
+            // drains IO and re-renders. Harmless for the iOS EXTERNAL path
+            // (which drives rendering via write_bytes instead).
+            wakeup_cb: { userdata in
+                guard let userdata else { return }
+                let bridge = Unmanaged<LibGhosttyBridge>.fromOpaque(userdata).takeUnretainedValue()
+                DispatchQueue.main.async {
+                    if let app = bridge.app { ghostty_app_tick(app) }
+                }
+            },
             action_cb: { _, _, _ in
                 // Default: nothing handled. Returning true tells libghostty
                 // we accepted the action so it won't try a fallback path.
