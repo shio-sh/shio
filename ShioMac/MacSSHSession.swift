@@ -18,9 +18,14 @@ final class MacSSHSession: Identifiable {
     private(set) var state: State = .connecting
 
     private let client: SSHClient
+    /// What to send once the shell is open. Defaults to attaching the host's
+    /// `shio-<host>` tmux; a Project supplies its own `shio-<project>` resume
+    /// (with start dir / clone) so a remote project is continuous too.
+    private let resumeCommand: String
 
-    init(host: String, port: Int, username: String, password: String?) {
+    init(host: String, port: Int, username: String, password: String?, resumeCommand: String? = nil) {
         self.hostName = host
+        self.resumeCommand = resumeCommand ?? TmuxResume.resumeCommand(for: host, index: 0)
         let auth: SSHClient.Authentication =
             (password?.isEmpty == false) ? .password(password!) : .shioKey
         let config = SSHClient.Configuration(
@@ -53,9 +58,9 @@ final class MacSSHSession: Identifiable {
             try await client.connect()
             try await client.requestShell()
             state = .connected
-            // Attach the same tmux session name the phone computes for this
-            // host — this is what makes the session follow you across devices.
-            client.write(TmuxResume.resumeCommand(for: hostName, index: 0))
+            // Attach the same tmux session name the phone computes — this is
+            // what makes the session follow you across devices.
+            client.write(resumeCommand)
         } catch {
             state = .failed(error.localizedDescription)
         }

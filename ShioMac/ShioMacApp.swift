@@ -22,13 +22,9 @@ struct ShioMacApp: App {
             CommandMenu("Session") {
                 Button("Connect to Host…") { model.showingConnect = true }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
-                if model.session != nil {
-                    Button("Close Session") {
-                        let s = model.session
-                        model.session = nil
-                        Task { await s?.stop() }
-                    }
-                    .keyboardShortcut("w", modifiers: [.command, .shift])
+                if model.active != nil {
+                    Button("Close Session") { model.closeActive() }
+                        .keyboardShortcut("w", modifiers: [.command, .shift])
                 }
             }
         }
@@ -39,8 +35,40 @@ struct ShioMacApp: App {
 @Observable
 @MainActor
 final class MacTerminalModel {
-    var session: MacSSHSession?
+    /// The session occupying the detail pane: a live SSH session or a local
+    /// Project terminal. (Tabs/splits hold several of these later.)
+    enum Active: Identifiable {
+        case ssh(MacSSHSession)
+        case project(MacLocalProjectSession)
+
+        var id: UUID {
+            switch self {
+            case .ssh(let s): return s.id
+            case .project(let p): return p.id
+            }
+        }
+        var surface: GhosttyMacSurface {
+            switch self {
+            case .ssh(let s): return s.surface
+            case .project(let p): return p.surface
+            }
+        }
+    }
+
+    var active: Active?
     var showingConnect = false
+
+    func closeActive() {
+        let current = active
+        active = nil
+        Task {
+            switch current {
+            case .ssh(let s): await s.stop()
+            case .project(let p): await p.stop()
+            case .none: break
+            }
+        }
+    }
 }
 
 /// Minimal connect form. The full Hosts org / QR pairing replaces this; for

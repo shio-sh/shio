@@ -51,7 +51,7 @@ struct MacShell: View {
         .sheet(isPresented: $model.showingConnect) {
             ConnectSheet { host, port, user, password in
                 let session = MacSSHSession(host: host, port: port, username: user, password: password)
-                model.session = session
+                model.active = .ssh(session)
                 Task { await session.connect() }
             }
         }
@@ -59,14 +59,11 @@ struct MacShell: View {
 
     @ViewBuilder
     private var detail: some View {
-        if let session = model.session {
-            // An active SSH session takes the detail pane (tabs/splits later).
+        if let active = model.active {
+            // The active session takes the detail pane (tabs/splits later).
             ZStack(alignment: .topTrailing) {
-                GhosttySurfaceHost(surface: session.surface).id(session.id)
-                Button {
-                    let s = model.session; model.session = nil
-                    Task { await s?.stop() }
-                } label: {
+                GhosttySurfaceHost(surface: active.surface).id(active.id)
+                Button { model.closeActive() } label: {
                     Label("Close", systemImage: "xmark.circle.fill")
                 }
                 .buttonStyle(.plain)
@@ -75,7 +72,7 @@ struct MacShell: View {
         } else {
             switch selection ?? .terminal {
             case .terminal: GhosttyMacTerminal()
-            case .projects: ProjectsPane()
+            case .projects: ProjectsPane(model: model)
             case .hosts:    HostsPane(model: model)
             case .agents:   placeholder("Agents", "sparkles", "Agents across your sessions show up here.")
             case .files:    placeholder("Files", "tray.full.fill", "Browse your machines over SFTP here.")
@@ -93,28 +90,95 @@ struct MacShell: View {
     }
 }
 
-/// Projects list (SwiftData-backed). Opening a project session lands next.
+/// Projects list (SwiftData-backed). Opening a project attaches its
+/// invisible-tmux session: local projects (a folder on this Mac) via the
+/// `.local` ghostty backend; projects on a host over SSH.
 private struct ProjectsPane: View {
+    @Bindable var model: MacTerminalModel
+    @Environment(\.modelContext) private var context
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
+
     var body: some View {
-        if projects.isEmpty {
-            VStack(spacing: 10) {
-                Image(systemName: "folder.fill").font(.largeTitle).foregroundStyle(.secondary)
-                Text("No projects yet").font(.system(.title2, design: .monospaced))
-                Text("A repo on a machine you own. Syncs with your iPhone.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            List(projects) { project in
-                VStack(alignment: .leading) {
-                    Text(project.name).font(.body)
-                    Text(project.host?.name ?? "No machine")
-                        .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+        Group {
+            if projects.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "folder.fill").font(.largeTitle).foregroundStyle(.secondary)
+                    Text("No projects yet").font(.system(.title2, design: .monospaced))
+                    Text("A repo on a machine you own. Syncs with your iPhone.")
+                        .font(.callout).foregroundStyle(.secondary)
+                    Button("Add a folder on this Mac") { addLocalProject() }
+                        .padding(.top, 4)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(projects) { project in
+                        Button { open(project) } label: {
+                            VStack(alignment: .leading) {
+                                Text(project.name).font(.body)
+                                Text(subtitle(project))
+                                    .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .onDelete { offsets in
+                        for i in offsets { context.delete(projects[i]) }
+                        try? context.save()
+                    }
+                }
+                .navigationTitle("Projects")
+                .toolbar {
+                    ToolbarItem {
+                        Button { addLocalProject() } label: { Image(systemName: "plus") }
+                    }
                 }
             }
-            .navigationTitle("Projects")
         }
+    }
+
+    private func subtitle(_ project: Project) -> String {
+        if let host = project.host { return "\(host.name) · \(project.path)" }
+        return "This Mac · \(project.path)"
+    }
+
+    private func open(_ project: Project) {
+        project.lastOpenedAt = .now
+        try? context.save()
+        if let host = project.host {
+            // Remote project: SSH to the host, attach `shio-<project>` in the
+            // repo dir (cloning first if it was created from a git URL).
+            let resume = TmuxResume.resumeCommand(
+                named: "shio-\(TmuxResume.scrubName(project.name))",
+                startDir: project.path,
+                cloneURL: project.cloneURL
+            )
+            let session = MacSSHSession(host: host.hostname, port: host.port,
+                                        username: host.username, password: nil,
+                                        resumeCommand: resume)
+            model.active = .ssh(session)
+            Task { await session.connect() }
+        } else {
+            // Local project on this Mac: a `.local` invisible-tmux surface.
+            model.active = .project(MacLocalProjectSession(project: project))
+        }
+    }
+
+    /// Pick a folder on this Mac and save it as a local project.
+    private func addLocalProject() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Add Project"
+        panel.message = "Pick a repo or folder on this Mac to work on in Shio."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let project = Project(name: url.lastPathComponent, path: url.path, host: nil)
+        context.insert(project)
+        try? context.save()
+        open(project)
     }
 }
 
@@ -175,7 +239,7 @@ private struct HostsPane: View {
         try? context.save()
         let session = MacSSHSession(host: host.hostname, port: host.port,
                                     username: host.username, password: nil)
-        model.session = session
+        model.active = .ssh(session)
         Task { await session.connect() }
     }
     // Trailing-closure label needs an argument label match; bridge it.
