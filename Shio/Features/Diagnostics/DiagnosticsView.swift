@@ -206,7 +206,7 @@ private struct DiagnosticRow: View {
                 .background(ShioColor.Chrome.background)
                 .clipShape(RoundedRectangle(cornerRadius: ShioRadius.sm, style: .continuous))
         case .useIPInstead:
-            Text("Open https://login.tailscale.com/admin/machines on any device to find your Mac's 100.x.y.z IP, then add it as a host in Shio.")
+            Text("Open https://login.tailscale.com/admin/machines on any device to find your Mac's 100.x.y.z IP, then add it as a machine in Shio.")
                 .font(ShioFont.footnote)
                 .foregroundStyle(ShioColor.Text.tertiary)
         case .none:

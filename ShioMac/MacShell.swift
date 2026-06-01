@@ -15,7 +15,7 @@ struct MacShell: View {
     enum Section: String, CaseIterable, Identifiable {
         case terminal = "Terminal"
         case projects = "Projects"
-        case hosts = "Hosts"
+        case hosts = "Machines"
         case agents = "Agents"
         case files = "Files"
         var id: String { rawValue }
@@ -189,7 +189,7 @@ private struct HostsPane: View {
                 VStack(spacing: 10) {
                     Image(systemName: "desktopcomputer").font(.largeTitle).foregroundStyle(.secondary)
                     Text("No machines yet").font(.system(.title2, design: .monospaced))
-                    Text("Add a machine you own, then tap it to connect.")
+                    Text("Add a server or device you own, then tap it to connect.")
                         .font(.callout).foregroundStyle(.secondary)
                     Button("Add a machine") { model.showingAddHost = true }
                         .padding(.top, 4)
@@ -214,7 +214,7 @@ private struct HostsPane: View {
                         try? context.save()
                     }
                 }
-                .navigationTitle("Hosts")
+                .navigationTitle("Machines")
                 .toolbar {
                     ToolbarItem {
                         Button { model.showingAddHost = true } label: { Image(systemName: "plus") }

@@ -134,9 +134,9 @@ private struct TailscaleAddView: View {
                         hostname = ""
                     }
             } header: {
-                Text("Host details")
+                Text("Machine details")
             } footer: {
-                Text("Username is the account on the host you're connecting to. On macOS, run `whoami` in Terminal — usually lowercase, no spaces. On Linux servers, the same. Not your Apple ID, not your full name.")
+                Text("Username is the account on the machine you're connecting to. On macOS, run `whoami` in Terminal — usually lowercase, no spaces. On Linux servers, the same. Not your Apple ID, not your full name.")
                     .font(ShioFont.footnote)
                     .foregroundStyle(ShioColor.Text.tertiary)
             }

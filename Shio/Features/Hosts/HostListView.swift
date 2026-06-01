@@ -44,7 +44,7 @@ struct HostListView: View {
                 .scrollContentBackground(.hidden)
             }
             .background(ShioColor.Chrome.background)
-            .shioNavTitle("Hosts")
+            .shioNavTitle("Machines")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
@@ -95,7 +95,7 @@ struct HostListView: View {
             Text("塩")
                 .font(ShioFont.kanji(size: 64))
                 .foregroundStyle(ShioColor.Text.primary)
-            Text("Add a host")
+            Text("Add a machine")
                 .font(ShioFont.title2)
                 .foregroundStyle(ShioColor.Text.primary)
             Text("Reach your Mac — or any SSH server — from your iPhone over Tailscale.")

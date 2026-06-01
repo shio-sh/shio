@@ -45,7 +45,7 @@ enum ShioModelContainer {
         //    they can still use the app, and Settings shows the error.
         let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         if let container = try? ModelContainer(for: Host.self, Project.self, configurations: inMemoryConfig) {
-            loadFailureReason = "Couldn't open the on-disk store. Your hosts won't be saved between launches. Delete and reinstall Shio to reset."
+            loadFailureReason = "Couldn't open the on-disk store. Your machines won't be saved between launches. Delete and reinstall Shio to reset."
             return container
         }
 

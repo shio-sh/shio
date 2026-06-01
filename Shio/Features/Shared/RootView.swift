@@ -41,7 +41,7 @@ struct RootView: View {
                 Tab("Projects", systemImage: "folder.fill") {
                     ProjectsView()
                 }
-                Tab("Hosts", systemImage: "desktopcomputer") {
+                Tab("Machines", systemImage: "desktopcomputer") {
                     HostListView()
                 }
                 Tab("Agents", systemImage: "sparkles") {

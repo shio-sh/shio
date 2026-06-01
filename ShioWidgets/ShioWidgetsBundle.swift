@@ -28,8 +28,8 @@ struct ShioHostWidget: Widget {
                     )
                 }
         }
-        .configurationDisplayName("Hosts")
-        .description("Tap to connect to a recent host.")
+        .configurationDisplayName("Machines")
+        .description("Tap to connect to a recent machine.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -91,7 +91,7 @@ private struct HostsWidgetView: View {
             Text("塩")
                 .font(.custom("DotGothic16-Regular", size: 38))
                 .foregroundStyle(Color(red: 0.957, green: 0.933, blue: 0.875))
-            Text("Open Shio to add a host")
+            Text("Open Shio to add a machine")
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.5))
                 .multilineTextAlignment(.center)
@@ -128,7 +128,7 @@ private struct HostsWidgetView: View {
                     .font(.custom("DotGothic16-Regular", size: 22))
                     .foregroundStyle(Color(red: 0.957, green: 0.933, blue: 0.875))
                 Spacer()
-                Text("hosts")
+                Text("machines")
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.45))
             }

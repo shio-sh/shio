@@ -73,7 +73,7 @@ struct FilesView: View {
             Text("No machines yet")
                 .font(ShioFont.title2)
                 .foregroundStyle(ShioColor.Text.primary)
-            Text("Add or pair a machine in the Hosts tab, then browse its files here.")
+            Text("Add or pair a machine in the Machines tab, then browse its files here.")
                 .font(ShioFont.body)
                 .foregroundStyle(ShioColor.Text.secondary)
                 .multilineTextAlignment(.center)

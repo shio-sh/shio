@@ -23,7 +23,7 @@ struct ShioMacApp: App {
             // copy:/paste: to the focused GhosttyMacSurface via the responder
             // chain, so no custom Edit items are needed.
             CommandMenu("Session") {
-                Button("Add Host…") { model.showingAddHost = true }
+                Button("Add Machine…") { model.showingAddHost = true }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
                 if model.active != nil {
                     Button("Close Session") { model.closeActive() }

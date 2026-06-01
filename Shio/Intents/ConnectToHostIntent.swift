@@ -4,11 +4,11 @@ import Foundation
 /// "Connect to <host>" — Siri / Shortcuts entry point that opens Shio and
 /// connects to the selected host.
 struct ConnectToHostIntent: AppIntent {
-    static let title: LocalizedStringResource = "Connect to host"
-    static let description = IntentDescription("Open Shio and connect to a saved host.")
+    static let title: LocalizedStringResource = "Connect to machine"
+    static let description = IntentDescription("Open Shio and connect to a saved machine.")
     static let openAppWhenRun: Bool = true
 
-    @Parameter(title: "Host")
+    @Parameter(title: "Machine")
     var host: HostEntity
 
     func perform() async throws -> some IntentResult {
@@ -27,11 +27,11 @@ struct ConnectToHostIntent: AppIntent {
 /// "Run command on <host>" — Siri / Shortcuts entry point that runs a single
 /// command on the host and (optionally) returns the output.
 struct RunCommandIntent: AppIntent {
-    static let title: LocalizedStringResource = "Run command on host"
-    static let description = IntentDescription("Run a command on a saved host and return its output.")
+    static let title: LocalizedStringResource = "Run command on machine"
+    static let description = IntentDescription("Run a command on a saved machine and return its output.")
     static let openAppWhenRun: Bool = false
 
-    @Parameter(title: "Host")
+    @Parameter(title: "Machine")
     var host: HostEntity
 
     @Parameter(title: "Command")

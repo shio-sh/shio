@@ -8,10 +8,10 @@ struct AddProjectSheet: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var hosts: [Host]
 
-    /// Where the project's files come from: an existing path on the host, or
-    /// a git URL Shio clones on the host on first open.
+    /// Where the project's files come from: an existing path on the machine, or
+    /// a git URL Shio clones on the machine on first open.
     private enum Source: String, CaseIterable {
-        case path = "On host"
+        case path = "On machine"
         case clone = "Clone URL"
     }
 
@@ -39,7 +39,7 @@ struct AddProjectSheet: View {
             Form {
                 if hosts.isEmpty {
                     Section {
-                        Text("Add a machine in the Hosts tab first, then come back to add a project on it.")
+                        Text("Add a machine in the Machines tab first, then come back to add a project on it.")
                             .font(ShioFont.callout)
                             .foregroundStyle(ShioColor.Text.secondary)
                     }
