@@ -203,6 +203,7 @@ targets:
       - path: Shio/Features/Terminal/LibGhostty/LibGhosttyBridge.swift
       - path: Shio/Core/SSH
       - path: Shio/Core/Keys
+      - path: Shio/Core/Profiles
     dependencies:
       # libghostty's macOS slice uses Carbon's Text Input Source (TIS) APIs
       # for keyboard-layout handling; link it explicitly.

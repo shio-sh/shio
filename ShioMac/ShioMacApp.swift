@@ -14,10 +14,10 @@ struct ShioMacApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MacRootView(model: model)
+            MacShell(model: model)
+                .modelContainer(ShioModelContainer.shared)
         }
-        .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 900, height: 600)
+        .defaultSize(width: 1000, height: 640)
         .commands {
             CommandMenu("Session") {
                 Button("Connect to Host…") { model.showingConnect = true }
@@ -43,43 +43,10 @@ final class MacTerminalModel {
     var showingConnect = false
 }
 
-private struct MacRootView: View {
-    @Bindable var model: MacTerminalModel
-
-    /// libghostty's default terminal background (matches LibGhosttyBridge).
-    private let terminalBG = Color(red: 0x28/255, green: 0x2C/255, blue: 0x34/255)
-
-    var body: some View {
-        ZStack(alignment: .top) {
-            terminalBG.ignoresSafeArea()
-            Group {
-                if let session = model.session {
-                    GhosttySurfaceHost(surface: session.surface)
-                        .id(session.id)
-                } else {
-                    GhosttyMacTerminal()   // local shell
-                }
-            }
-            // Inset below the floating traffic lights (proper tinted titlebar
-            // comes with the M2b chrome pass).
-            .padding(.top, 28)
-        }
-        .frame(minWidth: 480, minHeight: 320)
-        .ignoresSafeArea()
-        .sheet(isPresented: $model.showingConnect) {
-            ConnectSheet { host, port, user, password in
-                let session = MacSSHSession(host: host, port: port, username: user, password: password)
-                model.session = session
-                Task { await session.connect() }
-            }
-        }
-    }
-}
-
 /// Minimal connect form. The full Hosts org / QR pairing replaces this; for
 /// now it's enough to open a live SSH session (password, or Shio key if the
 /// host has it authorized).
-private struct ConnectSheet: View {
+struct ConnectSheet: View {
     @Environment(\.dismiss) private var dismiss
     let onConnect: (_ host: String, _ port: Int, _ user: String, _ password: String?) -> Void
 
