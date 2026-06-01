@@ -71,7 +71,7 @@ struct MacShell: View {
             case .projects: ProjectsPane(model: model)
             case .hosts:    HostsPane(model: model)
             case .agents:   placeholder("Agents", "sparkles", "Agents across your sessions show up here.")
-            case .files:    placeholder("Files", "tray.full.fill", "Browse your machines over SFTP here.")
+            case .files:    MacFilesPane()
             }
         }
     }

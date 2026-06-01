@@ -52,10 +52,17 @@ final class LibGhosttyBridge: @unchecked Sendable {
         // source of truth so the SwiftUI ZStack background and the libghostty
         // surface can never drift apart.
         let bgHex = String(format: "%06X", LibGhosttyBridge.terminalBackgroundHex)
-        let configString = """
+        var configString = """
         background = #\(bgHex)
         foreground = #FFFFFF
         """
+        #if os(macOS)
+        // Give the cell grid a gutter so text isn't jammed against the
+        // surface edge (the default 2pt looks flush). libghostty fills the
+        // padding with the terminal background, so the gutter is seamless.
+        // macOS only — iOS manages its own insets / safe-area bleed.
+        configString += "\nwindow-padding-x = 12\nwindow-padding-y = 8"
+        #endif
         configString.withCString { cstr in
             ghostty_config_load_string(cfg, cstr, strlen(cstr))
         }
