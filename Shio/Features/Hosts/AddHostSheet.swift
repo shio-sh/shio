@@ -38,7 +38,7 @@ struct AddHostSheet: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .background(ShioColor.Chrome.background)
-            .navigationTitle("Add a Mac")
+            .navigationTitle("Add a machine")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -212,7 +212,7 @@ private struct DirectSSHAddView: View {
                     .font(ShioFont.callout)
                     .foregroundStyle(ShioColor.Text.tertiary)
             }
-            Section("Host") {
+            Section("Machine") {
                 TextField("Display name", text: $displayName)
                 TextField("Hostname or IP", text: $hostname)
                     .textInputAutocapitalization(.never)
