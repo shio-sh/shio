@@ -212,8 +212,11 @@ targets:
         product: NIOCore
       - package: swift-nio
         product: NIOPosix
+      # GhosttyKit is a STATIC library (ghostty-internal.a) — link it, don't
+      # embed it. Embedding a static archive makes Xcode try to codesign a
+      # non-bundle, which fails ("Command CodeSign failed").
       - framework: Frameworks/GhosttyKit.xcframework
-        embed: true
+        embed: false
     info:
       path: ShioMac/Info.plist
       properties:
@@ -226,6 +229,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.mac
         MACOSX_DEPLOYMENT_TARGET: "26.0"
+        # Ad-hoc "Sign to Run Locally" so the team-less project runs in Xcode
+        # without signing friction. Switch to a Developer ID team when we
+        # notarize/distribute (Apple-account end-batch).
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
 
 schemes:
   Shio:
