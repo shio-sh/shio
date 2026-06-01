@@ -56,14 +56,23 @@ struct OnboardingView: View {
             } else {
                 ZStack {
                     ShioColor.Chrome.background.ignoresSafeArea()
-                    VStack(spacing: ShioSpace.xl) {
-                        Spacer()
-                        wordmark
-                        Spacer()
-                        content
-                        Spacer()
+                    GeometryReader { geo in
+                        ScrollView {
+                            VStack(spacing: ShioSpace.xl) {
+                                Spacer(minLength: 0)
+                                wordmark
+                                Spacer(minLength: 0)
+                                content
+                                Spacer(minLength: 0)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
+                            // Centers when there's room (Spacers fill to the
+                            // screen height); scrolls instead of clipping when a
+                            // step is taller than the viewport — e.g. landscape.
+                            .frame(minHeight: geo.size.height)
+                        }
                     }
-                    .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
                 }
             }
         }

@@ -39,7 +39,9 @@ struct TerminalScene: View {
             if let viewModel {
                 TerminalView(controller: viewModel.terminal)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .ignoresSafeArea(.container, edges: .horizontal)
+                    // Surface stays inside the safe area so text isn't hidden
+                    // under the notch / Dynamic Island in landscape; the black
+                    // background above bleeds edge-to-edge.
                     .id(store.activeSession?.id)  // force rebuild on session swap
 
                 switch viewModel.state {
