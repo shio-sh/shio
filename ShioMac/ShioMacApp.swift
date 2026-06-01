@@ -138,8 +138,13 @@ final class MacTerminalModel {
         }
     }
 
+    /// ⌘W. Only acts when the terminal is showing, so it never invisibly kills
+    /// a background tab while you're browsing Projects/Files/etc. Closing the
+    /// last tab lands on the empty-terminal state (the window stays — the red
+    /// traffic light closes the window).
     func closeSelectedTab() {
-        if let id = selectedTabID { closeTab(id) }
+        guard section == .terminal, let id = selectedTabID else { return }
+        closeTab(id)
     }
 
     func selectTab(at index: Int) {

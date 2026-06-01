@@ -65,10 +65,35 @@ struct TerminalWorkspaceView: View {
             if let tab = model.selectedTab {
                 GhosttySurfaceHost(surface: tab.surface).id(tab.id)
             } else {
-                Color.clear
+                // Closing the last tab lands here — an intentional empty state,
+                // never a blank pane (which read as "the app closed").
+                EmptyTerminalState { model.newLocalTab() }
             }
         }
         .onAppear { model.ensureTerminalTab() }
+    }
+}
+
+/// Shown when no tab is open (e.g. you closed the last one). Clearly the
+/// terminal area at rest, with a one-tap way back in.
+private struct EmptyTerminalState: View {
+    let newTab: () -> Void
+    var body: some View {
+        VStack(spacing: 12) {
+            Text("塩")
+                .font(.system(size: 56))
+                .foregroundStyle(.tertiary)
+            Text("No terminal open")
+                .font(.system(.title3, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Button(action: newTab) {
+                Label("New Tab", systemImage: "plus")
+            }
+            Text("⌘T")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.tertiary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
