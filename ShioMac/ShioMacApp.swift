@@ -33,7 +33,7 @@ struct ShioMacApp: App {
             CommandMenu("Tabs") {
                 Button("New Tab") { model.newLocalTab() }
                     .keyboardShortcut("t", modifiers: .command)
-                Button("Close Tab") { model.closeSelectedTab() }
+                Button("Close Pane / Tab") { model.closeSelectedTab() }
                     .keyboardShortcut("w", modifiers: .command)
                 Divider()
                 Button("Next Tab") { model.selectAdjacentTab(1) }
@@ -47,6 +47,11 @@ struct ShioMacApp: App {
                 }
             }
             CommandMenu("Terminal") {
+                Button("Split Right") { model.splitFocused(.horizontal) }
+                    .keyboardShortcut("d", modifiers: .command)
+                Button("Split Down") { model.splitFocused(.vertical) }
+                    .keyboardShortcut("d", modifiers: [.command, .shift])
+                Divider()
                 Button("Clear") { Self.send(#selector(GhosttyMacSurface.terminalClearScreen(_:))) }
                     .keyboardShortcut("k", modifiers: .command)
                 Divider()
@@ -98,12 +103,19 @@ final class MacTerminalModel {
     }
 
     @discardableResult
-    private func addTab(_ content: WorkspaceTab.Content, title: String) -> WorkspaceTab {
-        let tab = WorkspaceTab(content: content, title: title)
+    private func addTab(_ content: TerminalPane.Content, title: String) -> WorkspaceTab {
+        let tab = WorkspaceTab(pane: TerminalPane(content: content), title: title)
         tabs.append(tab)
         selectedTabID = tab.id
         section = .terminal     // surface the new tab
         return tab
+    }
+
+    // MARK: Splits (act on the selected tab's focused pane)
+
+    func splitFocused(_ direction: SplitDirection) {
+        guard section == .terminal else { return }
+        selectedTab?.split(direction)
     }
 
     func newLocalTab() {
@@ -147,19 +159,24 @@ final class MacTerminalModel {
     func closeTab(_ id: UUID) {
         guard let idx = tabs.firstIndex(where: { $0.id == id }) else { return }
         let tab = tabs.remove(at: idx)
-        Task { await tab.stop() }
+        Task { await tab.stopAll() }
         if selectedTabID == id {
             selectedTabID = (idx < tabs.count ? tabs[idx] : tabs.last)?.id
         }
     }
 
-    /// ⌘W. Only acts when the terminal is showing, so it never invisibly kills
-    /// a background tab while you're browsing Projects/Files/etc. Closing the
-    /// last tab lands on the empty-terminal state (the window stays — the red
-    /// traffic light closes the window).
+    /// ⌘W. Closes the focused **pane**; if that was the tab's only pane, closes
+    /// the tab. Only acts when the terminal is showing, so it never invisibly
+    /// kills a background tab/pane while you're browsing Projects/Files. Closing
+    /// the last tab lands on the empty-terminal state (the window stays — the
+    /// red traffic light closes the window).
     func closeSelectedTab() {
-        guard section == .terminal, let id = selectedTabID else { return }
-        closeTab(id)
+        guard section == .terminal, let tab = selectedTab else { return }
+        if tab.isSinglePane {
+            closeTab(tab.id)
+        } else {
+            tab.closeFocusedPane()
+        }
     }
 
     func selectTab(at index: Int) {

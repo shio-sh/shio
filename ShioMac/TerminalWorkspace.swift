@@ -1,48 +1,54 @@
 import SwiftUI
 
-/// One tab in the Mac terminal workspace. Wraps the surface-bearing thing —
-/// a plain local shell, a local Project session, or an SSH session — behind a
-/// uniform title + surface so the tab strip and detail pane don't care which.
+/// One tab in the Mac terminal workspace. A tab owns a **tree of panes** (the
+/// split layout) plus which pane is focused. The strip shows `title`/`icon`
+/// from the pane it was opened with.
 @MainActor
+@Observable
 final class WorkspaceTab: Identifiable {
     let id = UUID()
     var title: String
+    let icon: String
+    var root: SplitNode
+    var focusedPaneID: UUID
 
-    enum Content {
-        case shell(GhosttyMacSurface)         // plain local login shell
-        case project(MacLocalProjectSession)  // local invisible-tmux project
-        case ssh(MacSSHSession)               // remote / host session
-    }
-    let content: Content
-
-    init(content: Content, title: String) {
-        self.content = content
+    init(pane: TerminalPane, title: String) {
         self.title = title
+        self.icon = pane.icon
+        self.root = SplitNode(.leaf(pane))
+        self.focusedPaneID = pane.id
     }
 
-    var surface: GhosttyMacSurface {
-        switch content {
-        case .shell(let s):   return s
-        case .project(let p): return p.surface
-        case .ssh(let s):     return s.surface
-        }
+    var isSinglePane: Bool { if case .leaf = root.kind { return true }; return false }
+    var focusedPane: TerminalPane? { root.node(withPane: focusedPaneID)?.leafPane }
+
+    /// Split the focused pane, putting a fresh shell beside/below it.
+    func split(_ direction: SplitDirection) {
+        guard let node = root.node(withPane: focusedPaneID),
+              case .leaf(let pane) = node.kind else { return }
+        let newPane = TerminalPane.newShell()
+        node.kind = .branch(direction, SplitNode(.leaf(pane)), SplitNode(.leaf(newPane)))
+        node.ratio = 0.5
+        focusedPaneID = newPane.id
     }
 
-    /// SF Symbol hinting the tab's kind.
-    var icon: String {
-        switch content {
-        case .shell:   return "terminal"
-        case .project: return "folder.fill"
-        case .ssh:     return "desktopcomputer"
-        }
+    /// Close the focused pane, collapsing its parent into the sibling. Returns
+    /// false if the tab is a single pane (the caller closes the whole tab).
+    @discardableResult
+    func closeFocusedPane() -> Bool {
+        guard let (parentBranch, isFirst) = root.parent(ofPane: focusedPaneID),
+              case .branch(_, let a, let b) = parentBranch.kind else { return false }
+        let closed = isFirst ? a.leafPane : b.leafPane
+        let sibling = isFirst ? b : a
+        parentBranch.kind = sibling.kind
+        parentBranch.ratio = sibling.ratio
+        if let closed { Task { await closed.stop() } }
+        focusedPaneID = parentBranch.firstLeafPane?.id ?? focusedPaneID
+        return true
     }
 
-    func stop() async {
-        switch content {
-        case .shell:          break          // surface freed on deinit
-        case .project(let p): await p.stop()
-        case .ssh(let s):     await s.stop()
-        }
+    func stopAll() async {
+        for pane in root.allPanes { await pane.stop() }
     }
 }
 
@@ -59,11 +65,10 @@ struct TerminalWorkspaceView: View {
                 TabStrip(model: model)
                 Divider()
             }
-            // Re-create the host when the selection changes so the new tab's
-            // surface becomes first responder. Surfaces survive tab switches
-            // because the tabs (not the view) own them.
+            // The selected tab's split tree. Surfaces survive tab switches
+            // because the tabs (not the views) own them.
             if let tab = model.selectedTab {
-                GhosttySurfaceHost(surface: tab.surface).id(tab.id)
+                SplitContainer(tab: tab, node: tab.root).id(tab.id)
             } else {
                 // Closing the last tab lands here — an intentional empty state,
                 // never a blank pane (which read as "the app closed").

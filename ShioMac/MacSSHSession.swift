@@ -72,12 +72,11 @@ final class MacSSHSession: Identifiable {
     }
 }
 
-/// Hosts an already-created `GhosttyMacSurface` in SwiftUI and focuses it.
+/// Hosts an already-created `GhosttyMacSurface` in SwiftUI. Focus is NOT taken
+/// here — the owning `PaneHost` drives first-responder from the tab's
+/// `focusedPaneID`, so a split never has two surfaces fighting for the keyboard.
 struct GhosttySurfaceHost: NSViewRepresentable {
     let surface: GhosttyMacSurface
-    func makeNSView(context: Context) -> GhosttyMacSurface {
-        DispatchQueue.main.async { surface.window?.makeFirstResponder(surface) }
-        return surface
-    }
+    func makeNSView(context: Context) -> GhosttyMacSurface { surface }
     func updateNSView(_ nsView: GhosttyMacSurface, context: Context) {}
 }
