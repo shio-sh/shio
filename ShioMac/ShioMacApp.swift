@@ -27,6 +27,10 @@ struct ShioMacApp: App {
                     .keyboardShortcut("t", modifiers: .command)
                 Button("Command Palette…") { model.showingCommandPalette.toggle() }
                     .keyboardShortcut("k", modifiers: .command)
+                Button("Refresh") {
+                    Task { await SyncRefresh.run(ShioModelContainer.shared.mainContext) }
+                }
+                .keyboardShortcut("r", modifiers: .command)
             }
             CommandMenu("Session") {
                 Button("Add Machine…") { model.showingAddHost = true }

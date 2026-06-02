@@ -36,11 +36,13 @@ struct ProjectsView: View {
                                 Button(role: .destructive) { remove(project) } label: {
                                     Label("Remove", systemImage: "trash")
                                 }
+                                .tint(.red)
                             }
                         }
                     }
                     .listStyle(.insetGrouped)
                     .scrollContentBackground(.hidden)
+                    .refreshable { await SyncRefresh.run(context) }
                 }
             }
             .background(ShioColor.Chrome.background)

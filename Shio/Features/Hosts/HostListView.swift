@@ -35,13 +35,21 @@ struct HostListView: View {
                                     HostRow(host: host)
                                 }
                                 .buttonStyle(.plain)
+                                // "Remove" (not "Delete") — drops it from Shio
+                                // only; the machine itself is untouched.
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) { remove(host) } label: {
+                                        Label("Remove", systemImage: "trash")
+                                    }
+                                    .tint(.red)
+                                }
                             }
-                            .onDelete(perform: deleteHosts)
                         }
                     }
                 }
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)
+                .refreshable { await SyncRefresh.run(context) }
             }
             .background(ShioColor.Chrome.background)
             .shioNavTitle("Machines")
@@ -112,10 +120,9 @@ struct HostListView: View {
         .listRowSeparator(.hidden)
     }
 
-    private func deleteHosts(at offsets: IndexSet) {
-        for index in offsets {
-            context.delete(hosts[index])
-        }
+    /// Remove a machine from Shio (the machine itself is left alone).
+    private func remove(_ host: Host) {
+        context.delete(host)
         try? context.save()
     }
 }
