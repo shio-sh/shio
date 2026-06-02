@@ -135,6 +135,14 @@ private struct ProjectsPane: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        // Right-click → remove. Only drops it from Shio; the repo
+                        // on disk / the machine is untouched.
+                        .contextMenu {
+                            Button("Remove from Shio", role: .destructive) {
+                                context.delete(project)
+                                try? context.save()
+                            }
+                        }
                     }
                     .onDelete { offsets in
                         for i in offsets { context.delete(filtered[i]) }
@@ -217,6 +225,12 @@ private struct HostsPane: View {
                                               subtitle: "\(host.username)@\(host.hostname)")
                             }
                             .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Remove from Shio", role: .destructive) {
+                                    context.delete(host)
+                                    try? context.save()
+                                }
+                            }
                         }
                         .onDelete { offsets in
                             for i in offsets { context.delete(filteredHosts[i]) }

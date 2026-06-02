@@ -50,13 +50,15 @@ enum PairingService {
     /// Build a `Host` from a scanned payload. The caller inserts + saves it
     /// into the SwiftData context (so we don't couple this service to one).
     static func makeHost(from payload: PairingPayload) -> Host {
-        Host(
+        let host = Host(
             name: payload.name,
             hostname: payload.host,
             port: payload.port,
             username: payload.user,
             kind: .directSSH
         )
+        host.deviceID = payload.deviceID
+        return host
     }
 
     private static func submit(line: String, token: String?, to url: URL) async throws {

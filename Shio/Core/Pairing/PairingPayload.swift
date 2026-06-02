@@ -28,6 +28,10 @@ struct PairingPayload: Codable, Equatable {
     var endpoint: String?
     /// One-time pairing token the companion validates before authorizing.
     var token: String?
+    /// The companion's stable device id. Lets the phone recognize a machine it
+    /// already has from iCloud sync (the Mac's self-Host) and update it in place
+    /// instead of creating a duplicate. nil for companions that don't sync.
+    var deviceID: String?
 }
 
 extension PairingPayload {

@@ -46,6 +46,9 @@ final class MacPairingHost {
         )
         p.endpoint = endpoint
         p.token = token
+        // Carry this Mac's stable id so the phone reconciles with the self-Host
+        // it already has from iCloud sync instead of adding a duplicate machine.
+        p.deviceID = MacSelfHost.deviceID
         payload = p
         qrString = Self.deepLink(for: p)
 

@@ -7,6 +7,7 @@ import SwiftData
 struct ProjectsView: View {
 
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
+    @Environment(\.modelContext) private var context
     @State private var showingSettings = false
     @State private var isAddingProject = false
     @State private var showingTerminal = false
@@ -19,15 +20,24 @@ struct ProjectsView: View {
                 if projects.isEmpty {
                     emptyState
                 } else {
-                    List(projects) { project in
-                        Button {
-                            if sessionStore.openOrCreate(project: project) != nil {
-                                showingTerminal = true
+                    List {
+                        ForEach(projects) { project in
+                            Button {
+                                if sessionStore.openOrCreate(project: project) != nil {
+                                    showingTerminal = true
+                                }
+                            } label: {
+                                ProjectRow(project: project, agentActivity: agentActivity(for: project))
                             }
-                        } label: {
-                            ProjectRow(project: project, agentActivity: agentActivity(for: project))
+                            .buttonStyle(.plain)
+                            // "Remove" (not "Delete") — this only drops the project
+                            // from Shio; the repo on your machine is untouched.
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) { remove(project) } label: {
+                                    Label("Remove", systemImage: "trash")
+                                }
+                            }
                         }
-                        .buttonStyle(.plain)
                     }
                     .listStyle(.insetGrouped)
                     .scrollContentBackground(.hidden)
@@ -65,6 +75,12 @@ struct ProjectsView: View {
                 TerminalScene()
             }
         }
+    }
+
+    /// Remove a project from Shio (the repo on the machine is left alone).
+    private func remove(_ project: Project) {
+        context.delete(project)
+        try? context.save()
     }
 
     /// Worst-case agent activity across this project's open sessions, for the

@@ -97,10 +97,16 @@
 	<array>
 		<string>tailscale</string>
 	</array>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_shio._tcp</string>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Shio uses the camera to scan the pairing QR code your machine shows, so it can connect securely.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Shio locks itself with Face ID so that picking up your phone doesn't expose your Macs.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Shio talks to the machine you're pairing with over your local network to authorize this device.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>

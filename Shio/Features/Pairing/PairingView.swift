@@ -199,8 +199,7 @@ struct PairingView: View {
         Task { @MainActor in
             do {
                 let keyLine = try await PairingService.provisionKey(for: payload)
-                let host = PairingService.makeHost(from: payload)
-                context.insert(host)
+                let host = upsertHost(from: payload)
                 try? context.save()
                 Haptics.notifySuccess()
                 phase = .paired(name: host.name, keyLine: payload.endpoint == nil ? keyLine : nil)
@@ -209,5 +208,24 @@ struct PairingView: View {
                 phase = .failed(error.localizedDescription)
             }
         }
+    }
+
+    /// Reconcile the scanned machine with what we already have. If a host with
+    /// the same `deviceID` exists (the companion's self-Host arrived via iCloud
+    /// sync), refresh it in place; otherwise insert a new one. Prevents the
+    /// "same Mac shows up twice" duplicate.
+    private func upsertHost(from payload: PairingPayload) -> Host {
+        if let did = payload.deviceID, !did.isEmpty,
+           let existing = try? context.fetch(
+                FetchDescriptor<Host>(predicate: #Predicate { $0.deviceID == did })).first {
+            existing.name = payload.name
+            existing.hostname = payload.host
+            existing.port = payload.port
+            existing.username = payload.user
+            return existing
+        }
+        let host = PairingService.makeHost(from: payload)
+        context.insert(host)
+        return host
     }
 }
