@@ -105,6 +105,11 @@ targets:
         NSSupportsLiveActivitiesFrequentUpdates: true
         NSFaceIDUsageDescription: Shio locks itself with Face ID so that picking up your phone doesn't expose your Macs.
         NSCameraUsageDescription: Shio uses the camera to scan the pairing QR code your machine shows, so it can connect securely.
+        # Pairing POSTs the phone's SSH key to the Mac's local endpoint, and we
+        # browse Bonjour to prime this permission up front (before the camera).
+        NSLocalNetworkUsageDescription: Shio talks to the machine you're pairing with over your local network to authorize this device.
+        NSBonjourServices:
+          - _shio._tcp
         # Remote notifications: away-watcher pushes ("a session needs you")
         # and Live Activity remote updates.
         UIBackgroundModes:

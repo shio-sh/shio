@@ -98,6 +98,14 @@ final class SessionStore {
     /// user's existing tmux session survives.
     @discardableResult
     func createNewSession(on host: Host, project: Project? = nil) -> Session {
+        // Contextual notification opt-in: away-push is *for* sessions, so this
+        // is the moment to ask — not at first launch. The system prompts only
+        // once; subsequent calls are no-ops.
+        Task {
+            await PushService.shared.requestAuthorizationAndRegister()
+            await CloudKitSignalService.shared.ensureSubscription()
+        }
+
         WidgetSharedState.recordConnect(
             id: "\(host.persistentModelID)",
             name: host.name

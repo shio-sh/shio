@@ -20,6 +20,7 @@ struct PairingView: View {
 
     @State private var phase: Phase
     @State private var manualText: String = ""
+    @State private var localNetwork = LocalNetworkPrimer()
 
     init() {
         _phase = State(initialValue: PairingScanner.isSupported ? .scanning : .manualEntry)
@@ -31,6 +32,11 @@ struct PairingView: View {
                 .background(ShioColor.Chrome.background)
                 .navigationTitle("Pair a machine")
                 .navigationBarTitleDisplayMode(.inline)
+                // Prompt for Local Network access up front — before the camera
+                // — so the post-scan POST to the Mac's local endpoint isn't
+                // racing the permission and failing on the first try.
+                .onAppear { localNetwork.prime() }
+                .onDisappear { localNetwork.stop() }
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { dismiss() }

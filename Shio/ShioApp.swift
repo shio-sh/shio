@@ -13,13 +13,14 @@ struct ShioApp: App {
                 .tint(ShioColor.Text.primary)
                 .task {
                     Haptics.prepare()
-                    // Register for away-push once the device is set up (a key
-                    // exists), so brand-new users aren't prompted before
-                    // onboarding. No-op end-to-end until a relay is configured.
+                    // Do NOT ask for notifications at launch — a first-run
+                    // permission prompt is hostile, and the SSH key survives
+                    // reinstalls so `hasKey()` isn't a reliable "onboarded"
+                    // signal. We ask contextually, when the user starts a
+                    // session (away-push is *for* sessions). The CloudKit
+                    // away-push subscription is silent (no prompt) and only
+                    // matters once a key + the iCloud container exist.
                     if KeyManager.hasKey() {
-                        await PushService.shared.requestAuthorizationAndRegister()
-                        // Register the sovereign CloudKit away-push subscription
-                        // (no-op until the iCloud container is provisioned).
                         await CloudKitSignalService.shared.ensureSubscription()
                     }
                 }
