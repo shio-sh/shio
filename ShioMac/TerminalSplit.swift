@@ -109,8 +109,9 @@ final class SplitNode: Identifiable {
 
 // MARK: - Recursive split view
 
-/// Renders a tab's split tree: a leaf hosts its surface; a branch lays out its
-/// two children with a draggable divider.
+/// Renders a tab's split tree: a leaf hosts its surface; a branch uses AppKit's
+/// native split view (HSplitView side-by-side, VSplitView stacked) for the
+/// divider, dragging, and min-size handling — robust and crash-free.
 struct SplitContainer: View {
     @Bindable var tab: WorkspaceTab
     @Bindable var node: SplitNode
@@ -120,10 +121,16 @@ struct SplitContainer: View {
         case .leaf(let pane):
             PaneHost(pane: pane, tab: tab)
         case .branch(let direction, let first, let second):
-            SplitLayout(direction: direction, ratio: $node.ratio) {
-                SplitContainer(tab: tab, node: first)
-            } second: {
-                SplitContainer(tab: tab, node: second)
+            if direction == .horizontal {
+                HSplitView {
+                    SplitContainer(tab: tab, node: first)
+                    SplitContainer(tab: tab, node: second)
+                }
+            } else {
+                VSplitView {
+                    SplitContainer(tab: tab, node: first)
+                    SplitContainer(tab: tab, node: second)
+                }
             }
         }
     }
@@ -139,6 +146,7 @@ private struct PaneHost: View {
     var body: some View {
         GhosttySurfaceHost(surface: pane.surface)
             .id(pane.id)
+            .frame(minWidth: 120, maxWidth: .infinity, minHeight: 80, maxHeight: .infinity)
             .overlay {
                 if !tab.isSinglePane && tab.focusedPaneID == pane.id {
                     Rectangle()
@@ -159,66 +167,3 @@ private struct PaneHost: View {
     }
 }
 
-/// A two-pane layout with a draggable divider. Ratio is the fraction given to
-/// the first child; each pane keeps a minimum size.
-private struct SplitLayout<First: View, Second: View>: View {
-    let direction: SplitDirection
-    @Binding var ratio: CGFloat
-    @ViewBuilder var first: First
-    @ViewBuilder var second: Second
-
-    private let thickness: CGFloat = 6
-    private let minPane: CGFloat = 60
-    private let space = "split"
-
-    var body: some View {
-        GeometryReader { geo in
-            let isSideBySide = direction == .horizontal
-            let total = isSideBySide ? geo.size.width : geo.size.height
-            let firstLen = min(max(minPane, ratio * total), total - minPane - thickness)
-            let secondLen = max(minPane, total - firstLen - thickness)
-
-            Group {
-                if isSideBySide {
-                    HStack(spacing: 0) {
-                        first.frame(width: firstLen)
-                        divider(isSideBySide: true, total: total)
-                        second.frame(width: secondLen)
-                    }
-                } else {
-                    VStack(spacing: 0) {
-                        first.frame(height: firstLen)
-                        divider(isSideBySide: false, total: total)
-                        second.frame(height: secondLen)
-                    }
-                }
-            }
-            .coordinateSpace(name: space)
-        }
-    }
-
-    /// The draggable divider — the only resize surface, so terminal selection
-    /// in the panes is never hijacked.
-    private func divider(isSideBySide: Bool, total: CGFloat) -> some View {
-        Rectangle()
-            .fill(Color.primary.opacity(0.12))
-            .frame(width: isSideBySide ? thickness : nil,
-                   height: isSideBySide ? nil : thickness)
-            .contentShape(Rectangle())
-            .onHover { hovering in
-                if hovering {
-                    (isSideBySide ? NSCursor.resizeLeftRight : NSCursor.resizeUpDown).push()
-                } else {
-                    NSCursor.pop()
-                }
-            }
-            .gesture(
-                DragGesture(coordinateSpace: .named(space))
-                    .onChanged { value in
-                        guard total > 0 else { return }
-                        let pos = isSideBySide ? value.location.x : value.location.y
-                        ratio = min(0.9, max(0.1, pos / total))
-                    }
-            )
-    }
-}
