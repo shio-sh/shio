@@ -46,9 +46,10 @@ struct MacFilesPane: View {
                                    subtitle: FileManager.default.homeDirectoryForCurrentUser.path)
                 }
             }
-            if !machines.isEmpty {
+            let remote = machines.filter { !MacSelfHost.isThisMac($0) }
+            if !remote.isEmpty {
                 Section("Remote") {
-                    ForEach(machines) { machine in
+                    ForEach(remote) { machine in
                         NavigationLink {
                             RemoteFilesBrowser(host: machine, model: model)
                         } label: {

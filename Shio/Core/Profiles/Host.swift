@@ -68,6 +68,13 @@ final class Host {
     /// Stored TOFU fingerprint. Set on first successful connect.
     var hostKeyFingerprint: String?
 
+    /// Stable per-device identity. Non-nil only for a machine that represents
+    /// one of the user's own devices (today: the Mac registers itself). A
+    /// device recognizes its OWN host by matching this against its locally
+    /// stored device id → opens projects locally instead of SSHing to itself.
+    /// Synced, so other devices see this machine and connect to it over SSH.
+    var deviceID: String?
+
     /// Created/updated timestamps for sort + audit.
     var createdAt: Date = Date()
     var lastConnectedAt: Date?

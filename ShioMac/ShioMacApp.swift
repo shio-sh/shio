@@ -232,7 +232,9 @@ final class MacTerminalModel {
     /// for projects that live on a machine. Used by the Projects list and the
     /// Add-Project sheet alike.
     func open(project: Project) {
-        if let host = project.host {
+        // This Mac (its own host) or a legacy host-less project → local
+        // invisible-tmux. A project on another machine → SSH.
+        if let host = project.host, !MacSelfHost.isThisMac(host) {
             let resume = TmuxResume.resumeCommand(
                 named: "shio-\(TmuxResume.scrubName(project.name))",
                 startDir: project.path,

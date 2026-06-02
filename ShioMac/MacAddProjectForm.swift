@@ -139,7 +139,9 @@ struct MacAddProjectForm: View {
     }
 
     private func add() {
-        let host = selectedMachine                          // nil = This Mac
+        // "This Mac" → the synced self-Host record, so the project syncs to
+        // other devices with a machine they can SSH into (continuity).
+        let host = selectedMachine ?? MacSelfHost.ensure(in: context)
         let cleanLocation = location.trimmingCharacters(in: .whitespaces)
 
         let project: Project

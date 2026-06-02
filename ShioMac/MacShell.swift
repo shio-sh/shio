@@ -30,6 +30,7 @@ enum MacSection: String, CaseIterable, Identifiable {
 
 struct MacShell: View {
     @Bindable var model: MacTerminalModel
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         NavigationSplitView {
@@ -55,6 +56,9 @@ struct MacShell: View {
                 CommandPaletteContainer(model: model)
             }
         }
+        // Register This Mac as a synced Machine so its local projects are
+        // reachable (continuity) and it appears on the user's other devices.
+        .task { MacSelfHost.ensure(in: context) }
     }
 
     /// List wants an optional selection binding; the model's section is always
@@ -172,8 +176,10 @@ private struct HostsPane: View {
 
     private var query: String { model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased() }
     private var filteredHosts: [Host] {
-        guard !query.isEmpty else { return hosts }
-        return hosts.filter {
+        // Exclude this Mac's own self-Host — it's shown as "This Mac" above.
+        let remote = hosts.filter { !MacSelfHost.isThisMac($0) }
+        guard !query.isEmpty else { return remote }
+        return remote.filter {
             $0.name.lowercased().contains(query)
                 || $0.hostname.lowercased().contains(query)
                 || $0.username.lowercased().contains(query)
