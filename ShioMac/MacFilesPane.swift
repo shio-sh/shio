@@ -42,7 +42,7 @@ struct MacFilesPane: View {
                             } else {
                                 ForEach(filteredMachines) { machine in
                                     NavigationLink {
-                                        RemoteFilesComingSoon(name: machine.name)
+                                        RemoteFilesBrowser(host: machine, model: model)
                                     } label: {
                                         MachineFileRow(icon: "desktopcomputer", name: machine.name,
                                                        subtitle: "\(machine.username)@\(machine.hostname)")
@@ -219,16 +219,102 @@ private struct LocalFileRow: View {
     }
 }
 
-private struct RemoteFilesComingSoon: View {
-    let name: String
+/// Browse a remote machine's files over SFTP (reusing the shared FilesViewModel,
+/// which owns its own SSH+SFTP connection). Navigate in place (open dirs, go up);
+/// ⌘F filters the current directory; tap a file to download it and open locally.
+private struct RemoteFilesBrowser: View {
+    let model: MacTerminalModel
+    let host: Host
+    @State private var vm: FilesViewModel
+    @State private var busy = false
+
+    init(host: Host, model: MacTerminalModel) {
+        self.host = host
+        self.model = model
+        _vm = State(initialValue: FilesViewModel(host: host))
+    }
+
+    private var filtered: [SFTPFile] {
+        let q = model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return vm.entries }
+        return vm.entries.filter { $0.name.lowercased().contains(q) }
+    }
+
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "tray.full.fill").font(.largeTitle).foregroundStyle(.secondary)
-            Text(name).font(.system(.title2, design: .monospaced))
-            Text("Browsing this machine over SFTP is coming soon.")
-                .font(.callout).foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            if model.showingSearch {
+                SectionSearchField(model: model, placeholder: "Filter \(host.name)")
+            }
+            content
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle(name)
+        .navigationTitle(host.name)
+        .toolbar {
+            ToolbarItem {
+                Button { Task { await vm.goUp() } } label: { Image(systemName: "chevron.up") }
+                    .help("Up a directory")
+                    .disabled(vm.path == "/" || vm.state != .browsing)
+            }
+        }
+        .task { if vm.entries.isEmpty { await vm.start() } }
+        .onDisappear { Task { await vm.stop() } }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch vm.state {
+        case .connecting:
+            VStack(spacing: 8) { ProgressView(); Text("Connecting to \(host.name)…").foregroundStyle(.secondary) }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .failed(let message):
+            VStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle").font(.largeTitle).foregroundStyle(.secondary)
+                Text("Couldn't open files").font(.headline)
+                Text(message).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                Button("Retry") { Task { await vm.start() } }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
+        case .browsing:
+            List(filtered) { file in
+                if file.isDirectory {
+                    Button { Task { await vm.open(file) } } label: {
+                        SFTPRow(file: file).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                } else {
+                    Button { Task { await openRemoteFile(file) } } label: {
+                        SFTPRow(file: file).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }.buttonStyle(.plain).disabled(busy)
+                }
+            }
+            .overlay { if filtered.isEmpty { Text("Empty folder").foregroundStyle(.secondary) } }
+        }
+    }
+
+    /// Download a remote file to a temp dir and open it in its default app.
+    private func openRemoteFile(_ file: SFTPFile) async {
+        busy = true
+        defer { busy = false }
+        guard let data = try? await vm.read(file) else { return }
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent(file.name)
+        try? data.write(to: dest)
+        NSWorkspace.shared.open(dest)
+    }
+}
+
+private struct SFTPRow: View {
+    let file: SFTPFile
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: file.isDirectory ? "folder.fill" : "doc")
+                .font(.system(size: 16))
+                .foregroundStyle(file.isDirectory ? .primary : .secondary)
+                .frame(width: 22)
+            Text(file.name).font(.body).lineLimit(1).truncationMode(.middle)
+            Spacer()
+            if !file.isDirectory, let size = file.attributes.size {
+                Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
+                    .font(.caption).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 1)
     }
 }
