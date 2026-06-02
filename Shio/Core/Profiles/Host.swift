@@ -73,10 +73,12 @@ final class Host {
     var lastConnectedAt: Date?
 
     /// Projects (repos) the user works on this host. `.nullify` (not `.cascade`)
-    /// — CloudKit doesn't support cascade. Deleting a host orphans its projects
-    /// (host becomes nil) rather than deleting them.
+    /// — CloudKit doesn't support cascade. Deleting a host orphans its projects.
+    /// The to-many MUST be **optional** for CloudKit ("all relationships must be
+    /// optional") — a non-optional `[Project] = []` makes the CloudKit store
+    /// refuse to load. Only used as the inverse, so optionality costs nothing.
     @Relationship(deleteRule: .nullify, inverse: \Project.host)
-    var projects: [Project] = []
+    var projects: [Project]?
 
     init(
         name: String,
