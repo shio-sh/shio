@@ -143,34 +143,31 @@ private struct ProjectsPane: View {
     }
 }
 
-/// Hosts list (SwiftData-backed): add machines, connect, quick-connect.
+/// Machines list. This Mac is a first-class machine (tap → local terminal);
+/// saved remote machines (SwiftData) connect over SSH.
 private struct HostsPane: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var hosts: [Host]
+
     var body: some View {
-        Group {
-            if hosts.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "desktopcomputer").font(.largeTitle).foregroundStyle(.secondary)
-                    Text("No machines yet").font(.system(.title2, design: .monospaced))
+        List {
+            Section("This Mac") {
+                Button { model.newLocalTab() } label: {
+                    MacMachineRow(icon: "laptopcomputer", name: "This Mac",
+                                  subtitle: Self.localSubtitle)
+                }
+                .buttonStyle(.plain)
+            }
+            Section("Remote") {
+                if hosts.isEmpty {
                     Text("Add a server or device you own, then tap it to connect.")
                         .font(.callout).foregroundStyle(.secondary)
-                    Button("Add a machine") { model.showingAddHost = true }
-                        .padding(.top, 4)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
+                } else {
                     ForEach(hosts) { host in
                         Button { open(host) } label: {
-                            VStack(alignment: .leading) {
-                                Text(host.name).font(.body)
-                                Text("\(host.username)@\(host.hostname)")
-                                    .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                            MacMachineRow(icon: "desktopcomputer", name: host.name,
+                                          subtitle: "\(host.username)@\(host.hostname)")
                         }
                         .buttonStyle(.plain)
                     }
@@ -179,14 +176,20 @@ private struct HostsPane: View {
                         try? context.save()
                     }
                 }
-                .navigationTitle("Machines")
-                .toolbar {
-                    ToolbarItem {
-                        Button { model.showingAddHost = true } label: { Image(systemName: "plus") }
-                    }
-                }
             }
         }
+        .navigationTitle("Machines")
+        .toolbar {
+            ToolbarItem {
+                Button { model.showingAddHost = true } label: { Image(systemName: "plus") }
+            }
+        }
+    }
+
+    /// `amrith@Amriths-MacBook-Pro` — the local account + computer name.
+    private static var localSubtitle: String {
+        let host = ProcessInfo.processInfo.hostName.replacingOccurrences(of: ".local", with: "")
+        return "\(NSUserName())@\(host)"
     }
 
     /// Tap a saved host to (re)connect with the Shio key.
@@ -197,6 +200,28 @@ private struct HostsPane: View {
     }
     // Trailing-closure label needs an argument label match; bridge it.
     private func open(_ host: Host) { open(host: host) }
+}
+
+/// A machine row: icon, name, monospaced subtitle.
+private struct MacMachineRow: View {
+    let icon: String
+    let name: String
+    let subtitle: String
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 18)).foregroundStyle(.secondary).frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name).font(.body)
+                Text(subtitle)
+                    .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .padding(.vertical, 2)
+    }
 }
 
 /// Add a machine and connect to it. One sheet: saves the `Host` for next time
