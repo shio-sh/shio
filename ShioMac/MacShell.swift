@@ -70,7 +70,7 @@ struct MacShell: View {
         case .projects: ProjectsPane(model: model)
         case .hosts:    HostsPane(model: model)
         case .agents:   placeholder("Agents", "sparkles", "Agents across your sessions show up here.")
-        case .files:    MacFilesPane()
+        case .files:    MacFilesPane(model: model)
         }
     }
 
@@ -92,8 +92,21 @@ private struct ProjectsPane: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
 
+    private var filtered: [Project] {
+        let q = model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return projects }
+        return projects.filter {
+            $0.name.lowercased().contains(q)
+                || $0.path.lowercased().contains(q)
+                || ($0.host?.name.lowercased().contains(q) ?? false)
+        }
+    }
+
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            if model.showingSearch {
+                SectionSearchField(model: model, placeholder: "Search projects")
+            }
             if projects.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "folder.fill").font(.largeTitle).foregroundStyle(.secondary)
@@ -107,7 +120,7 @@ private struct ProjectsPane: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
-                    ForEach(projects) { project in
+                    ForEach(filtered) { project in
                         Button { open(project) } label: {
                             VStack(alignment: .leading) {
                                 Text(project.name).font(.body)
@@ -120,9 +133,12 @@ private struct ProjectsPane: View {
                         .buttonStyle(.plain)
                     }
                     .onDelete { offsets in
-                        for i in offsets { context.delete(projects[i]) }
+                        for i in offsets { context.delete(filtered[i]) }
                         try? context.save()
                     }
+                }
+                .overlay {
+                    if filtered.isEmpty { Text("No matches").foregroundStyle(.secondary) }
                 }
                 .navigationTitle("Projects")
                 .toolbar {
@@ -154,30 +170,52 @@ private struct HostsPane: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var hosts: [Host]
 
+    private var query: String { model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased() }
+    private var filteredHosts: [Host] {
+        guard !query.isEmpty else { return hosts }
+        return hosts.filter {
+            $0.name.lowercased().contains(query)
+                || $0.hostname.lowercased().contains(query)
+                || $0.username.lowercased().contains(query)
+        }
+    }
+    private var showThisMac: Bool {
+        query.isEmpty || "this mac".contains(query) || Self.localSubtitle.lowercased().contains(query)
+    }
+
     var body: some View {
-        List {
-            Section("This Mac") {
-                Button { model.newLocalTab() } label: {
-                    MacMachineRow(icon: "laptopcomputer", name: "This Mac",
-                                  subtitle: Self.localSubtitle)
-                }
-                .buttonStyle(.plain)
+        VStack(spacing: 0) {
+            if model.showingSearch {
+                SectionSearchField(model: model, placeholder: "Search machines")
             }
-            Section("Remote") {
-                if hosts.isEmpty {
-                    Text("Add a server or device you own, then tap it to connect.")
-                        .font(.callout).foregroundStyle(.secondary)
-                } else {
-                    ForEach(hosts) { host in
-                        Button { open(host) } label: {
-                            MacMachineRow(icon: "desktopcomputer", name: host.name,
-                                          subtitle: "\(host.username)@\(host.hostname)")
+            List {
+                if showThisMac {
+                    Section("This Mac") {
+                        Button { model.newLocalTab() } label: {
+                            MacMachineRow(icon: "laptopcomputer", name: "This Mac",
+                                          subtitle: Self.localSubtitle)
                         }
                         .buttonStyle(.plain)
                     }
-                    .onDelete { offsets in
-                        for i in offsets { context.delete(hosts[i]) }
-                        try? context.save()
+                }
+                Section("Remote") {
+                    if hosts.isEmpty {
+                        Text("Add a server or device you own, then tap it to connect.")
+                            .font(.callout).foregroundStyle(.secondary)
+                    } else if filteredHosts.isEmpty {
+                        Text("No matches").foregroundStyle(.secondary)
+                    } else {
+                        ForEach(filteredHosts) { host in
+                            Button { open(host) } label: {
+                                MacMachineRow(icon: "desktopcomputer", name: host.name,
+                                              subtitle: "\(host.username)@\(host.hostname)")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .onDelete { offsets in
+                            for i in offsets { context.delete(filteredHosts[i]) }
+                            try? context.save()
+                        }
                     }
                 }
             }
@@ -204,6 +242,34 @@ private struct HostsPane: View {
     }
     // Trailing-closure label needs an argument label match; bridge it.
     private func open(_ host: Host) { open(host: host) }
+}
+
+/// Reusable context-aware ⌘F filter field shown at the top of a list section.
+/// Bound to the shared `model.searchQuery`; esc clears + closes.
+struct SectionSearchField: View {
+    @Bindable var model: MacTerminalModel
+    var placeholder: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundStyle(.secondary)
+            TextField(placeholder, text: $model.searchQuery)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .onKeyPress(.escape) { close(); return .handled }
+            if !model.searchQuery.isEmpty {
+                Button { model.searchQuery = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 12).padding(.top, 10)
+        .onAppear { focused = true }
+    }
+
+    private func close() { model.showingSearch = false; model.searchQuery = "" }
 }
 
 /// A machine row: icon, name, monospaced subtitle.

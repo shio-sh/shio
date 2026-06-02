@@ -103,17 +103,33 @@ final class MacTerminalModel {
     var selectedTabID: UUID?
     /// Which sidebar section is selected. On the model (not local @State) so
     /// opening a Project / connecting can flip back to the terminal.
-    var section: MacSection = .terminal
+    /// Which sidebar section is selected. Switching sections clears any active
+    /// search (and ends a terminal scrollback search so highlights don't linger).
+    var section: MacSection = .terminal {
+        didSet {
+            guard section != oldValue else { return }
+            if oldValue == .terminal { focusedSurface?.searchEnd() }
+            showingSearch = false
+            searchQuery = ""
+        }
+    }
     var showingAddHost = false
     var showingAddProject = false
     var showingCommandPalette = false
+    /// Context-aware find (⌘F): searches the *current* section — terminal
+    /// scrollback, or filters the Files/Machines/Projects/Agents list.
     var showingSearch = false
     var searchQuery = ""
 
     /// The surface that find/search and focused-pane actions target.
     var focusedSurface: GhosttyMacSurface? { selectedTab?.focusedPane?.surface }
 
-    func showFind() { section = .terminal; ensureTerminalTab(); showingSearch = true }
+    /// ⌘F — context-aware. In the terminal it opens scrollback search; in a
+    /// list section it reveals that section's filter field.
+    func showFind() {
+        if section == .terminal { ensureTerminalTab() }
+        showingSearch = true
+    }
     func findNext() { focusedSurface?.searchNavigate(next: true) }
     func findPrevious() { focusedSurface?.searchNavigate(next: false) }
 

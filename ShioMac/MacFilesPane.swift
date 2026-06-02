@@ -5,6 +5,7 @@ import SwiftData
 /// it's *this* machine, so there's no SFTP in the way — shown as "This Mac".
 /// Saved remote machines list here too and will browse over SFTP next.
 struct MacFilesPane: View {
+    @Bindable var model: MacTerminalModel
     @Query(sort: \Host.name) private var machines: [Host]
 
     var body: some View {
@@ -13,7 +14,7 @@ struct MacFilesPane: View {
                 Section {
                     NavigationLink {
                         LocalDirectoryView(url: FileManager.default.homeDirectoryForCurrentUser,
-                                           title: "This Mac")
+                                           title: "This Mac", model: model)
                     } label: {
                         MachineFileRow(icon: "laptopcomputer", name: "This Mac",
                                        subtitle: FileManager.default.homeDirectoryForCurrentUser.path)
@@ -67,44 +68,24 @@ private struct MachineFileRow: View {
 private struct LocalDirectoryView: View {
     let url: URL
     let title: String
+    @Bindable var model: MacTerminalModel
 
     @State private var entries: [LocalEntry] = []
     @State private var loadError: String?
     @State private var showHidden = false
 
+    private var filtered: [LocalEntry] {
+        let q = model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return entries }
+        return entries.filter { $0.name.lowercased().contains(q) }
+    }
+
     var body: some View {
-        Group {
-            if let loadError {
-                VStack(spacing: 8) {
-                    Image(systemName: "lock.fill").font(.largeTitle).foregroundStyle(.secondary)
-                    Text("Can't open this folder").font(.headline)
-                    Text(loadError).font(.callout).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding()
-            } else if entries.isEmpty {
-                Text("Empty folder")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(entries) { entry in
-                    if entry.isDirectory {
-                        NavigationLink {
-                            LocalDirectoryView(url: entry.url, title: entry.name)
-                        } label: { LocalFileRow(entry: entry) }
-                        .contextMenu { revealButton(entry.url) }
-                    } else {
-                        Button { NSWorkspace.shared.open(entry.url) } label: {
-                            LocalFileRow(entry: entry)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu { revealButton(entry.url) }
-                    }
-                }
+        VStack(spacing: 0) {
+            if model.showingSearch {
+                SectionSearchField(model: model, placeholder: "Filter \(title)")
             }
+            content
         }
         .navigationTitle(title)
         .toolbar {
@@ -115,6 +96,44 @@ private struct LocalDirectoryView: View {
         }
         .onAppear(perform: load)
         .onChange(of: showHidden) { _, _ in load() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if let loadError {
+            VStack(spacing: 8) {
+                Image(systemName: "lock.fill").font(.largeTitle).foregroundStyle(.secondary)
+                Text("Can't open this folder").font(.headline)
+                Text(loadError).font(.callout).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+        } else if entries.isEmpty {
+            Text("Empty folder")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            List(filtered) { entry in
+                if entry.isDirectory {
+                    NavigationLink {
+                        LocalDirectoryView(url: entry.url, title: entry.name, model: model)
+                    } label: { LocalFileRow(entry: entry) }
+                    .contextMenu { revealButton(entry.url) }
+                } else {
+                    Button { NSWorkspace.shared.open(entry.url) } label: {
+                        LocalFileRow(entry: entry)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu { revealButton(entry.url) }
+                }
+            }
+            .overlay {
+                if filtered.isEmpty { Text("No matches").foregroundStyle(.secondary) }
+            }
+        }
     }
 
     private func revealButton(_ url: URL) -> some View {
