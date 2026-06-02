@@ -248,6 +248,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.mac
+        # Product is "Shio" (Shio.app + executable + bundle name) even though the
+        # target is ShioMac — so the dock, menu bar, and Finder all read "Shio".
+        PRODUCT_NAME: Shio
         MACOSX_DEPLOYMENT_TARGET: "26.0"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # Automatic signing under the team so the Mac app can carry the
