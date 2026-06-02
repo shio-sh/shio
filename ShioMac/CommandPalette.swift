@@ -23,13 +23,26 @@ struct CommandPalette: View {
 
     @State private var query = ""
     @State private var selection = 0
+    @State private var fileSearcher = FileSpotlightSearcher()
     @FocusState private var fieldFocused: Bool
+
+    /// A selectable row in the palette: a Shio command, or a Spotlight file hit.
+    private enum Item: Identifiable {
+        case command(ShioCommand)
+        case file(FileHit)
+        var id: UUID {
+            switch self {
+            case .command(let c): return c.id
+            case .file(let f): return f.id
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 8) {
-                Image(systemName: "command").foregroundStyle(.secondary)
-                TextField("Run a command…", text: $query)
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search machines, projects, files — or run a command…", text: $query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 16))
                     .focused($fieldFocused)
@@ -42,26 +55,30 @@ struct CommandPalette: View {
             Divider()
             results
         }
-        .frame(width: 560)
+        .frame(width: 580)
         .background(.regularMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.separator))
         .shadow(color: .black.opacity(0.35), radius: 28, y: 12)
         .onAppear { fieldFocused = true; selection = 0 }
-        .onChange(of: query) { _, _ in selection = 0 }
+        .onChange(of: query) { _, q in selection = 0; fileSearcher.search(q) }
+        .onChange(of: fileSearcher.results.count) { _, _ in
+            if selection >= items.count { selection = max(0, items.count - 1) }
+        }
+        .onDisappear { fileSearcher.stop() }
     }
 
     @ViewBuilder
     private var results: some View {
-        let items = filtered
-        if items.isEmpty {
-            Text("No commands").foregroundStyle(.secondary).padding(.vertical, 28)
+        let rows = items
+        if rows.isEmpty {
+            Text("No results").foregroundStyle(.secondary).padding(.vertical, 28)
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { idx, cmd in
-                            CommandRow(cmd: cmd, selected: idx == selection)
+                        ForEach(Array(rows.enumerated()), id: \.element.id) { idx, item in
+                            row(item, selected: idx == selection)
                                 .id(idx)
                                 .contentShape(Rectangle())
                                 .onTapGesture { selection = idx; runSelected() }
@@ -70,38 +87,57 @@ struct CommandPalette: View {
                     }
                     .padding(.vertical, 4)
                 }
-                .frame(maxHeight: 360)
+                .frame(maxHeight: 380)
                 .onChange(of: selection) { _, s in withAnimation(.easeOut(duration: 0.1)) { proxy.scrollTo(s, anchor: .center) } }
             }
         }
     }
 
-    // MARK: Filtering + execution
-
-    private var filtered: [ShioCommand] {
-        let all = allCommands()
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return all }
-        return all.filter {
-            $0.title.lowercased().contains(q) || ($0.subtitle?.lowercased().contains(q) ?? false)
+    @ViewBuilder
+    private func row(_ item: Item, selected: Bool) -> some View {
+        switch item {
+        case .command(let c): CommandRow(cmd: c, selected: selected)
+        case .file(let f):
+            CommandRow(cmd: ShioCommand(title: f.name,
+                                        subtitle: f.path,
+                                        symbol: f.isDirectory ? "folder" : "doc",
+                                        run: {}),
+                       selected: selected)
         }
     }
 
+    // MARK: Items + execution
+
+    /// Commands (filtered) followed by Spotlight file hits (when querying).
+    private var items: [Item] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        let commands = q.isEmpty
+            ? allCommands()
+            : allCommands().filter {
+                $0.title.lowercased().contains(q) || ($0.subtitle?.lowercased().contains(q) ?? false)
+            }
+        return commands.map(Item.command) + fileSearcher.results.map(Item.file)
+    }
+
     private func move(_ delta: Int) {
-        let n = filtered.count
+        let n = items.count
         guard n > 0 else { return }
         selection = max(0, min(n - 1, selection + delta))
     }
 
     private func runSelected() {
-        let items = filtered
-        guard items.indices.contains(selection) else { return }
-        let cmd = items[selection]
+        let rows = items
+        guard rows.indices.contains(selection) else { return }
+        let item = rows[selection]
         close()
-        cmd.run()
+        switch item {
+        case .command(let c): c.run()
+        case .file(let f): NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: f.path)])
+        }
     }
 
     private func close() {
+        fileSearcher.stop()
         model.showingCommandPalette = false
         query = ""
     }
