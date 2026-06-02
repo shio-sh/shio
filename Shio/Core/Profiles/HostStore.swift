@@ -28,15 +28,15 @@ enum ShioModelContainer {
         //    up-front to keep first-launch logs clean.
         prepareAppGroupApplicationSupport()
 
-        // 1. Try the on-disk container. CloudKit mirroring is explicitly
-        //    OFF: Shio uses CloudKit only as a raw push-signal channel
-        //    (CloudKitSignalService), never to sync SwiftData. Without this,
-        //    the CloudKit *entitlement* flips SwiftData's default
-        //    (`cloudKitDatabase: .automatic`) into iCloud-mirroring mode,
-        //    which then rejects our schema (CloudKit requires every attribute
-        //    optional-or-defaulted and forbids .cascade) — and the container
-        //    fails to build at all.
-        let onDiskConfig = ModelConfiguration(cloudKitDatabase: .none)
+        // 1. Try the on-disk container with CloudKit mirroring to the shared
+        //    private DB — this is what syncs Host/Project across the user's
+        //    devices (Mac ↔ iPhone). The schema is CloudKit-valid (every
+        //    attribute optional-or-defaulted, `.nullify` not `.cascade`).
+        //    SwiftData still persists locally and works offline / when not
+        //    signed into iCloud; it just mirrors when iCloud is available.
+        //    (CloudKit is ALSO used as a raw push-signal channel for the
+        //    away-watcher via CloudKitSignalService — separate from this.)
+        let onDiskConfig = ModelConfiguration(cloudKitDatabase: .private("iCloud.sh.shio.app"))
         if let container = try? ModelContainer(for: Host.self, Project.self, configurations: onDiskConfig) {
             return container
         }
