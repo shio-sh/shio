@@ -116,6 +116,7 @@ final class MacTerminalModel {
     var showingAddHost = false
     var showingAddProject = false
     var showingCommandPalette = false
+    var showingPairing = false
     /// Context-aware find (⌘F): searches the *current* section — terminal
     /// scrollback, or filters the Files/Machines/Projects/Agents list.
     var showingSearch = false

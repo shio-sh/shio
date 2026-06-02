@@ -169,6 +169,9 @@ struct CommandPalette: View {
         c.append(.init(title: "Add Project…", symbol: "folder.badge.plus") {
             model.section = .projects; model.showingAddProject = true
         })
+        c.append(.init(title: "Pair iPhone…", symbol: "qrcode") {
+            model.section = .hosts; model.showingPairing = true
+        })
 
         // Open a project
         for project in projects {

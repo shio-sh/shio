@@ -223,9 +223,14 @@ private struct HostsPane: View {
         .navigationTitle("Machines")
         .toolbar {
             ToolbarItem {
+                Button { model.showingPairing = true } label: { Image(systemName: "qrcode") }
+                    .help("Pair your iPhone")
+            }
+            ToolbarItem {
                 Button { model.showingAddHost = true } label: { Image(systemName: "plus") }
             }
         }
+        .sheet(isPresented: $model.showingPairing) { MacPairingView() }
     }
 
     /// `amrith@Amriths-MacBook-Pro` — the local account + computer name.
