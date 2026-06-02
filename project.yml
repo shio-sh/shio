@@ -229,6 +229,10 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.developer-tools
         LSMinimumSystemVersion: "26.0"
+        # See scheme note: keep the ObjC fork-safety abort disabled for
+        # Finder/dock launches too (libghostty forks a shell per local surface).
+        LSEnvironment:
+          OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.mac
@@ -263,6 +267,13 @@ schemes:
         ShioMac: all
     run:
       config: Debug
+      # libghostty's local (DEFAULT) backend forks/execs a shell. Forking once
+      # other threads are live (a 2nd local surface for a tab/split) trips the
+      # ObjC runtime's fork-safety abort. Disable it the way terminal emulators
+      # do. Set in the scheme so it applies when running from Xcode; also in
+      # LSEnvironment (Info.plist) for Finder/dock launches.
+      environmentVariables:
+        OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
     profile:
       config: Release
     analyze:
