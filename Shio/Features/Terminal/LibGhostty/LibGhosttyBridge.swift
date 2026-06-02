@@ -84,12 +84,12 @@ final class LibGhosttyBridge: @unchecked Sendable {
         // padding with the terminal background, so the gutter is seamless.
         // macOS only — iOS manages its own insets / safe-area bleed.
         configString += "\nwindow-padding-x = 12\nwindow-padding-y = 8"
-        // Bind scrollback search to a real keypress so ghostty handles ⌘F via
-        // its own keybind path (interactive search mode), not our binding_action
-        // call (which no-ops). ⌘G / ⇧⌘G step matches.
-        configString += "\nkeybind = cmd+f=start_search"
-        configString += "\nkeybind = cmd+g=navigate_search:next"
-        configString += "\nkeybind = shift+cmd+g=navigate_search:previous"
+        // NOTE: scrollback search (⌘F) is NOT bound. This libghostty binary
+        // exposes search only as one-way notification actions (START_SEARCH /
+        // SEARCH_TOTAL) with no C function to start search / set a needle / step
+        // matches, and start_search no-ops in practice. Binding ⌘F here would
+        // just swallow the key into a dead action. Revisit when GhosttyKit is
+        // updated to a build with a complete embedded-search API.
         #endif
         configString.withCString { cstr in
             ghostty_config_load_string(cfg, cstr, strlen(cstr))
