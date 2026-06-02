@@ -43,13 +43,30 @@ final class MacSSHSession: Identifiable {
             self?.client.resize(cols: Int(cols), rows: Int(rows))
         }
         // SSH → terminal. ghostty_surface_write_bytes is thread-safe, but hop
-        // to main to be consistent with AppKit.
+        // to main to be consistent with AppKit. We also watch the output tail
+        // to classify agent activity (running / waiting / finished) for the
+        // Agents pane — same heuristic the iOS app uses.
         client.onOutput = { [weak self] data in
-            Task { @MainActor in self?.surface.writeBytes(data) }
+            Task { @MainActor in
+                self?.surface.writeBytes(data)
+                self?.observeForAgent(data)
+            }
         }
         client.onDisconnect = { [weak self] _ in
-            Task { @MainActor in self?.state = .closed }
+            Task { @MainActor in
+                self?.state = .closed
+                if let self { AgentStateStore.shared.clear(self.id) }
+            }
         }
+    }
+
+    /// Rolling ANSI-stripped tail → AgentDetector → shared store (keyed by id).
+    private var tail = ""
+    private func observeForAgent(_ data: Data) {
+        tail += String(decoding: data, as: UTF8.self)
+        if tail.count > 8000 { tail = String(tail.suffix(8000)) }
+        let clean = AgentDetector.strip(tail)
+        AgentStateStore.shared.update(sessionID: id, AgentDetector.classify(cleanTail: clean))
     }
 
     func connect() async {
@@ -67,6 +84,7 @@ final class MacSSHSession: Identifiable {
     }
 
     func stop() async {
+        AgentStateStore.shared.clear(id)
         await client.disconnect()
         state = .closed
     }

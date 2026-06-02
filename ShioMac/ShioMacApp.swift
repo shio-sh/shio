@@ -133,6 +133,28 @@ final class MacTerminalModel {
     func findNext() { focusedSurface?.searchNavigate(next: true) }
     func findPrevious() { focusedSurface?.searchNavigate(next: false) }
 
+    /// Every open SSH session across all tabs/panes (the Agents pane reads
+    /// agent state keyed by each session's id).
+    var sshSessions: [MacSSHSession] {
+        tabs.flatMap { $0.root.allPanes }.compactMap {
+            if case .ssh(let session) = $0.content { return session } else { return nil }
+        }
+    }
+
+    /// Jump to the tab/pane hosting a given SSH session (from the Agents pane).
+    func focusSSHSession(_ id: UUID) {
+        for tab in tabs {
+            for pane in tab.root.allPanes {
+                if case .ssh(let session) = pane.content, session.id == id {
+                    selectedTabID = tab.id
+                    tab.focusedPaneID = pane.id
+                    section = .terminal
+                    return
+                }
+            }
+        }
+    }
+
     var selectedTab: WorkspaceTab? { tabs.first { $0.id == selectedTabID } }
 
     /// The terminal is never empty — open a plain shell tab if there are none.

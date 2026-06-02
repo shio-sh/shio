@@ -69,7 +69,7 @@ struct MacShell: View {
         case .terminal: TerminalWorkspaceView(model: model)
         case .projects: ProjectsPane(model: model)
         case .hosts:    HostsPane(model: model)
-        case .agents:   placeholder("Agents", "sparkles", "Agents across your sessions show up here.")
+        case .agents:   AgentsPane(model: model)
         case .files:    MacFilesPane(model: model)
         }
     }
@@ -242,6 +242,88 @@ private struct HostsPane: View {
     }
     // Trailing-closure label needs an argument label match; bridge it.
     private func open(_ host: Host) { open(host: host) }
+}
+
+/// Agents across your SSH sessions: running / waiting-on-you / finished, from
+/// the same output-watching heuristic as iOS. (Local `.local` tabs let ghostty
+/// own the PTY, so only SSH sessions are detectable.) Tap to jump to the
+/// session; ⌘F filters.
+private struct AgentsPane: View {
+    @Bindable var model: MacTerminalModel
+    private let store = AgentStateStore.shared
+
+    private struct Row: Identifiable { let id: UUID; let name: String; let snapshot: AgentSnapshot }
+
+    private var rows: [Row] {
+        let sessions = model.sshSessions
+        let q = model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        return store.liveSessionIDs.compactMap { id -> Row? in
+            guard let session = sessions.first(where: { $0.id == id }),
+                  let snap = store.snapshot(for: id) else { return nil }
+            let row = Row(id: id, name: session.hostName, snapshot: snap)
+            if q.isEmpty { return row }
+            let hay = "\(row.name) \(snap.agentName ?? "") \(snap.detail ?? "")".lowercased()
+            return hay.contains(q) ? row : nil
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if model.showingSearch {
+                SectionSearchField(model: model, placeholder: "Search agents")
+            }
+            if rows.isEmpty {
+                VStack(spacing: 10) {
+                    Image(systemName: "sparkles").font(.largeTitle).foregroundStyle(.secondary)
+                    Text("No agents running").font(.system(.title2, design: .monospaced))
+                    Text("Start an agent (Claude Code, Codex…) in an SSH session and it shows up here.")
+                        .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity).padding(.horizontal, 32)
+            } else {
+                List(rows) { row in
+                    Button { model.focusSSHSession(row.id) } label: {
+                        AgentRow(row: row).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .navigationTitle("Agents")
+            }
+        }
+    }
+
+    private struct AgentRow: View {
+        let row: Row
+        var body: some View {
+            HStack(spacing: 10) {
+                Circle().fill(color).frame(width: 9, height: 9)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(row.snapshot.agentName ?? "Agent").font(.body)
+                        Text("· \(row.name)").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                    }
+                    Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        private var color: Color {
+            switch row.snapshot.activity {
+            case .running: return .green
+            case .waiting: return .orange
+            case .finished: return .secondary
+            case .none: return .secondary
+            }
+        }
+        private var label: String {
+            switch row.snapshot.activity {
+            case .running: return "Running…"
+            case .waiting: return row.snapshot.detail.map { "Waiting on you — \($0)" } ?? "Waiting on you"
+            case .finished: return "Finished"
+            case .none: return ""
+            }
+        }
+    }
 }
 
 /// Reusable context-aware ⌘F filter field shown at the top of a list section.
