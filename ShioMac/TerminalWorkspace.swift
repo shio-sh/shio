@@ -75,7 +75,62 @@ struct TerminalWorkspaceView: View {
                 EmptyTerminalState { model.newLocalTab() }
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if model.showingSearch {
+                TerminalSearchBar(model: model).padding(12)
+            }
+        }
         .onAppear { model.ensureTerminalTab() }
+    }
+}
+
+/// Find-in-scrollback bar (⌘F). Drives the focused surface's ghostty search as
+/// you type — ghostty renders the match highlights itself. ⏎/⇧⏎ and the arrows
+/// step matches; esc closes.
+private struct TerminalSearchBar: View {
+    @Bindable var model: MacTerminalModel
+    @FocusState private var focused: Bool
+
+    private var surface: GhosttyMacSurface? { model.focusedSurface }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+            TextField("Find", text: $model.searchQuery)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .frame(width: 160)
+                .focused($focused)
+                .onChange(of: model.searchQuery) { _, q in surface?.searchSet(q) }
+                .onKeyPress(.return) {
+                    surface?.searchNavigate(next: !NSEvent.modifierFlags.contains(.shift))
+                    return .handled
+                }
+                .onKeyPress(.escape) { close(); return .handled }
+            Button { surface?.searchNavigate(next: false) } label: { Image(systemName: "chevron.up") }
+                .buttonStyle(.plain)
+            Button { surface?.searchNavigate(next: true) } label: { Image(systemName: "chevron.down") }
+                .buttonStyle(.plain)
+            Button { close() } label: { Image(systemName: "xmark") }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+        }
+        .font(.system(size: 12))
+        .padding(.horizontal, 10).padding(.vertical, 7)
+        .background(.regularMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(.separator))
+        .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+        .onAppear {
+            focused = true
+            if !model.searchQuery.isEmpty { surface?.searchSet(model.searchQuery) }
+        }
+    }
+
+    private func close() {
+        surface?.searchEnd()
+        model.showingSearch = false
+        // Hand focus back to the terminal.
+        if let surface { surface.window?.makeFirstResponder(surface) }
     }
 }
 

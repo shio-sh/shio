@@ -48,9 +48,14 @@ struct ShioMacApp: App {
                         .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
                 }
             }
-            // Find (⌘F) is intentionally not wired yet: libghostty's embedded
-            // `start_search` is a no-op in this build, so a real search needs
-            // Shio-side plumbing (in progress). No dead menu item until it works.
+            CommandGroup(after: .textEditing) {
+                Button("Find…") { model.showFind() }
+                    .keyboardShortcut("f", modifiers: .command)
+                Button("Find Next") { model.findNext() }
+                    .keyboardShortcut("g", modifiers: .command)
+                Button("Find Previous") { model.findPrevious() }
+                    .keyboardShortcut("g", modifiers: [.command, .shift])
+            }
             CommandMenu("Terminal") {
                 Button("Split Right") { model.splitFocused(.horizontal) }
                     .keyboardShortcut("d", modifiers: .command)
@@ -102,6 +107,15 @@ final class MacTerminalModel {
     var showingAddHost = false
     var showingAddProject = false
     var showingCommandPalette = false
+    var showingSearch = false
+    var searchQuery = ""
+
+    /// The surface that find/search and focused-pane actions target.
+    var focusedSurface: GhosttyMacSurface? { selectedTab?.focusedPane?.surface }
+
+    func showFind() { section = .terminal; ensureTerminalTab(); showingSearch = true }
+    func findNext() { focusedSurface?.searchNavigate(next: true) }
+    func findPrevious() { focusedSurface?.searchNavigate(next: false) }
 
     var selectedTab: WorkspaceTab? { tabs.first { $0.id == selectedTabID } }
 
