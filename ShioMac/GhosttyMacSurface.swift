@@ -163,8 +163,14 @@ final class GhosttyMacSurface: NSView, NSUserInterfaceValidations {
     private func updateSurfaceSize() {
         guard let surface else { return }
         let scale = window?.backingScaleFactor ?? 2.0
+        let w = bounds.width * scale
+        let h = bounds.height * scale
+        // Never hand ghostty a degenerate size. A split's HSplitView proposes a
+        // transient 0×0 while it settles; set_size(0,0) makes the Metal renderer
+        // spin trying to acquire a zero-size drawable → beachball.
+        guard w >= 1, h >= 1 else { return }
         ghostty_surface_set_content_scale(surface, scale, scale)
-        ghostty_surface_set_size(surface, UInt32(bounds.width * scale), UInt32(bounds.height * scale))
+        ghostty_surface_set_size(surface, UInt32(w), UInt32(h))
     }
 
     // MARK: Focus

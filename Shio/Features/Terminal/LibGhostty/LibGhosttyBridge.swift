@@ -24,7 +24,29 @@ final class LibGhosttyBridge: @unchecked Sendable {
     private let lock = NSLock()
     nonisolated(unsafe) private var initialized = false
 
+    /// Coalesces wakeup→tick scheduling: at most one `ghostty_app_tick` is
+    /// queued on main at a time. Without this, several surfaces (e.g. a split)
+    /// can each post wakeups faster than main drains them, flooding the queue
+    /// and beach-balling the app.
+    private let tickLock = NSLock()
+    nonisolated(unsafe) private var tickScheduled = false
+
     private init() {}
+
+    private func scheduleTick() {
+        tickLock.lock()
+        if tickScheduled { tickLock.unlock(); return }
+        tickScheduled = true
+        tickLock.unlock()
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.tickLock.lock()
+            self.tickScheduled = false
+            self.tickLock.unlock()
+            if let app = self.app { ghostty_app_tick(app) }
+        }
+    }
 
     func ensureInitialized() {
         lock.lock()
@@ -81,9 +103,7 @@ final class LibGhosttyBridge: @unchecked Sendable {
             wakeup_cb: { userdata in
                 guard let userdata else { return }
                 let bridge = Unmanaged<LibGhosttyBridge>.fromOpaque(userdata).takeUnretainedValue()
-                DispatchQueue.main.async {
-                    if let app = bridge.app { ghostty_app_tick(app) }
-                }
+                bridge.scheduleTick()
             },
             action_cb: { _, _, _ in
                 // Default: nothing handled. Returning true tells libghostty
