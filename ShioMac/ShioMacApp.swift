@@ -160,8 +160,17 @@ final class MacTerminalModel {
 
     var selectedTab: WorkspaceTab? { tabs.first { $0.id == selectedTabID } }
 
-    /// The terminal is never empty — open a plain shell tab if there are none.
+    private let openTabsKey = "shio.mac.openTabs"
+    private var didRestore = false
+    private var restoring = false
+
+    /// On first show, restore the previous session's tabs; otherwise (or if
+    /// none) open a plain shell so the terminal is never empty.
     func ensureTerminalTab() {
+        if !didRestore {
+            didRestore = true
+            restoreTabs()
+        }
         if tabs.isEmpty { newLocalTab() }
     }
 
@@ -171,7 +180,40 @@ final class MacTerminalModel {
         tabs.append(tab)
         selectedTabID = tab.id
         section = .terminal     // surface the new tab
+        persistTabs()
         return tab
+    }
+
+    // MARK: Tab persistence / restoration (relaunch)
+
+    private func persistTabs() {
+        guard !restoring else { return }
+        let descriptors = tabs.compactMap { $0.descriptor }
+        UserDefaults.standard.set(try? JSONEncoder().encode(descriptors), forKey: openTabsKey)
+    }
+
+    private func restoreTabs() {
+        guard let data = UserDefaults.standard.data(forKey: openTabsKey),
+              let descriptors = try? JSONDecoder().decode([TabDescriptor].self, from: data),
+              !descriptors.isEmpty else { return }
+        restoring = true
+        for d in descriptors { reopen(d) }
+        restoring = false
+        persistTabs()
+    }
+
+    private func reopen(_ d: TabDescriptor) {
+        switch d.kind {
+        case .shell:
+            addTab(.shell(GhosttyMacSurface(backend: .local)), title: d.title)
+        case .localProject:
+            guard let path = d.path else { return }
+            addTab(.project(MacLocalProjectSession(name: d.title, path: path, cloneURL: d.cloneURL)), title: d.title)
+        case .ssh:
+            guard let host = d.host, let port = d.port, let user = d.user else { return }
+            let session = MacSSHSession(host: host, port: port, username: user, password: nil, resumeCommand: d.resume)
+            openSSH(session, title: d.title)
+        }
     }
 
     // MARK: Splits (act on the selected tab's focused pane)
@@ -226,6 +268,7 @@ final class MacTerminalModel {
         if selectedTabID == id {
             selectedTabID = (idx < tabs.count ? tabs[idx] : tabs.last)?.id
         }
+        persistTabs()
     }
 
     /// ⌘W. Closes the focused **pane**; if that was the tab's only pane, closes

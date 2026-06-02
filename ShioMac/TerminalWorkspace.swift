@@ -50,6 +50,34 @@ final class WorkspaceTab: Identifiable {
     func stopAll() async {
         for pane in root.allPanes { await pane.stop() }
     }
+
+    /// A persistable summary of this tab (its primary pane) for relaunch
+    /// restoration. Splits aren't restored in v1 — the first leaf stands in.
+    var descriptor: TabDescriptor? {
+        guard let pane = root.firstLeafPane else { return nil }
+        switch pane.content {
+        case .shell:
+            return TabDescriptor(kind: .shell, title: title)
+        case .project(let p):
+            return TabDescriptor(kind: .localProject, title: title, path: p.path, cloneURL: p.cloneURL)
+        case .ssh(let s):
+            return TabDescriptor(kind: .ssh, title: title, host: s.hostName, port: s.port, user: s.username, resume: s.resumeCommand)
+        }
+    }
+}
+
+/// Codable summary of an open tab, persisted so the workspace restores on
+/// relaunch. SSH tabs reconnect (tmux reattaches); local projects reopen.
+struct TabDescriptor: Codable {
+    enum Kind: String, Codable { case shell, localProject, ssh }
+    var kind: Kind
+    var title: String
+    var path: String? = nil
+    var cloneURL: String? = nil
+    var host: String? = nil
+    var port: Int? = nil
+    var user: String? = nil
+    var resume: String? = nil
 }
 
 /// The tabbed terminal workspace that fills the detail pane: a tab strip on

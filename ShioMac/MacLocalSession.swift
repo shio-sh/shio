@@ -58,11 +58,20 @@ enum MacLocalLaunch {
 final class MacLocalProjectSession: Identifiable {
     let id = UUID()
     let displayName: String
+    // Stored for tab persistence + reopen on relaunch.
+    let path: String
+    let cloneURL: String?
     let surface: GhosttyMacSurface
 
-    init(project: Project) {
-        self.displayName = project.name
-        let launch = MacLocalLaunch.forProject(name: project.name, path: project.path, cloneURL: project.cloneURL)
+    convenience init(project: Project) {
+        self.init(name: project.name, path: project.path, cloneURL: project.cloneURL)
+    }
+
+    init(name: String, path: String, cloneURL: String?) {
+        self.displayName = name
+        self.path = path
+        self.cloneURL = cloneURL
+        let launch = MacLocalLaunch.forProject(name: name, path: path, cloneURL: cloneURL)
         self.surface = GhosttyMacSurface(backend: .local, launch: launch)
     }
 

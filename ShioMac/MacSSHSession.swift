@@ -12,19 +12,21 @@ import SwiftUI
 final class MacSSHSession: Identifiable {
     let id = UUID()
     let hostName: String
+    // Stored so a tab can be persisted + reopened on relaunch (restoration).
+    let port: Int
+    let username: String
+    let resumeCommand: String
     let surface: GhosttyMacSurface
 
     enum State: Equatable { case connecting, connected, failed(String), closed }
     private(set) var state: State = .connecting
 
     private let client: SSHClient
-    /// What to send once the shell is open. Defaults to attaching the host's
-    /// `shio-<host>` tmux; a Project supplies its own `shio-<project>` resume
-    /// (with start dir / clone) so a remote project is continuous too.
-    private let resumeCommand: String
 
     init(host: String, port: Int, username: String, password: String?, resumeCommand: String? = nil) {
         self.hostName = host
+        self.port = port
+        self.username = username
         self.resumeCommand = resumeCommand ?? TmuxResume.resumeCommand(for: host, index: 0)
         let auth: SSHClient.Authentication =
             (password?.isEmpty == false) ? .password(password!) : .shioKey
