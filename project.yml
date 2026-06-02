@@ -233,6 +233,9 @@ targets:
     info:
       path: ShioMac/Info.plist
       properties:
+        # macOS shows CFBundleName in the dock + app menu (the target is named
+        # ShioMac internally, but the app is "Shio").
+        CFBundleName: Shio
         CFBundleDisplayName: Shio
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
