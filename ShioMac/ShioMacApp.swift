@@ -48,14 +48,9 @@ struct ShioMacApp: App {
                         .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
                 }
             }
-            CommandGroup(after: .textEditing) {
-                Button("Find…") { Self.send(#selector(GhosttyMacSurface.terminalStartSearch(_:))) }
-                    .keyboardShortcut("f", modifiers: .command)
-                Button("Find Next") { Self.send(#selector(GhosttyMacSurface.terminalFindNext(_:))) }
-                    .keyboardShortcut("g", modifiers: .command)
-                Button("Find Previous") { Self.send(#selector(GhosttyMacSurface.terminalFindPrevious(_:))) }
-                    .keyboardShortcut("g", modifiers: [.command, .shift])
-            }
+            // Find (⌘F) is intentionally not wired yet: libghostty's embedded
+            // `start_search` is a no-op in this build, so a real search needs
+            // Shio-side plumbing (in progress). No dead menu item until it works.
             CommandMenu("Terminal") {
                 Button("Split Right") { model.splitFocused(.horizontal) }
                     .keyboardShortcut("d", modifiers: .command)
