@@ -311,6 +311,13 @@ final class GhosttyMacSurface: NSView, NSUserInterfaceValidations {
     @objc func terminalScrollToTop(_ sender: Any?)      { perform("scroll_to_top") }
     @objc func terminalScrollToBottom(_ sender: Any?)   { perform("scroll_to_bottom") }
 
+    // Find-in-scrollback (ghostty 1.3+). `start_search` opens search and
+    // ghostty owns the query — you type into the surface and it highlights
+    // matches in the viewport; `navigate_search` steps between them.
+    @objc func terminalStartSearch(_ sender: Any?)   { perform("start_search") }
+    @objc func terminalFindNext(_ sender: Any?)      { perform("navigate_search:next") }
+    @objc func terminalFindPrevious(_ sender: Any?)  { perform("navigate_search:previous") }
+
     /// Copy the current selection to the system pasteboard. The shared bridge
     /// stubs libghostty's clipboard ferrying (iOS handles the pasteboard
     /// directly), so we read the selection out and write NSPasteboard ourselves.

@@ -46,6 +46,14 @@ struct ShioMacApp: App {
                         .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
                 }
             }
+            CommandGroup(after: .textEditing) {
+                Button("Find…") { Self.send(#selector(GhosttyMacSurface.terminalStartSearch(_:))) }
+                    .keyboardShortcut("f", modifiers: .command)
+                Button("Find Next") { Self.send(#selector(GhosttyMacSurface.terminalFindNext(_:))) }
+                    .keyboardShortcut("g", modifiers: .command)
+                Button("Find Previous") { Self.send(#selector(GhosttyMacSurface.terminalFindPrevious(_:))) }
+                    .keyboardShortcut("g", modifiers: [.command, .shift])
+            }
             CommandMenu("Terminal") {
                 Button("Split Right") { model.splitFocused(.horizontal) }
                     .keyboardShortcut("d", modifiers: .command)
