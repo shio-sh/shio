@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import os.log
 
 /// Centralized SwiftData container.
 ///
@@ -36,12 +37,28 @@ enum ShioModelContainer {
         //    signed into iCloud; it just mirrors when iCloud is available.
         //    (CloudKit is ALSO used as a raw push-signal channel for the
         //    away-watcher via CloudKitSignalService — separate from this.)
-        let onDiskConfig = ModelConfiguration(cloudKitDatabase: .private("iCloud.sh.shio.app"))
-        if let container = try? ModelContainer(for: Host.self, Project.self, configurations: onDiskConfig) {
+        let log = Logger(subsystem: "sh.shio.app", category: "modelcontainer")
+        let cloudConfig = ModelConfiguration(cloudKitDatabase: .private("iCloud.sh.shio.app"))
+        do {
+            let container = try ModelContainer(for: Host.self, Project.self, configurations: cloudConfig)
+            log.info("ModelContainer: CloudKit sync ACTIVE (iCloud.sh.shio.app)")
+            return container
+        } catch {
+            // Don't hide why sync didn't come up — this is almost always a
+            // signing/entitlement/container-id mismatch or no iCloud account.
+            log.error("ModelContainer: CloudKit init FAILED, falling back to local. error=\(String(describing: error))")
+            loadFailureReason = "iCloud sync is off — \(error.localizedDescription). Check that this build is signed with the iCloud capability and you're signed into iCloud. Data is saved locally meanwhile."
+        }
+
+        // 2. Local persistent store (no sync). Keeps the app fully usable even
+        //    if CloudKit is misconfigured — far better than in-memory.
+        let localConfig = ModelConfiguration(cloudKitDatabase: .none)
+        if let container = try? ModelContainer(for: Host.self, Project.self, configurations: localConfig) {
+            log.info("ModelContainer: local-only store (no CloudKit)")
             return container
         }
 
-        // 2. Fall back to in-memory. The user's data won't persist, but
+        // 3. Fall back to in-memory. The user's data won't persist, but
         //    they can still use the app, and Settings shows the error.
         let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         if let container = try? ModelContainer(for: Host.self, Project.self, configurations: inMemoryConfig) {
