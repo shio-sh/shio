@@ -25,6 +25,8 @@ struct ShioMacApp: App {
             CommandGroup(after: .newItem) {
                 Button("New Tab") { model.newLocalTab() }
                     .keyboardShortcut("t", modifiers: .command)
+                Button("Command Palette…") { model.showingCommandPalette.toggle() }
+                    .keyboardShortcut("k", modifiers: .command)
             }
             CommandMenu("Session") {
                 Button("Add Machine…") { model.showingAddHost = true }
@@ -60,8 +62,9 @@ struct ShioMacApp: App {
                 Button("Split Down") { model.splitFocused(.vertical) }
                     .keyboardShortcut("d", modifiers: [.command, .shift])
                 Divider()
+                // ⌘K is the command palette now; Ctrl-L clears natively in the
+                // shell, so Clear is a menu-only convenience.
                 Button("Clear") { Self.send(#selector(GhosttyMacSurface.terminalClearScreen(_:))) }
-                    .keyboardShortcut("k", modifiers: .command)
                 Divider()
                 Button("Bigger Text") { Self.send(#selector(GhosttyMacSurface.terminalIncreaseFontSize(_:))) }
                     .keyboardShortcut("+", modifiers: .command)
@@ -102,6 +105,8 @@ final class MacTerminalModel {
     /// opening a Project / connecting can flip back to the terminal.
     var section: MacSection = .terminal
     var showingAddHost = false
+    var showingAddProject = false
+    var showingCommandPalette = false
 
     var selectedTab: WorkspaceTab? { tabs.first { $0.id == selectedTabID } }
 

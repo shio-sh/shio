@@ -50,6 +50,11 @@ struct MacShell: View {
         .sheet(isPresented: $model.showingAddHost) {
             MacAddHostForm(model: model)
         }
+        .overlay {
+            if model.showingCommandPalette {
+                CommandPaletteContainer(model: model)
+            }
+        }
     }
 
     /// List wants an optional selection binding; the model's section is always
@@ -86,7 +91,6 @@ private struct ProjectsPane: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
-    @State private var showingAddProject = false
 
     var body: some View {
         Group {
@@ -97,7 +101,7 @@ private struct ProjectsPane: View {
                     Text("A repo on this Mac or any machine — open a folder, or clone from Git.")
                         .font(.callout).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("Add a project") { showingAddProject = true }
+                    Button("Add a project") { model.showingAddProject = true }
                         .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -123,12 +127,12 @@ private struct ProjectsPane: View {
                 .navigationTitle("Projects")
                 .toolbar {
                     ToolbarItem {
-                        Button { showingAddProject = true } label: { Image(systemName: "plus") }
+                        Button { model.showingAddProject = true } label: { Image(systemName: "plus") }
                     }
                 }
             }
         }
-        .sheet(isPresented: $showingAddProject) { MacAddProjectForm(model: model) }
+        .sheet(isPresented: $model.showingAddProject) { MacAddProjectForm(model: model) }
     }
 
     private func subtitle(_ project: Project) -> String {
