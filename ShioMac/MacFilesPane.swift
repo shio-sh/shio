@@ -8,53 +8,113 @@ struct MacFilesPane: View {
     @Bindable var model: MacTerminalModel
     @Query(sort: \Host.name) private var machines: [Host]
 
-    private var query: String { model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased() }
-    private var filteredMachines: [Host] {
-        guard !query.isEmpty else { return machines }
-        return machines.filter {
-            $0.name.lowercased().contains(query) || $0.hostname.lowercased().contains(query)
-        }
-    }
-    private var showThisMac: Bool { query.isEmpty || "this mac".contains(query) }
+    @State private var spotlight = FileSpotlightSearcher()
+    @State private var remote = CrossMachineFileSearcher()
+
+    private var query: String { model.searchQuery.trimmingCharacters(in: .whitespaces) }
+    private var searching: Bool { model.showingSearch && !query.isEmpty }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 if model.showingSearch {
-                    SectionSearchField(model: model, placeholder: "Search machines")
+                    SectionSearchField(model: model,
+                                       placeholder: "Search files across all machines (⏎ to include remote)",
+                                       onSubmit: runRemoteSearch)
                 }
-                List {
-                    if showThisMac {
-                        Section {
-                            NavigationLink {
-                                LocalDirectoryView(url: FileManager.default.homeDirectoryForCurrentUser,
-                                                   title: "This Mac", model: model)
-                            } label: {
-                                MachineFileRow(icon: "laptopcomputer", name: "This Mac",
-                                               subtitle: FileManager.default.homeDirectoryForCurrentUser.path)
-                            }
+                if searching {
+                    searchResults
+                } else {
+                    machineList
+                }
+            }
+            .navigationTitle("Files")
+        }
+        .onChange(of: model.searchQuery) { _, q in spotlight.search(q) }
+        .onChange(of: model.showingSearch) { _, on in if !on { spotlight.stop(); remote.cancel() } }
+    }
+
+    // The browse home: This Mac + saved machines.
+    private var machineList: some View {
+        List {
+            Section {
+                NavigationLink {
+                    LocalDirectoryView(url: FileManager.default.homeDirectoryForCurrentUser,
+                                       title: "This Mac", model: model)
+                } label: {
+                    MachineFileRow(icon: "laptopcomputer", name: "This Mac",
+                                   subtitle: FileManager.default.homeDirectoryForCurrentUser.path)
+                }
+            }
+            if !machines.isEmpty {
+                Section("Remote") {
+                    ForEach(machines) { machine in
+                        NavigationLink {
+                            RemoteFilesBrowser(host: machine, model: model)
+                        } label: {
+                            MachineFileRow(icon: "desktopcomputer", name: machine.name,
+                                           subtitle: "\(machine.username)@\(machine.hostname)")
                         }
                     }
-                    if !machines.isEmpty {
-                        Section("Remote") {
-                            if filteredMachines.isEmpty {
-                                Text("No matches").foregroundStyle(.secondary)
-                            } else {
-                                ForEach(filteredMachines) { machine in
-                                    NavigationLink {
-                                        RemoteFilesBrowser(host: machine, model: model)
-                                    } label: {
-                                        MachineFileRow(icon: "desktopcomputer", name: machine.name,
-                                                       subtitle: "\(machine.username)@\(machine.hostname)")
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
-                .navigationTitle("Files")
             }
         }
+    }
+
+    // Cross-machine results: This Mac (Spotlight, live) + each machine (find, on ⏎).
+    private var searchResults: some View {
+        List {
+            Section("This Mac") {
+                if spotlight.results.isEmpty {
+                    Text("No matches").foregroundStyle(.secondary)
+                } else {
+                    ForEach(spotlight.results) { hit in
+                        Button {
+                            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: hit.path)])
+                        } label: { hitRow(hit) }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            ForEach(remote.groups) { group in
+                Section(group.name) {
+                    switch group.state {
+                    case .searching:
+                        HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Searching…").foregroundStyle(.secondary) }
+                    case .failed(let message):
+                        Text(message).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                    case .results(let hits):
+                        if hits.isEmpty {
+                            Text("No matches").foregroundStyle(.secondary)
+                        } else {
+                            ForEach(hits) { hitRow($0) }
+                        }
+                    }
+                }
+            }
+            if remote.groups.isEmpty && !machines.isEmpty {
+                Text("Press ⏎ to also search your \(machines.count) machine\(machines.count == 1 ? "" : "s").")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func hitRow(_ hit: FileHit) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: hit.isDirectory ? "folder.fill" : "doc")
+                .font(.system(size: 15)).foregroundStyle(.secondary).frame(width: 20)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(hit.name).font(.body).lineLimit(1)
+                Text(hit.path).font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            }
+        }
+        .padding(.vertical, 1)
+    }
+
+    private func runRemoteSearch() {
+        let targets = machines.map { (name: $0.name, config: $0.makeClientConfiguration()) }
+        remote.search(query, targets: targets)
     }
 }
 

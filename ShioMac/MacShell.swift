@@ -249,6 +249,7 @@ private struct HostsPane: View {
 struct SectionSearchField: View {
     @Bindable var model: MacTerminalModel
     var placeholder: String
+    var onSubmit: (() -> Void)? = nil
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -257,6 +258,7 @@ struct SectionSearchField: View {
             TextField(placeholder, text: $model.searchQuery)
                 .textFieldStyle(.plain)
                 .focused($focused)
+                .onSubmit { onSubmit?() }
                 .onKeyPress(.escape) { close(); return .handled }
             if !model.searchQuery.isEmpty {
                 Button { model.searchQuery = "" } label: { Image(systemName: "xmark.circle.fill") }
