@@ -7,11 +7,14 @@ import SwiftData
 @Model
 final class Project {
 
+    // Every stored attribute is optional or defaulted (CloudKit requirement);
+    // the initializer still sets real values. See Host for the migration note.
+
     /// Display name, usually the repo folder name.
-    var name: String
+    var name: String = ""
 
     /// Absolute path to the repo/folder on the host (e.g. /Users/amrith/shio.sh).
-    var path: String
+    var path: String = ""
 
     /// If this project was created from a git URL, the URL to clone. The clone
     /// runs lazily on first open (only if `path` doesn't already exist on the
@@ -29,7 +32,7 @@ final class Project {
         set { persistenceModeOverrideRaw = newValue?.rawValue }
     }
 
-    var createdAt: Date
+    var createdAt: Date = Date()
     var lastOpenedAt: Date?
 
     init(name: String, path: String, host: Host? = nil) {

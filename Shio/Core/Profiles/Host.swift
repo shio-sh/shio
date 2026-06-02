@@ -22,22 +22,29 @@ final class Host {
         case plain
     }
 
+    // NB: every stored attribute is optional or has a default, and the
+    // `projects` inverse uses `.nullify` (not `.cascade`) — both are CloudKit
+    // requirements, so flipping HostStore to `cloudKitDatabase: .automatic`
+    // (the Apple-account batch) syncs Host/Project across devices without a
+    // schema change. Defaults are harmless locally; the initializer still sets
+    // real values.
+
     // MARK: - Identity
 
     /// Display name. For Tailscale hosts this is auto-derived from MagicDNS.
-    var name: String
+    var name: String = ""
 
     /// Hostname or IP. For Tailscale: MagicDNS hostname (e.g. mymac.tail-scale.ts.net).
-    var hostname: String
+    var hostname: String = ""
 
     /// SSH port. Defaults to 22.
-    var port: Int
+    var port: Int = 22
 
     /// Remote username.
-    var username: String
+    var username: String = ""
 
     /// Kind — controls which UI surfaces show this host.
-    var kindRaw: String
+    var kindRaw: String = Kind.tailscale.rawValue
 
     var kind: Kind {
         get { Kind(rawValue: kindRaw) ?? .tailscale }
@@ -46,7 +53,7 @@ final class Host {
 
     // MARK: - Persistence (per-host)
 
-    var persistenceModeRaw: String
+    var persistenceModeRaw: String = PersistenceMode.tmuxAutoResume.rawValue
 
     var persistenceMode: PersistenceMode {
         get { PersistenceMode(rawValue: persistenceModeRaw) ?? .tmuxAutoResume }
@@ -62,12 +69,13 @@ final class Host {
     var hostKeyFingerprint: String?
 
     /// Created/updated timestamps for sort + audit.
-    var createdAt: Date
+    var createdAt: Date = Date()
     var lastConnectedAt: Date?
 
-    /// Projects (repos) the user works on this host. Cascade delete so
-    /// removing a host removes its projects.
-    @Relationship(deleteRule: .cascade, inverse: \Project.host)
+    /// Projects (repos) the user works on this host. `.nullify` (not `.cascade`)
+    /// — CloudKit doesn't support cascade. Deleting a host orphans its projects
+    /// (host becomes nil) rather than deleting them.
+    @Relationship(deleteRule: .nullify, inverse: \Project.host)
     var projects: [Project] = []
 
     init(
