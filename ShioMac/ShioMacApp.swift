@@ -83,6 +83,8 @@ struct ShioMacApp: App {
                     .keyboardShortcut(.downArrow, modifiers: [.command, .shift])
             }
         }
+
+        Settings { MacSettingsView() }
     }
 
     /// Dispatch a terminal action to whichever GhosttyMacSurface is the first

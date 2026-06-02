@@ -22,7 +22,7 @@ enum MacLocalLaunch {
         // This is what makes a local Mac project and the same project opened
         // from the phone (over SSH to this Mac) attach the one tmux session.
         let tmuxName = "shio-\(TmuxResume.scrubName(name))"
-        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        let shell = MacSettings.defaultShell
 
         // 1. If created from a git URL, clone once (only when the dir is
         //    missing) — mirrors the SSH path's clone-on-first-open.

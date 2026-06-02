@@ -43,7 +43,7 @@ final class GhosttyMacSurface: NSView, NSUserInterfaceValidations {
     nonisolated(unsafe) private var userdataRetained: Unmanaged<GhosttyMacSurface>?
     private let backend: Backend
     private let launch: LocalLaunch?
-    private var fontSize: Float = 13
+    private var fontSize: Float = Float(MacSettings.fontSize)
 
     init(backend: Backend = .local, launch: LocalLaunch? = nil, frame frameRect: NSRect = .zero) {
         self.backend = backend

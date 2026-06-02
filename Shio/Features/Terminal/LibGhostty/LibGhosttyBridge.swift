@@ -84,6 +84,12 @@ final class LibGhosttyBridge: @unchecked Sendable {
         // padding with the terminal background, so the gutter is seamless.
         // macOS only — iOS manages its own insets / safe-area bleed.
         configString += "\nwindow-padding-x = 12\nwindow-padding-y = 8"
+        // User preferences (Settings ⌘,). Applied at app launch; new surfaces
+        // also set font_size per-surface. MacSettings is in the ShioMac target,
+        // visible only inside this os(macOS) block.
+        configString += "\nfont-size = \(Int(MacSettings.fontSize))"
+        configString += "\ncursor-style = \(MacSettings.cursorStyle)"
+        if !MacSettings.theme.isEmpty { configString += "\ntheme = \(MacSettings.theme)" }
         // NOTE: scrollback search (⌘F) is NOT bound. This libghostty binary
         // exposes search only as one-way notification actions (START_SEARCH /
         // SEARCH_TOTAL) with no C function to start search / set a needle / step
