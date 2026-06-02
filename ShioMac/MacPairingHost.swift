@@ -192,7 +192,9 @@ final class MacPairingHost {
             var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
             if getnameinfo(sa, socklen_t(sa.pointee.sa_len), &host, socklen_t(host.count),
                            nil, 0, NI_NUMERICHOST) == 0 {
-                let ip = String(cString: host)
+                // Decode up to the NUL terminator (non-deprecated path).
+                let bytes = host.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+                let ip = String(decoding: bytes, as: UTF8.self)
                 if !ip.isEmpty && ip != "127.0.0.1" { addrs.append(ip) }
             }
         }

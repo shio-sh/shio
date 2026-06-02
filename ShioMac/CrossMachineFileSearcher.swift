@@ -45,7 +45,7 @@ final class CrossMachineFileSearcher {
         groups = []
     }
 
-    private func apply(_ outcome: Result<[FileHit], Error>, at index: Int) {
+    private func apply(_ outcome: Result<[FileHit], any Error>, at index: Int) {
         guard groups.indices.contains(index) else { return }
         switch outcome {
         case .success(let hits): groups[index].state = .results(hits)
@@ -54,7 +54,7 @@ final class CrossMachineFileSearcher {
     }
 
     /// One SSH connect → `find` in $HOME (skip hidden, cap results) → disconnect.
-    private static func find(_ query: String, config: SSHClient.Configuration) async -> Result<[FileHit], Error> {
+    private static func find(_ query: String, config: SSHClient.Configuration) async -> Result<[FileHit], any Error> {
         // Single-quote the needle for the shell; escape embedded quotes.
         let safe = query.replacingOccurrences(of: "'", with: "'\\''")
         let command = "find \"$HOME\" -iname '*\(safe)*' -not -path '*/.*' 2>/dev/null | head -40"
