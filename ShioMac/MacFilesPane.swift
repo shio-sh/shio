@@ -8,32 +8,52 @@ struct MacFilesPane: View {
     @Bindable var model: MacTerminalModel
     @Query(sort: \Host.name) private var machines: [Host]
 
+    private var query: String { model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased() }
+    private var filteredMachines: [Host] {
+        guard !query.isEmpty else { return machines }
+        return machines.filter {
+            $0.name.lowercased().contains(query) || $0.hostname.lowercased().contains(query)
+        }
+    }
+    private var showThisMac: Bool { query.isEmpty || "this mac".contains(query) }
+
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    NavigationLink {
-                        LocalDirectoryView(url: FileManager.default.homeDirectoryForCurrentUser,
-                                           title: "This Mac", model: model)
-                    } label: {
-                        MachineFileRow(icon: "laptopcomputer", name: "This Mac",
-                                       subtitle: FileManager.default.homeDirectoryForCurrentUser.path)
-                    }
+            VStack(spacing: 0) {
+                if model.showingSearch {
+                    SectionSearchField(model: model, placeholder: "Search machines")
                 }
-                if !machines.isEmpty {
-                    Section("Remote") {
-                        ForEach(machines) { machine in
+                List {
+                    if showThisMac {
+                        Section {
                             NavigationLink {
-                                RemoteFilesComingSoon(name: machine.name)
+                                LocalDirectoryView(url: FileManager.default.homeDirectoryForCurrentUser,
+                                                   title: "This Mac", model: model)
                             } label: {
-                                MachineFileRow(icon: "desktopcomputer", name: machine.name,
-                                               subtitle: "\(machine.username)@\(machine.hostname)")
+                                MachineFileRow(icon: "laptopcomputer", name: "This Mac",
+                                               subtitle: FileManager.default.homeDirectoryForCurrentUser.path)
+                            }
+                        }
+                    }
+                    if !machines.isEmpty {
+                        Section("Remote") {
+                            if filteredMachines.isEmpty {
+                                Text("No matches").foregroundStyle(.secondary)
+                            } else {
+                                ForEach(filteredMachines) { machine in
+                                    NavigationLink {
+                                        RemoteFilesComingSoon(name: machine.name)
+                                    } label: {
+                                        MachineFileRow(icon: "desktopcomputer", name: machine.name,
+                                                       subtitle: "\(machine.username)@\(machine.hostname)")
+                                    }
+                                }
                             }
                         }
                     }
                 }
+                .navigationTitle("Files")
             }
-            .navigationTitle("Files")
         }
     }
 }
