@@ -1,18 +1,15 @@
-name: Update Ghostty
+name: Propose Ghostty update
 
-# Keeps Shio on the latest upstream Ghostty. Each run rebases our single patch
-# ("External IO backend + C ABI") onto ghostty-org/ghostty main, rebuilds
-# GhosttyKit, publishes the binary as a Release, and opens a PR bumping the
-# pinned tag (+ any header/ABI changes) for review. It NEVER auto-merges — the
-# terminal core is too load-bearing for silent updates, and a rebase conflict
-# or ABI drift needs a human.
+# PROPOSES (never applies) a Ghostty bump for human + Claude triage. Each run:
+# rebases our patch onto upstream ghostty main → builds GhosttyKit → builds BOTH
+# Shio schemes against it to verify it still COMPILES → publishes the binary as
+# a *pre-release* candidate → opens a PR stamped with the build status + a triage
+# checklist. It changes NOTHING that affects the running app or canonical source:
+# main only moves when YOU merge the PR, and the ghostty fork is NOT auto-pushed.
+# The terminal core is too load-bearing for silent updates.
 #
-# SETUP (one-time): add a repo secret `GHOSTTY_BOT_TOKEN` — a PAT with write
-# access to BOTH shio-sh/shio (release + PR) and shio-sh/ghostty (push the
-# rebased fork). The default GITHUB_TOKEN can't reach the fork repo.
-#
-# Public repo ⇒ free macOS runner minutes. Use the manual trigger for the first
-# few runs to shake out the CI Nix build.
+# SETUP: repo secret GHOSTTY_BOT_TOKEN — fine-grained PAT, Contents+PRs RW on
+# shio-sh/shio, Contents RW on shio-sh/ghostty + shio-sh/libxev.
 
 on:
   schedule:
@@ -24,17 +21,13 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: update-ghostty
+  group: propose-ghostty
   cancel-in-progress: false
 
 jobs:
-  update:
+  propose:
     runs-on: macos-15
     steps:
-      # The Nix shell provides the toolchain (zig + clang/cctools) but the iOS
-      # frameworks still come from the runner's system Xcode. Latest Ghostty
-      # uses newer SDK symbols (e.g. kCVPixelFormatType_30RGB_r210), so pin the
-      # newest stable Xcode and export DEVELOPER_DIR for the Nix build to see.
       - name: Select latest Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -54,9 +47,8 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GHOSTTY_BOT_TOKEN }}
 
-      # ghostty's build.zig.zon pins libxev to the sibling `../libxev` — our
-      # fork with the iOS kqueue mach-port patch (private; patch on the
-      # shio-ios-kqueue branch). Must sit next to the ghostty checkout.
+      # ghostty's build.zig.zon pins libxev to ../libxev (our fork with the iOS
+      # kqueue patch on branch shio-ios-kqueue). Must sit next to ghostty.
       - name: Checkout libxev fork (sibling ../libxev)
         uses: actions/checkout@v4
         with:
@@ -75,7 +67,7 @@ jobs:
           git remote add upstream https://github.com/ghostty-org/ghostty.git 2>/dev/null || true
           git fetch --quiet upstream main
           if [ "$(git merge-base HEAD upstream/main)" = "$(git rev-parse upstream/main)" ]; then
-            echo "Already on the latest upstream — nothing to do."
+            echo "Already on the latest upstream — nothing to propose."
             echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           if ! git rebase upstream/main; then
@@ -84,6 +76,7 @@ jobs:
             exit 1
           fi
           echo "rev=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "upstream=$(git rev-parse --short upstream/main)" >> "$GITHUB_OUTPUT"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Install Nix
@@ -102,12 +95,46 @@ jobs:
               if [ -x "$d/zig" ] && [ "$("$d/zig" version 2>/dev/null)" = "0.15.2" ]; then ZIG="$d/zig"; break; fi
             done
             [ -n "$ZIG" ] || { echo "!! no zig 0.15.2 on dev-shell PATH" >&2; exit 1; }
-            echo "    using zig: $ZIG"
             exec "$ZIG" build -Demit-macos-app=false
           '
           test -d macos/GhosttyKit.xcframework
 
-      - name: Publish the binary as a Release
+      # Drop the new binary + headers into the Shio checkout so we can actually
+      # build the app against it (.a are gitignored; headers are tracked).
+      - name: Stage new GhosttyKit into Shio
+        if: steps.rebase.outputs.changed == 'true'
+        run: cp -R ghostty/macos/GhosttyKit.xcframework/. shio/Frameworks/GhosttyKit.xcframework/
+
+      - name: Generate Xcode project
+        if: steps.rebase.outputs.changed == 'true'
+        working-directory: shio
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          xcodegen
+
+      # Build verification — non-fatal (continue-on-error) so the PR is opened
+      # either way; the result is stamped on the PR for triage.
+      - name: Verify build — ShioMac
+        id: build_mac
+        if: steps.rebase.outputs.changed == 'true'
+        continue-on-error: true
+        working-directory: shio
+        run: |
+          xcodebuild -project Shio.xcodeproj -scheme ShioMac -configuration Debug \
+            -destination 'platform=macOS' -derivedDataPath /tmp/dd-mac \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -50
+
+      - name: Verify build — Shio (iOS)
+        id: build_ios
+        if: steps.rebase.outputs.changed == 'true'
+        continue-on-error: true
+        working-directory: shio
+        run: |
+          xcodebuild -project Shio.xcodeproj -scheme Shio \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/dd-ios \
+            CODE_SIGNING_ALLOWED=NO build 2>&1 | tail -50
+
+      - name: Publish candidate binary (pre-release)
         if: steps.rebase.outputs.changed == 'true'
         working-directory: ghostty
         env:
@@ -115,41 +142,63 @@ jobs:
           REV: ${{ steps.rebase.outputs.rev }}
         run: |
           set -euo pipefail
-          XC=macos/GhosttyKit.xcframework
-          tar -czf "$RUNNER_TEMP/ghosttykit-libs.tar.gz" -C "$XC" \
+          tar -czf "$RUNNER_TEMP/ghosttykit-libs.tar.gz" -C macos/GhosttyKit.xcframework \
             macos-arm64_x86_64/ghostty-internal.a \
             ios-arm64/libghostty-internal-fat.a \
             ios-arm64-simulator/libghostty-internal-fat.a
           gh release create "ghosttykit-$REV" "$RUNNER_TEMP/ghosttykit-libs.tar.gz" \
-            --repo shio-sh/shio --title "GhosttyKit @ $REV" \
-            --notes "Auto-built from ghostty-org/ghostty main + Shio External-IO patch." \
+            --repo shio-sh/shio --prerelease --title "GhosttyKit @ $REV (candidate)" \
+            --notes "Auto-built candidate from ghostty-org/ghostty main + Shio External-IO patch. Adopted ONLY if its triage PR is merged." \
           || gh release upload "ghosttykit-$REV" "$RUNNER_TEMP/ghosttykit-libs.tar.gz" --repo shio-sh/shio --clobber
 
-      - name: Push the rebased fork
-        if: steps.rebase.outputs.changed == 'true'
-        working-directory: ghostty
-        run: git push --force-with-lease origin HEAD:main
-
-      - name: Open a PR bumping the pinned tag (+ header sync)
+      - name: Open triage PR
         if: steps.rebase.outputs.changed == 'true'
         working-directory: shio
         env:
           GH_TOKEN: ${{ secrets.GHOSTTY_BOT_TOKEN }}
           REV: ${{ steps.rebase.outputs.rev }}
+          UPSTREAM: ${{ steps.rebase.outputs.upstream }}
+          MAC: ${{ steps.build_mac.outcome }}
+          IOS: ${{ steps.build_ios.outcome }}
         run: |
           set -euo pipefail
           BR="ghostty-update-$REV"
           git config user.name  "shio-bot"
           git config user.email "bot@shio.sh"
           git checkout -b "$BR"
-          # Bump the pinned Release tag the --fetch path uses (BSD sed on macOS).
           sed -i '' "s|^GHOSTTYKIT_TAG=.*|GHOSTTYKIT_TAG=\"ghosttykit-$REV\"|" scripts/refresh-ghostty.sh
-          # Sync the public headers (tracked in git); the .a stay gitignored.
-          cp -R ../ghostty/macos/GhosttyKit.xcframework/. Frameworks/GhosttyKit.xcframework/
           git add -A
-          if git diff --cached --quiet; then echo "No tracked changes to PR."; exit 0; fi
-          git commit -m "Update Ghostty to $REV"
+          if git diff --cached --quiet; then echo "No tracked changes to propose."; exit 0; fi
+          HDR=$(git diff --cached --name-only | grep -q 'GhosttyKit.xcframework/' && echo "yes — review the ABI diff" || echo "no")
+          git commit -m "Propose Ghostty update to $REV"
           git push origin "$BR"
-          gh pr create --base main --head "$BR" \
-            --title "Update Ghostty to $REV" \
-            --body "Auto-rebased the Shio patch onto upstream ghostty \`main\` and rebuilt GhosttyKit (Release \`ghosttykit-$REV\`). Review the header/ABI diff, then build **both** schemes locally before merging. \`scripts/refresh-ghostty.sh --fetch\` pulls the new binary."
+
+          mac_icon=$([ "$MAC" = "success" ] && echo "✅" || echo "❌"); ios_icon=$([ "$IOS" = "success" ] && echo "✅" || echo "❌")
+          gh label create ghostty-update --repo shio-sh/shio --color FF8800 --description "Auto-proposed Ghostty bump (needs triage)" 2>/dev/null || true
+          cat > "$RUNNER_TEMP/pr-body.md" <<EOF
+          🤖 **Auto-proposed Ghostty bump — triage before merging. Do not blind-merge.**
+
+          ### Build verification (app built against the new core)
+          | scheme | result |
+          |---|---|
+          | ShioMac | $mac_icon \`$MAC\` |
+          | Shio (iOS) | $ios_icon \`$IOS\` |
+
+          - Headers/ABI changed: **$HDR**
+          - ghostty rebased onto upstream \`$UPSTREAM\`; new rev \`$REV\`
+          - Candidate binary: pre-release \`ghosttykit-$REV\`
+          - Upstream commits: https://github.com/ghostty-org/ghostty/commits/main
+
+          ### Triage checklist — DO NOT MERGE until:
+          - [ ] Both builds green above (or fixes pushed to this branch)
+          - [ ] If headers changed: ABI diff reviewed against the Swift bridge (\`LibGhosttyBridge\`, \`GhosttyMacSurface\`, surface config fields)
+          - [ ] **Runtime smoke test** (Mac + iPhone): local terminal opens & accepts input & scrolls; a project opens; Claude Code scroll works; sync still works
+          - [ ] External-IO patch behavior unchanged (SSH path on iOS)
+
+          Pull the candidate locally to test:
+          \`\`\`
+          git fetch origin && git checkout $BR && ./scripts/refresh-ghostty.sh --fetch && xcodegen
+          \`\`\`
+          EOF
+          gh pr create --base main --head "$BR" --label ghostty-update --assignee "@me" \
+            --title "Ghostty update → $REV (triage)" --body-file "$RUNNER_TEMP/pr-body.md"
