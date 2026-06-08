@@ -45,6 +45,17 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GHOSTTY_BOT_TOKEN }}
 
+      # ghostty's build.zig.zon pins libxev to the sibling `../libxev` — our
+      # fork with the iOS kqueue mach-port patch (private; patch on the
+      # shio-ios-kqueue branch). Must sit next to the ghostty checkout.
+      - name: Checkout libxev fork (sibling ../libxev)
+        uses: actions/checkout@v4
+        with:
+          repository: shio-sh/libxev
+          ref: shio-ios-kqueue
+          path: libxev
+          token: ${{ secrets.GHOSTTY_BOT_TOKEN }}
+
       - name: Rebase the Shio patch onto upstream ghostty main
         id: rebase
         working-directory: ghostty
