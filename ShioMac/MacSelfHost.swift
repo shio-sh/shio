@@ -21,8 +21,15 @@ enum MacSelfHost {
     }
 
     static func isThisMac(_ host: Host?) -> Bool {
-        guard let id = host?.deviceID else { return false }
-        return id == deviceID
+        guard let host else { return false }
+        // Primary: our stamped device id.
+        if let id = host.deviceID { return id == deviceID }
+        // Fallback: a record that *names* this Mac but was never stamped — a
+        // QR-pairing-created host, a CloudKit-synced one, or a project added
+        // before the deviceID logic existed. Without this, a "This Mac" project
+        // on such a record gets SSH'd to itself (blank terminal), and the same
+        // record shows up as a bogus "Remote" machine.
+        return host.name == computerName
     }
 
     static var computerName: String {
@@ -36,29 +43,66 @@ enum MacSelfHost {
     static func ensure(in context: ModelContext) -> Host {
         let id = deviceID
         let all = (try? context.fetch(FetchDescriptor<Host>())) ?? []
+
+        // Every record that represents THIS Mac: our stamped id, OR an unstamped
+        // record naming this Mac (pairing-created / pre-deviceID / a CloudKit
+        // duplicate). There can be several — e.g. the self-host plus the host the
+        // phone made when it QR-paired — and they sync to every device, so the
+        // Mac shows up multiple times in Machines until we collapse them.
+        let mine = all.filter {
+            $0.deviceID == id
+                || ($0.deviceID == nil && $0.name.caseInsensitiveCompare(computerName) == .orderedSame)
+        }
+
         let host: Host
-        if let existing = all.first(where: { $0.deviceID == id }) {
-            host = existing
+        if let stamped = mine.first(where: { $0.deviceID == id }) {
+            host = stamped
+        } else if let first = mine.first {
+            host = first                 // adopt an unstamped record …
+            host.deviceID = id           // … by claiming it as ours
         } else {
             host = Host(name: computerName, hostname: reachableHost ?? computerName,
                         port: 22, username: NSUserName(), kind: .directSSH)
             host.deviceID = id
             context.insert(host)
         }
+
+        // Collapse the rest into the canonical record: move their projects over,
+        // then delete them. The deletes sync, so other devices stop showing the
+        // Mac more than once.
+        for dup in mine where dup !== host {
+            for project in dup.projects ?? [] { project.host = host }
+            context.delete(dup)
+        }
+
         host.name = computerName
         if let addr = reachableHost { host.hostname = addr }
         host.username = NSUserName()
         try? context.save()
+
+        // Best-effort: upgrade to the stable Tailscale MagicDNS *name* (resolved
+        // off-main via the tailscale CLI). The name survives tailnet IP changes
+        // and is the network-independent identity; if Tailscale/CLI isn't
+        // present this no-ops and the IP stands.
+        upgradeToMagicDNSName()
         return host
     }
 
-    /// Best-effort reachable IPv4 — prefer a Tailscale address (100.64/10, so
-    /// the phone can reach the Mac off-LAN), else a private LAN address. Shared
-    /// with the pairing payload so both advertise the same address.
+    /// Best-effort reachable IPv4 — prefer a Tailscale address (CGNAT 100.64/10,
+    /// reachable off-LAN), else a private LAN address. Shared with the pairing
+    /// payload so both advertise the same address.
     static var reachableHost: String? {
+        let addrs = localIPv4Addresses()
+        return addrs.first(where: isTailscaleIP)
+            ?? addrs.first(where: isPrivateLAN)
+            ?? addrs.first
+    }
+
+    /// All non-loopback IPv4 addresses on up interfaces.
+    private static func localIPv4Addresses() -> [String] {
         var addrs: [String] = []
         var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
+        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return [] }
         defer { freeifaddrs(ifaddr) }
         for ptr in sequence(first: first, next: { $0.pointee.ifa_next }) {
             let flags = Int32(ptr.pointee.ifa_flags)
@@ -71,8 +115,69 @@ enum MacSelfHost {
                 if !ip.isEmpty && ip != "127.0.0.1" { addrs.append(ip) }
             }
         }
-        return addrs.first(where: { $0.hasPrefix("100.") })
-            ?? addrs.first(where: { $0.hasPrefix("192.168.") || $0.hasPrefix("10.") || $0.hasPrefix("172.") })
-            ?? addrs.first
+        return addrs
+    }
+
+    /// Tailscale's CGNAT range is 100.64.0.0 – 100.127.255.255 (NOT all `100.*`,
+    /// which would falsely match public/CGNAT addresses outside the tailnet).
+    private static func isTailscaleIP(_ ip: String) -> Bool {
+        let octets = ip.split(separator: ".").compactMap { Int($0) }
+        return octets.count == 4 && octets[0] == 100 && (64...127).contains(octets[1])
+    }
+
+    private static func isPrivateLAN(_ ip: String) -> Bool {
+        ip.hasPrefix("192.168.") || ip.hasPrefix("10.") || ip.hasPrefix("172.")
+    }
+
+    /// Resolve this Mac's MagicDNS name (e.g. `mac.tail-abcd.ts.net`) and, if
+    /// found, store it as the self-host's hostname. Runs off the main thread
+    /// (it shells out to `tailscale`); re-fetches the host by deviceID on the
+    /// main actor to stay Sendable-clean.
+    @MainActor
+    private static func upgradeToMagicDNSName() {
+        let id = deviceID
+        Task.detached {
+            guard let name = tailscaleMagicDNSName() else { return }
+            await MainActor.run {
+                let ctx = ShioModelContainer.shared.mainContext
+                guard let host = try? ctx.fetch(
+                    FetchDescriptor<Host>(predicate: #Predicate { $0.deviceID == id })).first,
+                      host.hostname != name else { return }
+                host.hostname = name
+                try? ctx.save()
+            }
+        }
+    }
+
+    /// `tailscale status --json` → `Self.DNSName` (trailing dot stripped), only
+    /// if it's a `.ts.net` name. nil if the CLI isn't installed or Tailscale is
+    /// down. Blocking — call off the main thread.
+    nonisolated private static func tailscaleMagicDNSName() -> String? {
+        let candidates = [
+            "/usr/local/bin/tailscale",
+            "/opt/homebrew/bin/tailscale",
+            "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+        ]
+        guard let bin = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            return nil
+        }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: bin)
+        proc.arguments = ["status", "--json"]
+        let out = Pipe()
+        proc.standardOutput = out
+        proc.standardError = Pipe()
+        do {
+            try proc.run()
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            proc.waitUntilExit()
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let selfNode = json["Self"] as? [String: Any],
+                  var dns = selfNode["DNSName"] as? String, !dns.isEmpty else { return nil }
+            if dns.hasSuffix(".") { dns.removeLast() }
+            return dns.hasSuffix(".ts.net") ? dns : nil
+        } catch {
+            return nil
+        }
     }
 }

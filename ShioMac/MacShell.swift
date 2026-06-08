@@ -31,6 +31,7 @@ enum MacSection: String, CaseIterable, Identifiable {
 struct MacShell: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationSplitView {
@@ -59,6 +60,12 @@ struct MacShell: View {
         // Register This Mac as a synced Machine so its local projects are
         // reachable (continuity) and it appears on the user's other devices.
         .task { MacSelfHost.ensure(in: context) }
+        // Re-detect the reachable address whenever the app becomes active, so
+        // turning Tailscale on/off (or a network change) updates the synced
+        // address without needing to relaunch — cross-network self-heals.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { MacSelfHost.ensure(in: context) }
+        }
     }
 
     /// List wants an optional selection binding; the model's section is always
@@ -113,7 +120,7 @@ private struct ProjectsPane: View {
             }
             if projects.isEmpty {
                 VStack(spacing: 10) {
-                    Image(systemName: "folder.fill").font(.largeTitle).foregroundStyle(.secondary)
+                    Text("塩").font(.system(size: 44)).foregroundStyle(.tertiary)
                     Text("No projects yet").font(.system(.title2, design: .monospaced))
                     Text("A repo on this Mac or any machine — open a folder, or clone from Git.")
                         .font(.callout).foregroundStyle(.secondary)
@@ -123,34 +130,33 @@ private struct ProjectsPane: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
-                    ForEach(filtered) { project in
-                        Button { open(project) } label: {
-                            VStack(alignment: .leading) {
-                                Text(project.name).font(.body)
-                                Text(subtitle(project))
-                                    .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 1) {
+                        PromptSectionHeader(title: "Projects")
+                        ForEach(filtered) { project in
+                            PromptRow(name: project.name,
+                                      detail: detail(project),
+                                      age: shioShortAge(project.lastOpenedAt)) {
+                                open(project)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        // Right-click → remove. Only drops it from Shio; the repo
-                        // on disk / the machine is untouched.
-                        .contextMenu {
-                            Button("Remove from Shio", role: .destructive) {
-                                context.delete(project)
-                                try? context.save()
+                            // Right-click → remove. Only drops it from Shio; the
+                            // repo on disk / the machine is untouched.
+                            .contextMenu {
+                                Button("Remove from Shio", role: .destructive) {
+                                    context.delete(project)
+                                    try? context.save()
+                                }
                             }
                         }
+                        if filtered.isEmpty {
+                            Text("No matches")
+                                .font(.system(.callout, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 12).padding(.top, 8)
+                        }
                     }
-                    .onDelete { offsets in
-                        for i in offsets { context.delete(filtered[i]) }
-                        try? context.save()
-                    }
-                }
-                .overlay {
-                    if filtered.isEmpty { Text("No matches").foregroundStyle(.secondary) }
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 10)
                 }
                 .navigationTitle("Projects")
                 .toolbar {
@@ -163,9 +169,15 @@ private struct ProjectsPane: View {
         .sheet(isPresented: $model.showingAddProject) { MacAddProjectForm(model: model) }
     }
 
-    private func subtitle(_ project: Project) -> String {
-        if let host = project.host { return "\(host.name) · \(project.path)" }
-        return "This Mac · \(project.path)"
+    /// `~/Shio · this mac` — path first (tilde-abbreviated), then the machine.
+    private func detail(_ project: Project) -> String {
+        let machine: String
+        if let host = project.host {
+            machine = MacSelfHost.isThisMac(host) ? "this mac" : host.name
+        } else {
+            machine = "this mac"
+        }
+        return "\(shioPrettyPath(project.path)) · \(machine)"
     }
 
     private func open(_ project: Project) {
@@ -196,35 +208,42 @@ private struct HostsPane: View {
     private var showThisMac: Bool {
         query.isEmpty || "this mac".contains(query) || Self.localSubtitle.lowercased().contains(query)
     }
+    /// Remote machines = all hosts minus this Mac's own self-host.
+    private var remoteCount: Int { hosts.filter { !MacSelfHost.isThisMac($0) }.count }
 
     var body: some View {
         VStack(spacing: 0) {
             if model.showingSearch {
                 SectionSearchField(model: model, placeholder: "Search machines")
             }
-            List {
-                if showThisMac {
-                    Section("This Mac") {
-                        Button { model.newLocalTab() } label: {
-                            MacMachineRow(icon: "laptopcomputer", name: "This Mac",
-                                          subtitle: Self.localSubtitle)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 1) {
+                    if showThisMac {
+                        PromptSectionHeader(title: "This Mac")
+                        // 塩 marks your own machine — tap to open a local terminal.
+                        PromptRow(name: "This Mac", detail: Self.localSubtitle,
+                                  pinnedGlyph: "塩") {
+                            model.newLocalTab()
                         }
-                        .buttonStyle(.plain)
                     }
-                }
-                Section("Remote") {
-                    if hosts.isEmpty {
+                    PromptSectionHeader(title: "Remote")
+                    if remoteCount == 0 {
                         Text("Add a server or device you own, then tap it to connect.")
-                            .font(.callout).foregroundStyle(.secondary)
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 12).padding(.top, 4)
                     } else if filteredHosts.isEmpty {
-                        Text("No matches").foregroundStyle(.secondary)
+                        Text("No matches")
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 12).padding(.top, 4)
                     } else {
                         ForEach(filteredHosts) { host in
-                            Button { open(host) } label: {
-                                MacMachineRow(icon: "desktopcomputer", name: host.name,
-                                              subtitle: "\(host.username)@\(host.hostname)")
+                            PromptRow(name: host.name,
+                                      detail: "\(host.username)@\(host.hostname)",
+                                      age: shioShortAge(host.lastConnectedAt)) {
+                                open(host)
                             }
-                            .buttonStyle(.plain)
                             .contextMenu {
                                 Button("Remove from Shio", role: .destructive) {
                                     context.delete(host)
@@ -232,12 +251,10 @@ private struct HostsPane: View {
                                 }
                             }
                         }
-                        .onDelete { offsets in
-                            for i in offsets { context.delete(filteredHosts[i]) }
-                            try? context.save()
-                        }
                     }
                 }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 10)
             }
         }
         .navigationTitle("Machines")

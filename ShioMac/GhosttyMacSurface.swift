@@ -45,6 +45,10 @@ final class GhosttyMacSurface: NSView, NSUserInterfaceValidations {
     private let launch: LocalLaunch?
     private var fontSize: Float = Float(MacSettings.fontSize)
 
+    /// The command ghostty execs for a plain local tab: the user's configured
+    /// shell, else their login shell (`$SHELL` / passwd), falling back to zsh.
+    private static var loginShellCommand: String { MacSettings.defaultShell }
+
     init(backend: Backend = .local, launch: LocalLaunch? = nil, frame frameRect: NSRect = .zero) {
         self.backend = backend
         self.launch = launch
@@ -97,13 +101,19 @@ final class GhosttyMacSurface: NSView, NSUserInterfaceValidations {
             // libghostty forks/execs and owns the PTY. With no launch override
             // this is a plain login shell; with one, it execs the Project's
             // invisible-tmux command in the repo directory.
+            //
+            // We ALWAYS hand ghostty an explicit `command`. The standalone
+            // Ghostty.app resolves the user's default shell up in its app layer
+            // (which an embedder like us doesn't run); the embedded libghostty
+            // surface, given a nil command, no longer spawns a shell on its own
+            // — the PTY child never execs, so the surface comes up as a bare
+            // blinking cursor that ignores input. Passing the login shell
+            // explicitly restores a working local terminal.
             cfg.io_backend = UInt8(GHOSTTY_IO_BACKEND_DEFAULT.rawValue)
-            if let launch {
-                if let dir = launch.workingDirectory { cfg.working_directory = dup(dir) }
-                if let command = launch.command { cfg.command = dup(command) }
-                for (k, v) in launch.env {
-                    envVars.append(ghostty_env_var_s(key: dup(k), value: dup(v)))
-                }
+            if let dir = launch?.workingDirectory { cfg.working_directory = dup(dir) }
+            cfg.command = dup(launch?.command ?? Self.loginShellCommand)
+            for (k, v) in launch?.env ?? [:] {
+                envVars.append(ghostty_env_var_s(key: dup(k), value: dup(v)))
             }
         case .external:
             // The embedder owns IO: bytes in via writeBytes, output out via
@@ -147,6 +157,16 @@ final class GhosttyMacSurface: NSView, NSUserInterfaceValidations {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         updateSurfaceSize()
+        // Grab the keyboard as soon as the surface is in its window — fixes
+        // "had to click the terminal to start typing" on launch / new tab /
+        // tab switch. Don't steal focus if another terminal already holds it
+        // (e.g. the other pane of a split); PaneHost's focusedPaneID drives
+        // that case.
+        guard let window, !(window.firstResponder is GhosttyMacSurface) else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.window != nil else { return }
+            self.window?.makeFirstResponder(self)
+        }
     }
 
     override func layout() {

@@ -167,19 +167,11 @@ private struct TerminalSearchBar: View {
 private struct EmptyTerminalState: View {
     let newTab: () -> Void
     var body: some View {
-        VStack(spacing: 12) {
-            Text("塩")
-                .font(.system(size: 56))
-                .foregroundStyle(.tertiary)
-            Text("No terminal open")
-                .font(.system(.title3, design: .monospaced))
-                .foregroundStyle(.secondary)
+        VStack(spacing: 18) {
+            ShioCompanion()
             Button(action: newTab) {
                 Label("New Tab", systemImage: "plus")
             }
-            Text("⌘T")
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.tertiary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

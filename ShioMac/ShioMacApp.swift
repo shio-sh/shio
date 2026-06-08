@@ -36,6 +36,20 @@ struct ShioMacApp: App {
                 Button("Add Machine…") { model.showingAddHost = true }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
             }
+            // Jump straight to a sidebar section. Mnemonic ⌘⇧+letter
+            // (T/P/M/A/F) — plain ⌘+letter is taken by Tab/Find/Minimize/SelectAll.
+            CommandMenu("Go") {
+                Button("Terminal") { model.show(.terminal) }
+                    .keyboardShortcut("t", modifiers: [.command, .shift])
+                Button("Projects") { model.show(.projects) }
+                    .keyboardShortcut("p", modifiers: [.command, .shift])
+                Button("Machines") { model.show(.hosts) }
+                    .keyboardShortcut("m", modifiers: [.command, .shift])
+                Button("Agents") { model.show(.agents) }
+                    .keyboardShortcut("a", modifiers: [.command, .shift])
+                Button("Files") { model.show(.files) }
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
+            }
             CommandMenu("Tabs") {
                 Button("New Tab") { model.newLocalTab() }
                     .keyboardShortcut("t", modifiers: .command)
@@ -170,6 +184,13 @@ final class MacTerminalModel {
 
     /// On first show, restore the previous session's tabs; otherwise (or if
     /// none) open a plain shell so the terminal is never empty.
+    /// Jump to a sidebar section (⌘⇧ T/P/M/A/F). Switching to Terminal also
+    /// makes sure a tab exists so it's never an empty void.
+    func show(_ target: MacSection) {
+        section = target
+        if target == .terminal { ensureTerminalTab() }
+    }
+
     func ensureTerminalTab() {
         if !didRestore {
             didRestore = true
@@ -197,6 +218,16 @@ final class MacTerminalModel {
     }
 
     private func restoreTabs() {
+        // One-time reset: older builds could persist a "This Mac" project as an
+        // SSH-to-itself tab (it restored as a blank, dead terminal). Clear the
+        // saved tabs once so that ghost tab doesn't come back; fresh tabs persist
+        // correctly from here on.
+        let resetKey = "shio.mac.tabsResetV1"
+        if !UserDefaults.standard.bool(forKey: resetKey) {
+            UserDefaults.standard.set(true, forKey: resetKey)
+            UserDefaults.standard.removeObject(forKey: openTabsKey)
+            return
+        }
         guard let data = UserDefaults.standard.data(forKey: openTabsKey),
               let descriptors = try? JSONDecoder().decode([TabDescriptor].self, from: data),
               !descriptors.isEmpty else { return }
