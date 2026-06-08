@@ -21,8 +21,14 @@
 # Usage:
 #   scripts/refresh-ghostty.sh            # build from the fork's CURRENT state + vendor
 #   scripts/refresh-ghostty.sh --update   # fetch upstream + rebase our patches onto latest main, then build + vendor
+#   scripts/refresh-ghostty.sh --fetch    # download prebuilt libs from the GitHub Release (fresh clone / CI; NO build, NO Nix)
 #
-# After it finishes: cd ~/Shio && xcodegen && build BOTH schemes (ShioMac +
+# The GhosttyKit .a static libs (~800 MB) are build artifacts, NOT in git. A
+# fresh clone runs `--fetch` once to pull them from the pinned Release before
+# the first Xcode build. `--update` rebuilds them; after that, publish a new
+# Release (see the reminder it prints) and bump GHOSTTYKIT_TAG below.
+#
+# After a build: cd ~/Shio && xcodegen && build BOTH schemes (ShioMac +
 # Shio iOS) and re-verify — this binary ships on iOS too.
 
 set -euo pipefail
@@ -31,6 +37,25 @@ GHOSTTY="${GHOSTTY_DIR:-$HOME/ghostty}"
 SHIO="${SHIO_DIR:-$HOME/Shio}"
 DEST="$SHIO/Frameworks/GhosttyKit.xcframework"
 SRC="$GHOSTTY/macos/GhosttyKit.xcframework"
+
+# Pinned Release holding the prebuilt libs (bump after each --update rebuild).
+GHOSTTYKIT_TAG="ghosttykit-367c309cc"
+GHOSTTYKIT_URL="https://github.com/shio-sh/shio/releases/download/${GHOSTTYKIT_TAG}/ghosttykit-libs.tar.gz"
+
+# --fetch: pull the prebuilt libs into the (git-tracked, .a-less) xcframework.
+# Public repo → anonymous curl, so this works on a fresh clone / CI with no gh
+# auth and no Ghostty checkout. Run this once before the first build.
+if [[ "${1:-}" == "--fetch" ]]; then
+  echo "==> Fetching prebuilt GhosttyKit libs ($GHOSTTYKIT_TAG)…"
+  mkdir -p "$DEST"
+  tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+  curl -fL --progress-bar "$GHOSTTYKIT_URL" -o "$tmp/libs.tar.gz"
+  tar -xzf "$tmp/libs.tar.gz" -C "$DEST"
+  echo "==> Done. Libs extracted into $DEST"
+  echo "    Verify:"; find "$DEST" -name '*.a' -exec ls -lh {} \; | awk '{print "      "$5, $NF}'
+  echo "    Next: cd \"$SHIO\" && xcodegen && build."
+  exit 0
+fi
 
 cd "$GHOSTTY"
 
@@ -71,3 +96,10 @@ cp -R "$SRC" "$DEST"
 echo "==> Done. New framework at $DEST"
 echo "    Next: cd \"$SHIO\" && xcodegen && build ShioMac + Shio (iOS) and re-verify."
 echo "    Check include/ghostty.h drift vs the Swift bridge if anything fails to compile."
+echo
+echo "==> Publish the new binary so fresh clones / CI get it (the .a aren't in git):"
+NEWREV="$(git -C "$GHOSTTY" rev-parse --short HEAD)"
+echo "    tar -czf /tmp/ghosttykit-libs.tar.gz -C \"$DEST\" \\"
+echo "        macos-arm64_x86_64/ghostty-internal.a ios-arm64/libghostty-internal-fat.a ios-arm64-simulator/libghostty-internal-fat.a"
+echo "    gh release create ghosttykit-$NEWREV /tmp/ghosttykit-libs.tar.gz --repo shio-sh/shio --title \"GhosttyKit @ $NEWREV\""
+echo "    then set GHOSTTYKIT_TAG=\"ghosttykit-$NEWREV\" in this script and commit."
