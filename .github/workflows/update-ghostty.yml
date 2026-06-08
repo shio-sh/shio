@@ -15,6 +15,11 @@ on:
   schedule:
     - cron: "0 9 * * 1" # Mondays 09:00 UTC
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Build + propose even if upstream hasn't moved (testing / rebuild)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -66,8 +71,8 @@ jobs:
           git config user.email "bot@shio.sh"
           git remote add upstream https://github.com/ghostty-org/ghostty.git 2>/dev/null || true
           git fetch --quiet upstream main
-          if [ "$(git merge-base HEAD upstream/main)" = "$(git rev-parse upstream/main)" ]; then
-            echo "Already on the latest upstream — nothing to propose."
+          if [ "${{ inputs.force }}" != "true" ] && [ "$(git merge-base HEAD upstream/main)" = "$(git rev-parse upstream/main)" ]; then
+            echo "Already on the latest upstream — nothing to propose (use the force input to override)."
             echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           if ! git rebase upstream/main; then
