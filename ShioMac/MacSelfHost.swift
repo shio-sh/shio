@@ -20,16 +20,17 @@ enum MacSelfHost {
         return id
     }
 
+    /// Identity is the stamped `deviceID` ONLY — never the computer name, which
+    /// collides (two Macs both default to "MacBook-Pro" and would each see the
+    /// other as "this Mac", mis-routing remote projects to a local PTY and
+    /// hiding the real remote machine). A remote Mac keeps its OWN deviceID, so
+    /// it is correctly never us. Unstamped same-named self records (legacy /
+    /// pairing-created) are consolidated by `ensure()`'s merge, which stamps the
+    /// canonical record + re-points its projects — so by the time a project
+    /// opens, a genuine self-record carries our deviceID.
     static func isThisMac(_ host: Host?) -> Bool {
-        guard let host else { return false }
-        // Primary: our stamped device id.
-        if let id = host.deviceID { return id == deviceID }
-        // Fallback: a record that *names* this Mac but was never stamped — a
-        // QR-pairing-created host, a CloudKit-synced one, or a project added
-        // before the deviceID logic existed. Without this, a "This Mac" project
-        // on such a record gets SSH'd to itself (blank terminal), and the same
-        // record shows up as a bogus "Remote" machine.
-        return host.name == computerName
+        guard let id = host?.deviceID else { return false }
+        return id == deviceID
     }
 
     static var computerName: String {

@@ -96,8 +96,10 @@ public enum AgentDetector {
         // Only consider the last stretch — a prompt scrolled far up isn't live.
         let window = String(lower.suffix(800))
 
-        // Claude Code / Codex style numbered approval menus.
-        if window.contains("❯ 1. yes") || window.contains("1. yes")
+        // Claude Code / Codex style numbered approval menus. NOTE the explicit
+        // grouping: `&&` binds tighter than `||`, so without these parens a
+        // bare "1. yes" anywhere would fire a false "waiting" ping.
+        if (window.contains("❯ 1. yes") || window.contains("1. yes"))
             && (window.contains("2. no") || window.contains("don't ask again")) {
             return "Approve to continue"
         }

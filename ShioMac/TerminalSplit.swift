@@ -50,6 +50,7 @@ final class TerminalPane: Identifiable {
         case .project(let p): await p.stop()
         case .ssh(let s):     await s.stop()
         }
+        surface.shutdown()   // free the libghostty surface + release its +1 (else it leaks)
     }
 }
 

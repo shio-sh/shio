@@ -45,13 +45,15 @@ final class MacSSHSession: Identifiable {
             self?.client.resize(cols: Int(cols), rows: Int(rows))
         }
         // SSH → terminal. ghostty_surface_write_bytes is thread-safe, but hop
-        // to main to be consistent with AppKit. We also watch the output tail
-        // to classify agent activity (running / waiting / finished) for the
-        // Agents pane — same heuristic the iOS app uses.
+        // to main to be consistent with AppKit. `DispatchQueue.main.async` is
+        // strictly FIFO so chunks render in order; the rolling tail also
+        // classifies agent activity (running / waiting / finished).
         client.onOutput = { [weak self] data in
-            Task { @MainActor in
-                self?.surface.writeBytes(data)
-                self?.observeForAgent(data)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.surface.writeBytes(data)
+                    self?.observeForAgent(data)
+                }
             }
         }
         client.onDisconnect = { [weak self] _ in

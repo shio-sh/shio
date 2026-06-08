@@ -58,7 +58,22 @@ final class GhosttyMacSurface: NSView, NSUserInterfaceValidations {
     }
     required init?(coder: NSCoder) { self.backend = .local; self.launch = nil; super.init(coder: coder); wantsLayer = true; commonInit() }
 
+    private var didShutdown = false
+
+    /// Free the libghostty surface and release the `passRetained(self)` +1 NOW
+    /// (call when the tab/pane/session closes). That +1 keeps the refcount ≥ 1,
+    /// so `deinit` can never fire on its own — without this every surface leaks
+    /// for the process lifetime. Idempotent.
+    func shutdown() {
+        guard !didShutdown else { return }
+        didShutdown = true
+        if let surface { ghostty_surface_free(surface); self.surface = nil }
+        userdataRetained?.release()
+        userdataRetained = nil
+    }
+
     deinit {
+        // Fallback if shutdown() wasn't called (no-ops if it was).
         if let surface { ghostty_surface_free(surface) }
         userdataRetained?.release()
     }

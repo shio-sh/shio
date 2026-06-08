@@ -48,15 +48,24 @@ final class LibGhosttySurfaceView: UIView {
         commonInit()
     }
 
+    nonisolated(unsafe) private var didShutdown = false
+
+    /// Free the libghostty surface and release the `passRetained(self)` +1 NOW.
+    /// MUST be called when the session/tab closes: that +1 keeps the refcount
+    /// ≥ 1, so `deinit` can never fire on its own — without this every surface
+    /// (and its CAMetalLayer) leaks for the process lifetime. Idempotent.
+    func shutdown() {
+        guard !didShutdown else { return }
+        didShutdown = true
+        if let s = surface { ghostty_surface_free(s); surface = nil }
+        userdataRetained?.release()
+        userdataRetained = nil
+    }
+
     deinit {
-        // The retained userdata holds the only strong ref to self, so by
-        // the time deinit fires the C callbacks are no longer reachable.
-        // We free the surface here via a captured raw pointer to avoid
-        // touching @MainActor properties from the nonisolated deinit.
-        let s = self.surface
-        if let s {
-            ghostty_surface_free(s)
-        }
+        // Fallback if `shutdown()` wasn't called (no-ops if it was). Note the
+        // +1 means deinit normally only runs *after* shutdown() released it.
+        if let s = surface { ghostty_surface_free(s) }
         userdataRetained?.release()
     }
 

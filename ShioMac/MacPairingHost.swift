@@ -181,30 +181,10 @@ final class MacPairingHost {
         return (range.upperBound, length)
     }
 
-    /// Best-effort reachable IPv4: prefer a Tailscale address (100.64/10),
-    /// else the first private LAN address.
-    private static func reachableIPv4() -> String? {
-        var addrs: [String] = []
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
-        defer { freeifaddrs(ifaddr) }
-        for ptr in sequence(first: first, next: { $0.pointee.ifa_next }) {
-            let flags = Int32(ptr.pointee.ifa_flags)
-            guard (flags & IFF_UP) != 0, (flags & IFF_LOOPBACK) == 0 else { continue }
-            guard let sa = ptr.pointee.ifa_addr, sa.pointee.sa_family == UInt8(AF_INET) else { continue }
-            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-            if getnameinfo(sa, socklen_t(sa.pointee.sa_len), &host, socklen_t(host.count),
-                           nil, 0, NI_NUMERICHOST) == 0 {
-                // Decode up to the NUL terminator (non-deprecated path).
-                let bytes = host.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
-                let ip = String(decoding: bytes, as: UTF8.self)
-                if !ip.isEmpty && ip != "127.0.0.1" { addrs.append(ip) }
-            }
-        }
-        return addrs.first(where: { $0.hasPrefix("100.") })   // Tailscale CGNAT range
-            ?? addrs.first(where: { $0.hasPrefix("192.168.") || $0.hasPrefix("10.") || $0.hasPrefix("172.") })
-            ?? addrs.first
-    }
+    /// Reuse MacSelfHost's reachable-address logic — it has the correct
+    /// Tailscale CGNAT range check (100.64/10, not a broad `100.`), so the
+    /// pairing QR and the synced self-host always advertise the same address.
+    private static func reachableIPv4() -> String? { MacSelfHost.reachableHost }
 }
 
 // MARK: - Pairing sheet

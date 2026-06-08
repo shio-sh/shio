@@ -324,7 +324,11 @@ final class SessionViewModel {
 
         let client = SSHClient(configuration: configuration)
         client.onOutput = { [weak self] data in
-            Task { @MainActor [weak self] in
+            // `DispatchQueue.main.async` is strictly FIFO, so output chunks
+            // render in arrival order — separately-created `Task`s are not
+            // order-guaranteed and could interleave under heavy output.
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
                 guard let self else { return }
                 self.terminal.write(data)
                 let str = String(data: data, encoding: .utf8)
@@ -339,6 +343,7 @@ final class SessionViewModel {
                     self.terminal.write(hint)
                 }
                 if let str { self.ingestForAgentDetection(str) }
+                }
             }
         }
         client.onDisconnect = { [weak self] error in
@@ -359,7 +364,7 @@ final class SessionViewModel {
             state = .connected
             if !isReconnect {
                 Haptics.notifySuccess()
-                if let activeID = SessionStore.shared.activeSession?.id {
+                if let activeID = ownerSessionID {
                     LiveActivityController.shared.start(
                         sessionID: activeID,
                         hostName: hostName
@@ -367,7 +372,7 @@ final class SessionViewModel {
                 }
             } else {
                 Haptics.light()
-                if let activeID = SessionStore.shared.activeSession?.id {
+                if let activeID = ownerSessionID {
                     Task {
                         await LiveActivityController.shared.update(
                             sessionID: activeID,
@@ -405,7 +410,7 @@ final class SessionViewModel {
             // disconnectedStaleSeconds window so iOS would gray it out
             // around the same time anyway — but explicit end is more
             // honest than relying on iOS to do it.
-            if let activeID = SessionStore.shared.activeSession?.id {
+            if let activeID = ownerSessionID {
                 Task {
                     await LiveActivityController.shared.update(
                         sessionID: activeID,
@@ -421,7 +426,7 @@ final class SessionViewModel {
             return
         }
         state = .reconnecting
-        if let activeID = SessionStore.shared.activeSession?.id {
+        if let activeID = ownerSessionID {
             Task {
                 await LiveActivityController.shared.update(
                     sessionID: activeID,
@@ -460,6 +465,7 @@ final class SessionViewModel {
         await client?.disconnect()
         client = nil
         state = .idle
+        terminal.shutdown()   // free the libghostty surface + release its +1 (else it leaks)
     }
 
     deinit {

@@ -182,10 +182,14 @@ private struct ProjectsPane: View {
         return "\(shioPrettyPath(project.path)) · \(machine)"
     }
 
-    /// Agent status dot for a project's local terminal: amber = needs you,
-    /// blue = working, green = finished. Nil = no agent (or not a local
-    /// session). Sourced from the tmux capture-pane monitor.
+    /// Agent status dot for a project's LOCAL terminal: amber = needs you,
+    /// blue = working, green = finished. Sourced from the tmux capture-pane
+    /// monitor, which only sees local sessions — so only consult it for
+    /// projects that run on this Mac, else a same-named remote project would
+    /// borrow a local agent's dot.
     private func statusColor(_ project: Project) -> Color? {
+        let isLocal = project.host.map { MacSelfHost.isThisMac($0) } ?? true
+        guard isLocal else { return nil }
         switch agents.snapshot(forProjectNamed: project.name)?.activity {
         case .waiting:  return MacInk.amber
         case .running:  return MacInk.info

@@ -99,6 +99,10 @@ final class LibGhosttyTerminalController {
         surfaceView.writeBytes(Data("\u{1B}c".utf8))
     }
 
+    /// Free the libghostty surface and release its self-retain — call when the
+    /// session is torn down so the surface doesn't leak (see shutdown()).
+    func shutdown() { surfaceView.shutdown() }
+
     // The following are kept as no-ops for now so SessionViewModel /
     // TerminalView code paths don't have to change.
     func setFontSize(_ px: CGFloat) {}

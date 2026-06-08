@@ -202,10 +202,11 @@ final class SFTPClient: @unchecked Sendable {
             if resp.type == PacketType.status.rawValue { break }  // EOF
             guard resp.type == PacketType.data.rawValue else { throw SFTPError.unexpectedResponse }
             var body = resp.body
-            guard let chunk = body.readSFTPData() else { break }
+            guard let chunk = body.readSFTPData(), !chunk.isEmpty else { break }  // empty DATA → treat as EOF (don't spin)
             data.append(chunk)
             offset += UInt64(chunk.count)
-            if chunk.count < Int(chunkSize) { /* keep going; server may short-read */ }
+            // A short read (< chunkSize) is fine — keep going; the loop ends on
+            // a STATUS(EOF) or a zero-length DATA, never on a partial chunk.
         }
         return data
     }
