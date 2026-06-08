@@ -37,7 +37,7 @@ struct ShioMacApp: App {
                     .keyboardShortcut("k", modifiers: [.command, .shift])
             }
             // Jump straight to a sidebar section. Mnemonic ⌘⇧+letter
-            // (T/P/M/A/F) — plain ⌘+letter is taken by Tab/Find/Minimize/SelectAll.
+            // (T/P/M/F) — plain ⌘+letter is taken by Tab/Find/Minimize/SelectAll.
             CommandMenu("Go") {
                 Button("Terminal") { model.show(.terminal) }
                     .keyboardShortcut("t", modifiers: [.command, .shift])
@@ -45,8 +45,6 @@ struct ShioMacApp: App {
                     .keyboardShortcut("p", modifiers: [.command, .shift])
                 Button("Machines") { model.show(.hosts) }
                     .keyboardShortcut("m", modifiers: [.command, .shift])
-                Button("Agents") { model.show(.agents) }
-                    .keyboardShortcut("a", modifiers: [.command, .shift])
                 Button("Files") { model.show(.files) }
                     .keyboardShortcut("f", modifiers: [.command, .shift])
             }

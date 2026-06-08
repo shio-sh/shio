@@ -14,7 +14,6 @@ enum MacSection: String, CaseIterable, Identifiable {
     case terminal = "Terminal"
     case projects = "Projects"
     case hosts = "Machines"
-    case agents = "Agents"
     case files = "Files"
     var id: String { rawValue }
     var icon: String {
@@ -22,7 +21,6 @@ enum MacSection: String, CaseIterable, Identifiable {
         case .terminal: return "terminal"
         case .projects: return "folder.fill"
         case .hosts: return "desktopcomputer"
-        case .agents: return "sparkles"
         case .files: return "tray.full.fill"
         }
     }
@@ -60,6 +58,9 @@ struct MacShell: View {
         // Register This Mac as a synced Machine so its local projects are
         // reachable (continuity) and it appears on the user's other devices.
         .task { MacSelfHost.ensure(in: context) }
+        // Watch local tmux sessions so a project row lights up when its agent
+        // needs you — even though ghostty owns the local PTY.
+        .task { MacProjectAgentMonitor.shared.start() }
         // Re-detect the reachable address whenever the app becomes active, so
         // turning Tailscale on/off (or a network change) updates the synced
         // address without needing to relaunch — cross-network self-heals.
@@ -80,7 +81,6 @@ struct MacShell: View {
         case .terminal: TerminalWorkspaceView(model: model)
         case .projects: ProjectsPane(model: model)
         case .hosts:    HostsPane(model: model)
-        case .agents:   AgentsPane(model: model)
         case .files:    MacFilesPane(model: model)
         }
     }
@@ -102,6 +102,7 @@ private struct ProjectsPane: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
+    @State private var agents = MacProjectAgentMonitor.shared
 
     private var filtered: [Project] {
         let q = model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
@@ -136,7 +137,8 @@ private struct ProjectsPane: View {
                         ForEach(filtered) { project in
                             PromptRow(name: project.name,
                                       detail: detail(project),
-                                      age: shioShortAge(project.lastOpenedAt)) {
+                                      age: shioShortAge(project.lastOpenedAt),
+                                      statusColor: statusColor(project)) {
                                 open(project)
                             }
                             // Right-click → remove. Only drops it from Shio; the
@@ -178,6 +180,18 @@ private struct ProjectsPane: View {
             machine = "this mac"
         }
         return "\(shioPrettyPath(project.path)) · \(machine)"
+    }
+
+    /// Agent status dot for a project's local terminal: amber = needs you,
+    /// blue = working, green = finished. Nil = no agent (or not a local
+    /// session). Sourced from the tmux capture-pane monitor.
+    private func statusColor(_ project: Project) -> Color? {
+        switch agents.snapshot(forProjectNamed: project.name)?.activity {
+        case .waiting:  return MacInk.amber
+        case .running:  return MacInk.info
+        case .finished: return MacInk.green
+        default:        return nil
+        }
     }
 
     private func open(_ project: Project) {
@@ -284,88 +298,6 @@ private struct HostsPane: View {
     }
     // Trailing-closure label needs an argument label match; bridge it.
     private func open(_ host: Host) { open(host: host) }
-}
-
-/// Agents across your SSH sessions: running / waiting-on-you / finished, from
-/// the same output-watching heuristic as iOS. (Local `.local` tabs let ghostty
-/// own the PTY, so only SSH sessions are detectable.) Tap to jump to the
-/// session; ⌘F filters.
-private struct AgentsPane: View {
-    @Bindable var model: MacTerminalModel
-    private let store = AgentStateStore.shared
-
-    private struct Row: Identifiable { let id: UUID; let name: String; let snapshot: AgentSnapshot }
-
-    private var rows: [Row] {
-        let sessions = model.sshSessions
-        let q = model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
-        return store.liveSessionIDs.compactMap { id -> Row? in
-            guard let session = sessions.first(where: { $0.id == id }),
-                  let snap = store.snapshot(for: id) else { return nil }
-            let row = Row(id: id, name: session.hostName, snapshot: snap)
-            if q.isEmpty { return row }
-            let hay = "\(row.name) \(snap.agentName ?? "") \(snap.detail ?? "")".lowercased()
-            return hay.contains(q) ? row : nil
-        }
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if model.showingSearch {
-                SectionSearchField(model: model, placeholder: "Search agents")
-            }
-            if rows.isEmpty {
-                VStack(spacing: 10) {
-                    Image(systemName: "sparkles").font(.largeTitle).foregroundStyle(.secondary)
-                    Text("No agents running").font(.system(.title2, design: .monospaced))
-                    Text("Start an agent (Claude Code, Codex…) in an SSH session and it shows up here.")
-                        .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity).padding(.horizontal, 32)
-            } else {
-                List(rows) { row in
-                    Button { model.focusSSHSession(row.id) } label: {
-                        AgentRow(row: row).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .navigationTitle("Agents")
-            }
-        }
-    }
-
-    private struct AgentRow: View {
-        let row: Row
-        var body: some View {
-            HStack(spacing: 10) {
-                Circle().fill(color).frame(width: 9, height: 9)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(row.snapshot.agentName ?? "Agent").font(.body)
-                        Text("· \(row.name)").font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
-                    }
-                    Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            .padding(.vertical, 2)
-        }
-        private var color: Color {
-            switch row.snapshot.activity {
-            case .running: return .green
-            case .waiting: return .orange
-            case .finished: return .secondary
-            case .none: return .secondary
-            }
-        }
-        private var label: String {
-            switch row.snapshot.activity {
-            case .running: return "Running…"
-            case .waiting: return row.snapshot.detail.map { "Waiting on you — \($0)" } ?? "Waiting on you"
-            case .finished: return "Finished"
-            case .none: return ""
-            }
-        }
-    }
 }
 
 /// Reusable context-aware ⌘F filter field shown at the top of a list section.
