@@ -31,7 +31,7 @@ enum MacLocalLaunch {
         //    plain login shell there. `exec` so the terminal closes cleanly.
         // Everything rides $SHIO_* env vars (double quotes only, no single
         // quotes) so the path survives spaces and the outer single-quoting.
-        let script = #"[ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR"; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR" \; set mouse on || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
+        let script = #"[ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR"; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR" \; set mouse on \; setw -g window-size latest || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
         let command = "\(shell) -lc '\(script)'"
 
         // Start in the repo's *parent* so the cwd is valid even before a clone

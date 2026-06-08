@@ -33,7 +33,7 @@ enum TmuxResume {
         // `-A` = attach if session exists, create if not.
         // `\;` = tmux command separator. `set mouse on` enables mouse
         //        reporting for this session only.
-        return "tmux new-session -A -s \(safe) \\; set mouse on\n"
+        return "tmux new-session -A -s \(safe)\(attachOptions)\n"
     }
 
     /// Detect (heuristically) whether the remote responded that tmux is
@@ -76,9 +76,21 @@ enum TmuxResume {
         if let startDir, !startDir.isEmpty {
             cmd += " -c \(singleQuoted(startDir))"
         }
-        cmd += " \\; set mouse on\n"
+        cmd += "\(attachOptions)\n"
         return cmd
     }
+
+    /// tmux options applied on every attach (`\;`-chained onto `new-session`).
+    /// `set mouse on` lets Shio's pan / page controls (mouse-scroll events) reach
+    /// tmux and the running TUI.
+    ///
+    /// `window-size latest` sizes the session to whichever device is active —
+    /// native size on each (Mac full and clean, phone phone-sized), reflowing
+    /// only when both are open and you switch. We set it EXPLICITLY (not just
+    /// omit it): `window-size` is a global server option that persists, so a
+    /// session previously attached with `smallest` stays pinned small (the
+    /// dotted dead-zone) until something overrides it.
+    static let attachOptions = " \\; set mouse on \\; setw -g window-size latest"
 
     private static func singleQuoted(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"

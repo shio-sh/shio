@@ -15,7 +15,10 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
-    DEVELOPMENT_TEAM: ""
+    # Signing team for every target (Shio, ShioWidgets, ShioLiveActivities,
+    # ShioMac) so Xcode auto-selects it and xcodegen regens don't reset it.
+    DEVELOPMENT_TEAM: VRNNS4H6XH
+    CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
     IPHONEOS_DEPLOYMENT_TARGET: "26.0"
@@ -110,6 +113,17 @@ targets:
         NSLocalNetworkUsageDescription: Shio talks to the machine you're pairing with over your local network to authorize this device.
         NSBonjourServices:
           - _shio._tcp
+        # QR pairing POSTs this device's public key to a tiny HTTP listener on
+        # the user's OWN machine (LAN IP, or a Tailscale 100.64/10 address when
+        # pairing across networks). Default ATS allows plain HTTP to RFC1918 LAN
+        # ranges but NOT to Tailscale's CGNAT range, which broke cross-network
+        # pairing. We connect only to user-controlled personal machines (never
+        # arbitrary web content); SSH is raw NIO sockets and CloudKit uses its
+        # own secure transport, so this exception's only effect is the local
+        # pairing handshake.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
         # Remote notifications: away-watcher pushes ("a session needs you")
         # and Live Activity remote updates.
         UIBackgroundModes:
@@ -269,6 +283,11 @@ schemes:
         ShioLiveActivities: all
     run:
       config: Debug
+      # Wireless on-device debugging often times out initializing the unified
+      # log ("Failed to initialize logging system"); log streaming is Xcode's
+      # own suggested fix and keeps console output flowing.
+      environmentVariables:
+        IDEPreferLogStreaming: "YES"
     test:
       config: Debug
     profile:
