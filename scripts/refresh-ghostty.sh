@@ -39,7 +39,7 @@ DEST="$SHIO/Frameworks/GhosttyKit.xcframework"
 SRC="$GHOSTTY/macos/GhosttyKit.xcframework"
 
 # Pinned Release holding the prebuilt libs (bump after each --update rebuild).
-GHOSTTYKIT_TAG="ghosttykit-367c309cc"
+GHOSTTYKIT_TAG="ghosttykit-332da19d2"
 GHOSTTYKIT_URL="https://github.com/shio-sh/shio/releases/download/${GHOSTTYKIT_TAG}/ghosttykit-libs.tar.gz"
 
 # --fetch: pull the prebuilt libs into the (git-tracked, .a-less) xcframework.
