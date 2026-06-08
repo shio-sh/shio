@@ -110,6 +110,9 @@ final class TerminalContainerView: UIView {
     /// Points-per-row heuristic for normal-screen scrolling — each
     /// accumulated unit scrolls one row in libghostty's scrollback.
     private let pointsPerScrollLine: CGFloat = 16
+    /// Points of drag per synthesized wheel notch in alt-screen (a TUI). Larger
+    /// than a row so a flick doesn't fling the program's buffer.
+    private let pointsPerWheelNotch: CGFloat = 26
 
     @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
         switch recognizer.state {
@@ -118,21 +121,22 @@ final class TerminalContainerView: UIView {
         case .changed:
             let translation = recognizer.translation(in: self)
             recognizer.setTranslation(.zero, in: self)
+            scrollAccumulatedPoints += translation.y
 
             if controller.surfaceView.isAlternateScreenActive {
-                // Alt-screen path: send a mouse-wheel event with the
-                // raw pixel delta. tmux (with mouse mode on, which
-                // Shio enables via TmuxResume) interprets these as
-                // scroll-its-own-buffer; Claude Code / vim / htop with
-                // their respective mouse-capture modes do the same.
-                // No accumulation needed — libghostty handles
-                // sub-line precision internally.
-                controller.surfaceView.sendMouseScroll(deltaY: translation.y)
+                // Alt-screen (Claude Code / vim under tmux): ghostty's own
+                // scrollback is empty here, so we synthesize SGR mouse-wheel
+                // events and send them upstream — tmux routes them to the
+                // program. Accumulate to whole wheel notches; drag down
+                // (positive) = older content = wheel up.
+                let notches = Int(scrollAccumulatedPoints / pointsPerWheelNotch)
+                if notches != 0 {
+                    scrollAccumulatedPoints -= CGFloat(notches) * pointsPerWheelNotch
+                    controller.wheelScroll(up: notches > 0, notches: abs(notches))
+                }
             } else {
-                // Normal-screen path: accumulate to whole-line steps
-                // and shift libghostty's scrollback via the binding
-                // action. Negative units = scroll up into older.
-                scrollAccumulatedPoints += translation.y
+                // Normal-screen path: shift libghostty's real scrollback.
+                // Negative units = scroll up into older.
                 let step = Int(scrollAccumulatedPoints / pointsPerScrollLine)
                 if step != 0 {
                     scrollAccumulatedPoints -= CGFloat(step) * pointsPerScrollLine

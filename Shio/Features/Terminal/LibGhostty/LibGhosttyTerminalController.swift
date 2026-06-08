@@ -56,20 +56,32 @@ final class LibGhosttyTerminalController {
     func pageDown() { page(directionDown: true) }
 
     private func page(directionDown: Bool) {
-        // Keep a couple of rows of overlap for reading continuity.
-        let amount = max(1, currentRows - 2)
         if surfaceView.isAlternateScreenActive {
-            // A TUI (less/vim/htop, or tmux with mouse on) owns the buffer;
-            // libghostty's own scrollback is suspended. Send a wheel scroll
-            // big enough to move ~a page so the program scrolls itself.
-            // sendMouseScroll: +deltaY = wheel-up = older content into view.
-            let pointsPerRow: CGFloat = 18
-            let sign: CGFloat = directionDown ? -1 : 1
-            surfaceView.sendMouseScroll(deltaY: sign * CGFloat(amount) * pointsPerRow)
+            // A full-screen TUI (Claude Code, vim, htop) under tmux owns the
+            // screen — ghostty's OWN scrollback is empty there, so scrolling it
+            // does nothing (the bug). Instead synthesize SGR mouse-wheel events
+            // and send them straight upstream; tmux (`set mouse on`) routes them
+            // to the program, which scrolls its own buffer. This bypasses
+            // ghostty's mouse-mode tracking, which mis-detects over SSH.
+            wheelScroll(up: !directionDown, notches: max(3, (currentRows - 2) / 3))
         } else {
-            // scrollLines: + = toward live tail, - = into older history.
+            // Normal screen: shift libghostty's real scrollback.
+            let amount = max(1, currentRows - 2)
             surfaceView.scrollLines(directionDown ? amount : -amount)
         }
+    }
+
+    /// Send `notches` synthetic SGR (1006) mouse-wheel reports upstream. Wheel
+    /// up = button 64, down = 65; the cell position just needs to land inside
+    /// the pane so tmux routes it to the right place. Used by the Page buttons
+    /// and the alt-screen pan gesture.
+    func wheelScroll(up: Bool, notches: Int) {
+        guard notches > 0 else { return }
+        let button = up ? 64 : 65
+        let row = max(1, currentRows / 2)
+        let col = 4
+        let one = "\u{1B}[<\(button);\(col);\(row)M"
+        onInput?(String(repeating: one, count: notches))
     }
 
     // MARK: - Outgoing (SSH → terminal display)

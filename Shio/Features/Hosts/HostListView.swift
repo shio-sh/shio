@@ -8,6 +8,27 @@ struct HostListView: View {
     @Query(sort: \Host.lastConnectedAt, order: .reverse) private var hosts: [Host]
     @Environment(\.modelContext) private var context
 
+    /// One row per machine. The same Mac can arrive as two records — the
+    /// stamped self-host plus an older un-stamped pairing/synced copy with
+    /// identical params — so collapse by (name, hostname, user), keeping the
+    /// record that carries a deviceID. (The Mac also merges these at the source;
+    /// this keeps the list correct immediately, before that delete syncs in.)
+    private var dedupedHosts: [Host] {
+        func key(_ h: Host) -> String {
+            "\(h.name.lowercased())|\(h.hostname.lowercased())|\(h.username.lowercased())"
+        }
+        var keep: [String: Host] = [:]
+        for h in hosts {
+            if let existing = keep[key(h)] {
+                if existing.deviceID == nil && h.deviceID != nil { keep[key(h)] = h }
+            } else {
+                keep[key(h)] = h
+            }
+        }
+        let kept = Set(keep.values.map(ObjectIdentifier.init))
+        return hosts.filter { kept.contains(ObjectIdentifier($0)) }
+    }
+
     @State private var isAddingHost = false
     @State private var isPairing = false
     @State private var showingTerminal = false
@@ -27,7 +48,7 @@ struct HostListView: View {
                         emptyState
                     } else {
                         Section {
-                            ForEach(hosts) { host in
+                            ForEach(dedupedHosts) { host in
                                 Button {
                                     sessionStore.openOrCreate(host: host)
                                     showingTerminal = true
