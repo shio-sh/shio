@@ -1,3 +1,6 @@
 app_identifier("sh.shio.app")            # iPhone/iPad app
-apple_id("amrith.shanbhag@gmail.com")
-team_id("VRNNS4H6XH")                     # Apple Developer team
+team_id("VRNNS4H6XH")                     # Apple Developer team (code signing)
+# No apple_id on purpose: with a username present fastlane prefers Apple-ID web
+# auth (multi-team + 2FA prompts). We authenticate with the App Store Connect
+# API key instead — it's team-bound, so app creation + uploads are
+# non-interactive.

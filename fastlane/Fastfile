@@ -42,12 +42,12 @@ end
 platform :ios do
   desc "One-time: create the iOS app record in App Store Connect"
   lane :setup do
+    asc_key   # sets the API key in the lane context; produce reads it from there
     produce(
       app_identifier: "sh.shio.app",
       app_name: "Shio",
       language: "en-US",
-      sku: "shio-ios-001",
-      api_key: asc_key
+      sku: "shio-ios-001"
     )
   end
 
