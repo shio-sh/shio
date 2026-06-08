@@ -62,3 +62,12 @@ package-lock.json
 # on disk locally and are distributed as a GitHub Release asset. A fresh clone
 # fetches/builds them before the first Xcode build.
 Frameworks/GhosttyKit.xcframework/**/*.a
+
+# fastlane
+fastlane/.env
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/test_output/
+build/
+*.ipa
+*.dmg

@@ -1,0 +1,3 @@
+app_identifier("sh.shio.app")            # iPhone/iPad app
+apple_id("amrith.shanbhag@gmail.com")
+team_id("VRNNS4H6XH")                     # Apple Developer team

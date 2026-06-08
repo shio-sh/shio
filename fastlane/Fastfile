@@ -1,0 +1,97 @@
+# Shio — fastlane.
+#
+#   iOS → TestFlight (App Store Connect).
+#   Mac → Developer ID + notarization (DIRECT download, a DMG off shio.sh).
+#         The Mac App Store can't host a real terminal: it mandates the App
+#         Sandbox, which forbids running arbitrary shells + reading your files.
+#
+# AUTH — App Store Connect API key (Users & Access → Integrations → App Store
+# Connect API → generate a key with App Manager access). Put these in
+# fastlane/.env (gitignored), or export them:
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH  (path to the downloaded .p8)
+#
+# FIRST TIME: `fastlane ios setup` creates the iOS app record in ASC.
+
+opt_out_usage
+
+# Regenerate the Xcode project (xcodegen) and make sure the gitignored
+# GhosttyKit libs are present before any build.
+before_all do
+  Dir.chdir("..") do
+    sh("xcodegen")
+    if Dir.glob("Frameworks/GhosttyKit.xcframework/**/*.a").empty?
+      sh("./scripts/refresh-ghostty.sh --fetch")
+    end
+  end
+end
+
+def asc_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("ASC_KEY_ID"),
+    issuer_id: ENV.fetch("ASC_ISSUER_ID"),
+    key_filepath: File.expand_path(ENV.fetch("ASC_KEY_PATH"))
+  )
+end
+
+# App Store build numbers must strictly increase — a UTC timestamp guarantees it
+# without a counter to maintain (xcodegen would clobber an incremented pbxproj).
+def build_number
+  Time.now.utc.strftime("%Y%m%d%H%M")
+end
+
+platform :ios do
+  desc "One-time: create the iOS app record in App Store Connect"
+  lane :setup do
+    produce(
+      app_identifier: "sh.shio.app",
+      app_name: "Shio",
+      language: "en-US",
+      sku: "shio-ios-001",
+      api_key: asc_key
+    )
+  end
+
+  desc "Build the iPhone/iPad app and upload to TestFlight"
+  lane :beta do
+    key = asc_key
+    build_app(
+      project: "Shio.xcodeproj",
+      scheme: "Shio",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "build/ios",
+      clean: true,
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}"
+    )
+    upload_to_testflight(
+      api_key: key,
+      app_identifier: "sh.shio.app",
+      skip_waiting_for_build_processing: true,
+      changelog: "Shio beta — a real terminal for the agent era."
+    )
+  end
+end
+
+platform :mac do
+  desc "Build, Developer-ID-sign, and notarize the Mac app → build/mac (DIRECT download, not the App Store)"
+  lane :release do
+    key = asc_key
+    # Hardened Runtime is REQUIRED for notarization. ⚠️ It can also disable the
+    # ObjC fork-safety opt-out the local terminal relies on — TEST the terminal
+    # in this build before shipping (see DISTRIBUTION.md).
+    build_mac_app(
+      project: "Shio.xcodeproj",
+      scheme: "ShioMac",
+      configuration: "Release",
+      export_method: "developer-id",
+      output_directory: "build/mac",
+      clean: true,
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} ENABLE_HARDENED_RUNTIME=YES"
+    )
+    notarize(
+      package: "build/mac/Shio.app",
+      api_key: key,
+      bundle_id: "sh.shio.app.mac"
+    )
+  end
+end
