@@ -61,7 +61,12 @@ platform :ios do
       export_method: "app-store",
       output_directory: "build/ios",
       clean: true,
-      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}"
+      # Automatic signing for BOTH archive and export. With the ASC API key in
+      # context, gym passes -allowProvisioningUpdates to the export step, so
+      # xcodebuild mints the Apple Distribution cert + App Store profiles for the
+      # app and its extensions on demand — no manual profile mapping to maintain.
+      export_options: { signingStyle: "automatic" },
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} -allowProvisioningUpdates"
     )
     upload_to_testflight(
       api_key: key,

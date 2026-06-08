@@ -67,8 +67,12 @@ targets:
         product: NIOCore
       - package: swift-nio
         product: NIOPosix
+      # GhosttyKit is a STATIC library (ghostty-internal.a) — link it, don't
+      # embed it. Embedding a static archive copies the .a into Shio.app/Frameworks,
+      # which App Store upload rejects (90171: "standalone executables or libraries
+      # not permitted"). Same as the Mac target below.
       - framework: Frameworks/GhosttyKit.xcframework
-        embed: true
+        embed: false
       - target: ShioWidgets
       - target: ShioLiveActivities
     info:
@@ -166,6 +170,14 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Shio/Shio.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+      configs:
+        # APNs token environment, substituted into Shio.entitlements. Debug builds
+        # talk to the sandbox APNs; TestFlight/App Store (Release) need production
+        # or away / agent-needs-input pushes silently never arrive.
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
 
   ShioWidgets:
     type: app-extension
