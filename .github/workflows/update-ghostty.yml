@@ -1,0 +1,135 @@
+name: Update Ghostty
+
+# Keeps Shio on the latest upstream Ghostty. Each run rebases our single patch
+# ("External IO backend + C ABI") onto ghostty-org/ghostty main, rebuilds
+# GhosttyKit, publishes the binary as a Release, and opens a PR bumping the
+# pinned tag (+ any header/ABI changes) for review. It NEVER auto-merges — the
+# terminal core is too load-bearing for silent updates, and a rebase conflict
+# or ABI drift needs a human.
+#
+# SETUP (one-time): add a repo secret `GHOSTTY_BOT_TOKEN` — a PAT with write
+# access to BOTH shio-sh/shio (release + PR) and shio-sh/ghostty (push the
+# rebased fork). The default GITHUB_TOKEN can't reach the fork repo.
+#
+# Public repo ⇒ free macOS runner minutes. Use the manual trigger for the first
+# few runs to shake out the CI Nix build.
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-ghostty
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Shio
+        uses: actions/checkout@v4
+        with:
+          path: shio
+          token: ${{ secrets.GHOSTTY_BOT_TOKEN }}
+
+      - name: Checkout Ghostty fork (full history, for rebase)
+        uses: actions/checkout@v4
+        with:
+          repository: shio-sh/ghostty
+          path: ghostty
+          fetch-depth: 0
+          token: ${{ secrets.GHOSTTY_BOT_TOKEN }}
+
+      - name: Rebase the Shio patch onto upstream ghostty main
+        id: rebase
+        working-directory: ghostty
+        run: |
+          set -euo pipefail
+          git config user.name  "shio-bot"
+          git config user.email "bot@shio.sh"
+          git remote add upstream https://github.com/ghostty-org/ghostty.git 2>/dev/null || true
+          git fetch --quiet upstream main
+          if [ "$(git merge-base HEAD upstream/main)" = "$(git rev-parse upstream/main)" ]; then
+            echo "Already on the latest upstream — nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if ! git rebase upstream/main; then
+            git rebase --abort || true
+            echo "::error::The Shio patch does not rebase cleanly onto upstream/main — resolve manually."
+            exit 1
+          fi
+          echo "rev=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Install Nix
+        if: steps.rebase.outputs.changed == 'true'
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build GhosttyKit (Nix dev shell, Zig 0.15.2)
+        if: steps.rebase.outputs.changed == 'true'
+        working-directory: ghostty
+        run: |
+          set -euo pipefail
+          nix develop --accept-flake-config -c bash -c '
+            set -e
+            ZIG=""
+            for d in $(echo "$PATH" | tr ":" "\n"); do
+              if [ -x "$d/zig" ] && [ "$("$d/zig" version 2>/dev/null)" = "0.15.2" ]; then ZIG="$d/zig"; break; fi
+            done
+            [ -n "$ZIG" ] || { echo "!! no zig 0.15.2 on dev-shell PATH" >&2; exit 1; }
+            echo "    using zig: $ZIG"
+            exec "$ZIG" build -Demit-macos-app=false
+          '
+          test -d macos/GhosttyKit.xcframework
+
+      - name: Publish the binary as a Release
+        if: steps.rebase.outputs.changed == 'true'
+        working-directory: ghostty
+        env:
+          GH_TOKEN: ${{ secrets.GHOSTTY_BOT_TOKEN }}
+          REV: ${{ steps.rebase.outputs.rev }}
+        run: |
+          set -euo pipefail
+          XC=macos/GhosttyKit.xcframework
+          tar -czf "$RUNNER_TEMP/ghosttykit-libs.tar.gz" -C "$XC" \
+            macos-arm64_x86_64/ghostty-internal.a \
+            ios-arm64/libghostty-internal-fat.a \
+            ios-arm64-simulator/libghostty-internal-fat.a
+          gh release create "ghosttykit-$REV" "$RUNNER_TEMP/ghosttykit-libs.tar.gz" \
+            --repo shio-sh/shio --title "GhosttyKit @ $REV" \
+            --notes "Auto-built from ghostty-org/ghostty main + Shio External-IO patch." \
+          || gh release upload "ghosttykit-$REV" "$RUNNER_TEMP/ghosttykit-libs.tar.gz" --repo shio-sh/shio --clobber
+
+      - name: Push the rebased fork
+        if: steps.rebase.outputs.changed == 'true'
+        working-directory: ghostty
+        run: git push --force-with-lease origin HEAD:main
+
+      - name: Open a PR bumping the pinned tag (+ header sync)
+        if: steps.rebase.outputs.changed == 'true'
+        working-directory: shio
+        env:
+          GH_TOKEN: ${{ secrets.GHOSTTY_BOT_TOKEN }}
+          REV: ${{ steps.rebase.outputs.rev }}
+        run: |
+          set -euo pipefail
+          BR="ghostty-update-$REV"
+          git config user.name  "shio-bot"
+          git config user.email "bot@shio.sh"
+          git checkout -b "$BR"
+          # Bump the pinned Release tag the --fetch path uses (BSD sed on macOS).
+          sed -i '' "s|^GHOSTTYKIT_TAG=.*|GHOSTTYKIT_TAG=\"ghosttykit-$REV\"|" scripts/refresh-ghostty.sh
+          # Sync the public headers (tracked in git); the .a stay gitignored.
+          cp -R ../ghostty/macos/GhosttyKit.xcframework/. Frameworks/GhosttyKit.xcframework/
+          git add -A
+          if git diff --cached --quiet; then echo "No tracked changes to PR."; exit 0; fi
+          git commit -m "Update Ghostty to $REV"
+          git push origin "$BR"
+          gh pr create --base main --head "$BR" \
+            --title "Update Ghostty to $REV" \
+            --body "Auto-rebased the Shio patch onto upstream ghostty \`main\` and rebuilt GhosttyKit (Release \`ghosttykit-$REV\`). Review the header/ABI diff, then build **both** schemes locally before merging. \`scripts/refresh-ghostty.sh --fetch\` pulls the new binary."
