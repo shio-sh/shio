@@ -12,7 +12,7 @@ Automated with **fastlane** (`fastlane/Fastfile`).
 ## One-time setup
 1. **App Store Connect API key:** ASC → Users and Access → Integrations → App Store Connect API → generate (App Manager). Download the `.p8`.
 2. `cp fastlane/.env.example fastlane/.env` and fill in `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_PATH`.
-3. **Create the iOS app record:** `fastlane ios setup` (or make it by hand in ASC — name "Shio", bundle id `sh.shio.app`).
+3. **Create the iOS app record — once, in the ASC web UI.** App Store Connect → Apps → ＋ → New App → iOS, name "Shio", bundle id `sh.shio.app`, SKU `shio-ios-001`. (This is the *only* manual step: Apple's API can't create app records, so `produce`/the API key can't do it — but everything after, build + upload, runs off the API key non-interactively.)
 
 ## iPhone / iPad → TestFlight
 ```
