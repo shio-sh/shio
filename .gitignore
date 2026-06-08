@@ -56,3 +56,9 @@ design/exports/
 # Node (xterm.js bundling — when we get to Brick 2)
 node_modules/
 package-lock.json
+
+# GhosttyKit static libraries are large build artifacts (~800 MB), produced by
+# scripts/refresh-ghostty.sh from the Ghostty fork. Kept OUT of git — they live
+# on disk locally and are distributed as a GitHub Release asset. A fresh clone
+# fetches/builds them before the first Xcode build.
+Frameworks/GhosttyKit.xcframework/**/*.a
