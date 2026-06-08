@@ -29,8 +29,17 @@ concurrency:
 
 jobs:
   update:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
+      # The Nix shell provides the toolchain (zig + clang/cctools) but the iOS
+      # frameworks still come from the runner's system Xcode. Latest Ghostty
+      # uses newer SDK symbols (e.g. kCVPixelFormatType_30RGB_r210), so pin the
+      # newest stable Xcode and export DEVELOPER_DIR for the Nix build to see.
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
       - name: Checkout Shio
         uses: actions/checkout@v4
         with:
