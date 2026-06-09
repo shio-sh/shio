@@ -56,6 +56,7 @@ final class SSHClient: @unchecked Sendable {
         case keychainFailed(String)
         case sshKeyMissing
         case noUsableKey([String])
+        case hostKeyChanged
 
         var errorDescription: String? {
             switch self {
@@ -72,6 +73,8 @@ final class SSHClient: @unchecked Sendable {
             case .noUsableKey(let skipped):
                 let detail = skipped.isEmpty ? "" : " (" + skipped.joined(separator: "; ") + ")"
                 return "No usable SSH key found in ~/.ssh\(detail). Add an ed25519 key, or set a password for this host."
+            case .hostKeyChanged:
+                return "This server's host key changed since you last connected. That can mean it was reinstalled — or that the connection is being intercepted. Refused for safety. Remove the host and re-add it if you trust the change."
             }
         }
     }
@@ -158,7 +161,7 @@ final class SSHClient: @unchecked Sendable {
     private func doConnect() async throws {
         let cfg = configuration
         let auth = SSHAuthenticationDelegate(configuration: cfg, resolvedKeys: resolvedKeys)
-        let host = SSHHostKeyDelegate()
+        let host = SSHHostKeyDelegate(hostPort: "\(cfg.host):\(cfg.port)")
 
         let bootstrap = ClientBootstrap(group: SSHClient.sharedGroup)
             .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
@@ -375,18 +378,88 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
     }
 }
 
-// MARK: - Host key delegate (TOFU stub — Brick 7 hardens this)
+// MARK: - Host key pinning (trust-on-first-use)
 
+/// Shio's own known-hosts pin store: `host:port` → host-key fingerprint, so a
+/// host key that *changes* between connects (a potential MITM, or a reinstalled
+/// box) is caught. Persisted in UserDefaults — fingerprints are public, not
+/// secret, same as `~/.ssh/known_hosts`.
+enum ShioKnownHosts {
+    private static let storeKey = "shio.knownHosts.v1"
+    private static let lock = NSLock()
+
+    static func fingerprint(for hostPort: String) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        return (UserDefaults.standard.dictionary(forKey: storeKey) as? [String: String])?[hostPort]
+    }
+
+    static func pin(_ fingerprint: String, for hostPort: String) {
+        lock.lock(); defer { lock.unlock() }
+        var map = (UserDefaults.standard.dictionary(forKey: storeKey) as? [String: String]) ?? [:]
+        map[hostPort] = fingerprint
+        UserDefaults.standard.set(map, forKey: storeKey)
+    }
+
+    /// Forget a host's pin (e.g. user chose to re-trust a changed key).
+    static func forget(_ hostPort: String) {
+        lock.lock(); defer { lock.unlock() }
+        var map = (UserDefaults.standard.dictionary(forKey: storeKey) as? [String: String]) ?? [:]
+        map[hostPort] = nil
+        UserDefaults.standard.set(map, forKey: storeKey)
+    }
+}
+
+/// A stable fingerprint for a host key. swift-nio-ssh exposes no public
+/// serializer for `NIOSSHPublicKey`, but it wraps a plain CryptoKit key whose
+/// `rawRepresentation` *is* stable — so reflect to it and SHA-256 that. Returns
+/// nil if NIOSSH ever restructures its internals (or for certified keys), in
+/// which case the caller accepts without pinning rather than breaking.
+private func hostKeyFingerprint(_ key: NIOSSHPublicKey) -> String? {
+    guard let backing = Mirror(reflecting: key).children.first(where: { $0.label == "backingKey" })?.value,
+          let assoc = Mirror(reflecting: backing).children.first else { return nil }
+    let raw: Data
+    switch assoc.value {
+    case let k as Curve25519.Signing.PublicKey: raw = k.rawRepresentation
+    case let k as P256.Signing.PublicKey:        raw = k.rawRepresentation
+    case let k as P384.Signing.PublicKey:        raw = k.rawRepresentation
+    case let k as P521.Signing.PublicKey:        raw = k.rawRepresentation
+    default: return nil   // certified / unknown key type → no pin
+    }
+    var hasher = SHA256()
+    hasher.update(data: Data((assoc.label ?? "").utf8))   // key-type tag, so types can't collide
+    hasher.update(data: raw)
+    return "v1:" + Data(hasher.finalize()).base64EncodedString()
+}
+
+/// Validates the server's host key with trust-on-first-use: pin the key the
+/// first time we see a `host:port`, accept it unchanged thereafter, and refuse
+/// if it changes (MITM / reinstall — surfaced as `.hostKeyChanged`).
+///
+/// NOTE: this used to hardcode `.fail` in Release (accept only in DEBUG), which
+/// rejected EVERY host key in every shipped build — no Release build could
+/// connect to anything. That was the launch blocker.
 private final class SSHHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate, @unchecked Sendable {
+    private let hostPort: String
+    init(hostPort: String) { self.hostPort = hostPort }
+
     func validateHostKey(
         hostKey: NIOSSHPublicKey,
         validationCompletePromise: EventLoopPromise<Void>
     ) {
-        #if DEBUG
-        validationCompletePromise.succeed(())
-        #else
-        validationCompletePromise.fail(SSHClient.SSHError.authenticationFailed)
-        #endif
+        guard let fp = hostKeyFingerprint(hostKey) else {
+            validationCompletePromise.succeed(())   // can't fingerprint → accept, don't break
+            return
+        }
+        if let pinned = ShioKnownHosts.fingerprint(for: hostPort) {
+            if pinned == fp {
+                validationCompletePromise.succeed(())
+            } else {
+                validationCompletePromise.fail(SSHClient.SSHError.hostKeyChanged)
+            }
+        } else {
+            ShioKnownHosts.pin(fp, for: hostPort)    // trust on first use
+            validationCompletePromise.succeed(())
+        }
     }
 }
 
