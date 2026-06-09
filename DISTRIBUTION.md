@@ -47,6 +47,12 @@ rm -f /tmp/devid.p12                            # never commit / never print the
 ```
 (Or export just the *Developer ID Application* identity + its key via Keychain Access → Export → `.p12`.)
 
+**Sixth secret — the Developer ID provisioning profile** (`DEVID_PROFILE_BASE64`). The export signs manually against the pinned *"Mac Team Direct Provisioning Profile: sh.shio.app.mac"* (the API key can't cloud-sign Developer ID). A local `fastlane mac release` creates+embeds it; grab it from there (valid through 2044):
+```sh
+base64 -i build/mac/Shio.app/Contents/embedded.provisionprofile \
+  | gh secret set DEVID_PROFILE_BASE64 --repo shio-sh/shio
+```
+
 (Sparkle for in-app auto-update is a later add — it points at a GitHub-Releases appcast, which is exactly what this workflow produces. See the landing/messaging work.)
 
 > ⚠️ **TEST FIRST — hardened-runtime + the local terminal.** Notarization requires Hardened Runtime, and the ObjC runtime ignores `OBJC_DISABLE_INITIALIZE_FORK_SAFETY` for hardened processes — the very opt-out the local terminal used to dodge the fork-safety abort when ghostty forks a shell. **Before distributing, open the notarized `build/mac/Shio.app`, start a local terminal tab, and confirm you get a working shell** (not a blank cursor). Ghostty.app ships notarized + hardened with a working terminal using the same libghostty, so it's very likely fine — but it MUST be verified on a hardened build, since our Debug builds are unhardened. If the shell doesn't spawn, the fix is in the libghostty spawn path (posix_spawn vs fork), not the env var.

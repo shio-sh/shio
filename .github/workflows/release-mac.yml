@@ -71,6 +71,18 @@ jobs:
             $(security list-keychains -d user | sed 's/"//g')
           rm -f "$RUNNER_TEMP/cert.p12"
 
+      # The Developer ID export signs manually against this pinned profile (the
+      # API key can't cloud-sign Developer ID). Xcode matches profiles by their
+      # embedded UUID, so the filename is arbitrary.
+      - name: Install Developer ID provisioning profile
+        env:
+          DEVID_PROFILE_BASE64: ${{ secrets.DEVID_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$DIR"
+          echo "$DEVID_PROFILE_BASE64" | base64 --decode > "$DIR/shio-mac.provisionprofile"
+
       # The fastlane lanes read the ASC API key from these env vars (asc_key).
       - name: Stage App Store Connect API key
         env:
