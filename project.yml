@@ -269,7 +269,9 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.developer-tools
-        LSMinimumSystemVersion: "26.0"
+        # Track the deployment target so the launch gate can't drift from the
+        # binary's minos (hardcoding 26.0 here is what locked out Sequoia).
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         # See scheme note: keep the ObjC fork-safety abort disabled for
         # Finder/dock launches too (libghostty forks a shell per local surface).
         LSEnvironment:

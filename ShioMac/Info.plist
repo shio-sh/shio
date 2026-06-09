@@ -28,6 +28,6 @@
 		<string>YES</string>
 	</dict>
 	<key>LSMinimumSystemVersion</key>
-	<string>26.0</string>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 </dict>
 </plist>
