@@ -28,8 +28,11 @@ final class MacSSHSession: Identifiable {
         self.port = port
         self.username = username
         self.resumeCommand = resumeCommand ?? TmuxResume.resumeCommand(for: host, index: 0)
+        // On Mac, default to the user's existing ~/.ssh keys (then the Shio key)
+        // so Shio connects with the keys their servers already trust — like
+        // Terminal. A one-shot password (first connect / no key yet) still wins.
         let auth: SSHClient.Authentication =
-            (password?.isEmpty == false) ? .password(password!) : .shioKey
+            (password?.isEmpty == false) ? .password(password!) : .systemKeys
         let config = SSHClient.Configuration(
             host: host, port: port, username: username, authentication: auth
         )
@@ -83,7 +86,13 @@ final class MacSSHSession: Identifiable {
             // what makes the session follow you across devices.
             client.write(resumeCommand)
         } catch {
-            state = .failed(error.localizedDescription)
+            // Render the failure on the terminal — a silent blank cursor is the
+            // worst outcome. ConnectErrorTranslator turns NIO/auth/DNS errors
+            // into something a human can act on.
+            let msg = ConnectErrorTranslator.translate(error, host: hostName, port: port)
+            state = .failed(msg)
+            let line = "\r\n\u{1b}[31m⚠  \(msg)\u{1b}[0m\r\n"
+            surface.writeBytes(Data(line.utf8))
         }
     }
 

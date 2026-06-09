@@ -32,8 +32,13 @@ final class SSHClient: @unchecked Sendable {
     enum Authentication: Sendable {
         case password(String)
         /// Authenticate using Shio's device-bound Ed25519 key (from KeyManager).
-        /// This is the default for all hosts created through onboarding.
+        /// This is the default for all hosts created through onboarding on iOS.
         case shioKey
+        /// Mac-native: offer the user's existing `~/.ssh` keys first (so Shio
+        /// connects with the keys their servers already trust, like Terminal),
+        /// then fall back to the Shio key. On iOS there are no `~/.ssh` keys, so
+        /// this degrades to just the Shio key.
+        case systemKeys
         /// No authentication is configured. SSHClient will surface a clear
         /// error rather than attempting an impossible handshake.
         case unconfigured
@@ -50,6 +55,7 @@ final class SSHClient: @unchecked Sendable {
         case keychainUnavailable(String)
         case keychainFailed(String)
         case sshKeyMissing
+        case noUsableKey([String])
 
         var errorDescription: String? {
             switch self {
@@ -58,11 +64,14 @@ final class SSHClient: @unchecked Sendable {
             case .ptyRequestFailed:            return "The remote host wouldn't open a PTY."
             case .noAuthenticationConfigured:  return "This Mac has no authentication set up. Add a password or SSH key in its profile."
             case .connectionFailed(let why):   return "Couldn't reach this Mac. \(why)"
-            case .authenticationFailed:        return "Authentication failed. Make sure Shio's public key is in this Mac's authorized_keys file."
+            case .authenticationFailed:        return "Authentication failed — the server rejected the key(s) and password offered. Make sure this device's key is in the host's ~/.ssh/authorized_keys."
             case .notConnected:                return "Not connected."
             case .keychainUnavailable(let why):return "Couldn't read your SSH key — \(why)"
             case .keychainFailed(let why):     return "Keychain error — \(why)"
             case .sshKeyMissing:               return "No SSH key has been generated yet. Open Settings → SSH Key to set one up."
+            case .noUsableKey(let skipped):
+                let detail = skipped.isEmpty ? "" : " (" + skipped.joined(separator: "; ") + ")"
+                return "No usable SSH key found in ~/.ssh\(detail). Add an ed25519 key, or set a password for this host."
             }
         }
     }
@@ -80,9 +89,10 @@ final class SSHClient: @unchecked Sendable {
     private var channel:      (any Channel)?
     private var childChannel: (any Channel)?
     private let configuration: Configuration
-    /// The SSH key resolved at connect() time, so the auth delegate
-    /// never touches Keychain on the NIO event loop.
-    private var resolvedKey: NIOSSHPrivateKey?
+    /// The SSH keys resolved at connect() time (in preference order), so the
+    /// auth delegate never touches Keychain or the filesystem on the NIO event
+    /// loop. The delegate offers each in turn until one is accepted.
+    private var resolvedKeys: [NIOSSHPrivateKey] = []
 
     init(configuration: Configuration) {
         self.configuration = configuration
@@ -105,6 +115,8 @@ final class SSHClient: @unchecked Sendable {
             break
         case .shioKey:
             try resolveShioKey()
+        case .systemKeys:
+            try resolveSystemKeys()
         }
         try await doConnect()
     }
@@ -117,7 +129,7 @@ final class SSHClient: @unchecked Sendable {
             guard let pk = try KeyManager.existingKey() else {
                 throw SSHError.sshKeyMissing
             }
-            resolvedKey = NIOSSHPrivateKey(ed25519Key: pk)
+            resolvedKeys = [NIOSSHPrivateKey(ed25519Key: pk)]
         } catch let e as KeyManager.KeyError {
             if e.isAvailabilityIssue {
                 throw SSHError.keychainUnavailable(e.localizedDescription)
@@ -128,9 +140,24 @@ final class SSHClient: @unchecked Sendable {
         }
     }
 
+    /// Mac-native auth: offer the user's existing `~/.ssh` keys first, then the
+    /// Shio key if one exists. Best-effort — keys that can't be parsed are
+    /// skipped. Throws only when nothing usable is found, with the reasons.
+    private func resolveSystemKeys() throws {
+        let loaded = SystemSSHKeys.load()
+        var keys = loaded.keys
+        if let pk = try? KeyManager.existingKey() {
+            keys.append(NIOSSHPrivateKey(ed25519Key: pk))
+        }
+        guard !keys.isEmpty else {
+            throw SSHError.noUsableKey(loaded.skipped)
+        }
+        resolvedKeys = keys
+    }
+
     private func doConnect() async throws {
         let cfg = configuration
-        let auth = SSHAuthenticationDelegate(configuration: cfg, resolvedKey: resolvedKey)
+        let auth = SSHAuthenticationDelegate(configuration: cfg, resolvedKeys: resolvedKeys)
         let host = SSHHostKeyDelegate()
 
         let bootstrap = ClientBootstrap(group: SSHClient.sharedGroup)
@@ -295,14 +322,17 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
     let configuration: SSHClient.Configuration
     /// Pre-resolved by SSHClient.connect() so this delegate never touches
     /// Keychain on the NIO event loop.
-    let resolvedKey: NIOSSHPrivateKey?
+    let resolvedKeys: [NIOSSHPrivateKey]
     /// Tracks which methods we've already tried this session so NIO doesn't
     /// loop us into the same offer when the server rejects it.
     private var attempted: Set<String> = []
+    /// Index of the next key to offer — we walk the list so the server can
+    /// reject one and we try the next (system keys, then the Shio key).
+    private var keyIndex = 0
 
-    init(configuration: SSHClient.Configuration, resolvedKey: NIOSSHPrivateKey?) {
+    init(configuration: SSHClient.Configuration, resolvedKeys: [NIOSSHPrivateKey]) {
         self.configuration = configuration
-        self.resolvedKey = resolvedKey
+        self.resolvedKeys = resolvedKeys
     }
 
     func nextAuthenticationType(
@@ -323,14 +353,15 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
             )
             nextChallengePromise.succeed(offer)
 
-        case .shioKey:
-            guard let key = resolvedKey,
-                  availableMethods.contains(.publicKey),
-                  !attempted.contains("publicKey") else {
+        case .shioKey, .systemKeys:
+            // Offer each resolved key in turn; NIO calls us again when the
+            // server rejects one, so we advance to the next key in the list.
+            guard availableMethods.contains(.publicKey), keyIndex < resolvedKeys.count else {
                 nextChallengePromise.succeed(nil)
                 return
             }
-            attempted.insert("publicKey")
+            let key = resolvedKeys[keyIndex]
+            keyIndex += 1
             let offer = NIOSSHUserAuthenticationOffer(
                 username: configuration.username,
                 serviceName: "",
