@@ -34,7 +34,10 @@
 set -euo pipefail
 
 GHOSTTY="${GHOSTTY_DIR:-$HOME/ghostty}"
-SHIO="${SHIO_DIR:-$HOME/Shio}"
+# Default to THIS script's repo root (scripts/..), not $HOME/Shio — so --fetch
+# extracts into the actual checkout regardless of cwd or host (CI clones to
+# /Users/runner/work/shio/shio, not ~/Shio). SHIO_DIR still overrides.
+SHIO="${SHIO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 DEST="$SHIO/Frameworks/GhosttyKit.xcframework"
 SRC="$GHOSTTY/macos/GhosttyKit.xcframework"
 
