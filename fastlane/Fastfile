@@ -105,19 +105,14 @@ platform :mac do
       output_directory: "build/mac",
       clean: true,
       # ShioMac uses iCloud/CloudKit + push + app groups, so even a Developer ID
-      # build needs a provisioning profile. The ARCHIVE provisions automatically
-      # via the API key (xcode_asc_auth). The EXPORT signs MANUALLY with the
-      # local Developer ID cert + the pinned "Mac Team Direct" profile — automatic
-      # export tries cloud-managed Developer ID signing, which the API key isn't
-      # permitted to do ("Cloud signing permission error"). The profile is in the
-      # keychain locally and installed from a secret in CI (valid through 2044).
-      export_options: {
-        signingStyle: "manual",
-        signingCertificate: "Developer ID Application",
-        provisioningProfiles: {
-          "sh.shio.app.mac" => "Mac Team Direct Provisioning Profile: sh.shio.app.mac"
-        }
-      },
+      # build needs a provisioning profile — the Xcode-managed "Mac Team Direct"
+      # one. Automatic signing resolves it from the local profile store + the
+      # Developer ID cert in the keychain (the CI run installs both from secrets).
+      # It only falls back to cloud signing — which the API key can't do for
+      # Developer ID — when nothing matches locally, so installing the profile
+      # keeps the export offline. (Can't sign it manually: an Xcode-managed
+      # profile is rejected by manual signing settings.)
+      export_options: { signingStyle: "automatic" },
       xcargs: "CURRENT_PROJECT_VERSION=#{build_number} ENABLE_HARDENED_RUNTIME=YES#{xcode_asc_auth}"
     )
     notarize(
