@@ -39,6 +39,19 @@ def build_number
   Time.now.utc.strftime("%Y%m%d%H%M")
 end
 
+# xcodebuild flags that let the ARCHIVE step provision via the ASC API key
+# instead of a signed-in Xcode account. gym auto-passes these to the *export*
+# step but not the archive — so on a CI runner (no Xcode account) automatic
+# signing fails with "No Accounts" unless we pass them here. Harmless locally
+# (the key just supplements your account). Empty if the env isn't set.
+def xcode_asc_auth
+  return "" unless ENV["ASC_KEY_ID"] && ENV["ASC_ISSUER_ID"] && ENV["ASC_KEY_PATH"]
+  " -allowProvisioningUpdates" \
+  " -authenticationKeyID #{ENV['ASC_KEY_ID']}" \
+  " -authenticationKeyIssuerID #{ENV['ASC_ISSUER_ID']}" \
+  " -authenticationKeyPath #{File.expand_path(ENV['ASC_KEY_PATH'])}"
+end
+
 platform :ios do
   desc "One-time: create the iOS app record in App Store Connect"
   lane :setup do
@@ -66,7 +79,7 @@ platform :ios do
       # xcodebuild mints the Apple Distribution cert + App Store profiles for the
       # app and its extensions on demand — no manual profile mapping to maintain.
       export_options: { signingStyle: "automatic" },
-      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} -allowProvisioningUpdates"
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}#{xcode_asc_auth}"
     )
     upload_to_testflight(
       api_key: key,
@@ -95,7 +108,7 @@ platform :mac do
       # build needs a provisioning profile. Automatic signing + the ASC API key
       # (-allowProvisioningUpdates) mints the Developer ID profile on demand.
       export_options: { signingStyle: "automatic" },
-      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} ENABLE_HARDENED_RUNTIME=YES -allowProvisioningUpdates"
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} ENABLE_HARDENED_RUNTIME=YES#{xcode_asc_auth}"
     )
     notarize(
       package: "build/mac/Shio.app",
