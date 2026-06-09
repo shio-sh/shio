@@ -28,7 +28,26 @@ Builds Release, signs with **Apple Distribution**, uploads. Then in ASC → Test
 ```
 fastlane mac release
 ```
-Builds Release with **Hardened Runtime**, signs **Developer ID**, notarizes. Output in `build/mac/`. Then DMG it (or zip) and host on shio.sh. (Sparkle for in-app auto-update is a later add — see the landing/messaging work.)
+Builds Release with **Hardened Runtime**, signs **Developer ID**, notarizes, staples. Output in `build/mac/Shio.app`. ✅ **Verified 2026-06-09: the notarized + hardened build runs the local terminal** (real shell, no fork-safety abort) — the warning below is satisfied, kept for the record.
+
+> ⚠️ **Re-verify the terminal whenever the libghostty spawn path changes.** Re-zip *after* stapling for distribution: `ditto -c -k --sequesterRsrc --keepParent build/mac/Shio.app Shio-1.0.zip` (gym's own zip is made before the staple).
+
+## Mac → GitHub CI release (`.github/workflows/release-mac.yml`)
+
+The same `fastlane mac release` recipe, run on a `macos-15` runner, publishing the notarized `.zip` as a **GitHub Release** (manual trigger: Actions → *Release Mac* → Run). shio.sh links the latest asset.
+
+**One-time: five repo secrets** (Settings → Secrets and variables → Actions). Three are already set from `fastlane/.env` (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`). The remaining two are your signing cert — export it (Touch ID prompt), then set both:
+```sh
+PW="$(openssl rand -base64 24)"
+security export -k ~/Library/Keychains/login.keychain-db -t identities \
+  -f pkcs12 -P "$PW" -o /tmp/devid.p12          # approve the keychain prompt
+base64 -i /tmp/devid.p12 | gh secret set DEVID_CERT_P12_BASE64 --repo shio-sh/shio
+printf '%s' "$PW" | gh secret set DEVID_CERT_PASSWORD --repo shio-sh/shio
+rm -f /tmp/devid.p12                            # never commit / never print the .p12
+```
+(Or export just the *Developer ID Application* identity + its key via Keychain Access → Export → `.p12`.)
+
+(Sparkle for in-app auto-update is a later add — it points at a GitHub-Releases appcast, which is exactly what this workflow produces. See the landing/messaging work.)
 
 > ⚠️ **TEST FIRST — hardened-runtime + the local terminal.** Notarization requires Hardened Runtime, and the ObjC runtime ignores `OBJC_DISABLE_INITIALIZE_FORK_SAFETY` for hardened processes — the very opt-out the local terminal used to dodge the fork-safety abort when ghostty forks a shell. **Before distributing, open the notarized `build/mac/Shio.app`, start a local terminal tab, and confirm you get a working shell** (not a blank cursor). Ghostty.app ships notarized + hardened with a working terminal using the same libghostty, so it's very likely fine — but it MUST be verified on a hardened build, since our Debug builds are unhardened. If the shell doesn't spawn, the fix is in the libghostty spawn path (posix_spawn vs fork), not the env var.
 

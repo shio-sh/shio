@@ -1,0 +1,123 @@
+name: Release Mac
+
+# Builds, Developer-ID-signs, and notarizes the Mac app, then publishes it as a
+# GitHub Release asset (DIRECT download — the Mac App Store can't host a real
+# terminal). Reuses the SAME recipe developers run locally: `fastlane mac
+# release`. The only CI-specific work is staging the signing identity (a temp
+# keychain) + the App Store Connect API key from repo secrets.
+#
+# Manual-trigger only: you decide when a build ships. The version comes from
+# MARKETING_VERSION in project.yml; the build number is a UTC timestamp (fastlane).
+#
+# SETUP — five repo secrets (Settings → Secrets and variables → Actions):
+#   DEVID_CERT_P12_BASE64  base64 of your exported "Developer ID Application" .p12
+#   DEVID_CERT_PASSWORD    the password you set when exporting that .p12
+#   ASC_KEY_ID             App Store Connect API key id   (e.g. GSLA8X34NJ)
+#   ASC_ISSUER_ID          App Store Connect issuer id    (uuid)
+#   ASC_KEY_P8_BASE64      base64 of the AuthKey_*.p8 file
+# (See DISTRIBUTION.md for the one-liners that set these, incl. exporting the cert.)
+
+on:
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: "Mark the GitHub Release as a pre-release (beta)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-mac
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+
+      # Import the Developer ID Application identity into a throwaway keychain so
+      # codesign can use it non-interactively, then drop the .p12 from disk.
+      - name: Stage signing identity
+        env:
+          CERT_P12_BASE64: ${{ secrets.DEVID_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.DEVID_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          KPW="$(openssl rand -base64 24)"
+          security create-keychain -p "$KPW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KPW" "$KEYCHAIN"
+          echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          # Let codesign/productsign read the key without a UI prompt.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KPW" "$KEYCHAIN" >/dev/null
+          # Put our keychain first in the search list (keep the login keychain too).
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | sed 's/"//g')
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      # The fastlane lanes read the ASC API key from these env vars (asc_key).
+      - name: Stage App Store Connect API key
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/keys"
+          echo "$ASC_KEY_P8_BASE64" | base64 --decode > "$HOME/keys/asc.p8"
+          {
+            echo "ASC_KEY_PATH=$HOME/keys/asc.p8"
+            echo "ASC_KEY_ID=${{ secrets.ASC_KEY_ID }}"
+            echo "ASC_ISSUER_ID=${{ secrets.ASC_ISSUER_ID }}"
+          } >> "$GITHUB_ENV"
+
+      # Same command developers run locally: xcodegen + --fetch (before_all) →
+      # build_mac_app (developer-id, automatic signing via the API key) →
+      # notarize → staple. Output: build/mac/Shio.app (stapled).
+      - name: Build, sign, notarize
+        run: fastlane mac release
+
+      - name: Package notarized app
+        id: pkg
+        run: |
+          set -euo pipefail
+          PLIST=build/mac/Shio.app/Contents/Info.plist
+          VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
+          BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+          ASSET="Shio-${VERSION}.zip"
+          # ditto preserves the bundle + the stapled notarization ticket.
+          ditto -c -k --sequesterRsrc --keepParent build/mac/Shio.app "$ASSET"
+          {
+            echo "version=$VERSION"
+            echo "build=$BUILD"
+            echo "asset=$ASSET"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -euo pipefail
+          TAG="mac-v${{ steps.pkg.outputs.version }}-${{ steps.pkg.outputs.build }}"
+          FLAGS=()
+          [ "$PRERELEASE" = "true" ] && FLAGS+=(--prerelease)
+          gh release create "$TAG" "${{ steps.pkg.outputs.asset }}" \
+            --repo "${{ github.repository }}" \
+            --title "Shio for Mac ${{ steps.pkg.outputs.version }} (${{ steps.pkg.outputs.build }})" \
+            --notes "Notarized Developer ID build. Download, unzip, and drag Shio to Applications." \
+            "${FLAGS[@]}"

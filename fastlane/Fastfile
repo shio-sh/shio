@@ -91,7 +91,11 @@ platform :mac do
       export_method: "developer-id",
       output_directory: "build/mac",
       clean: true,
-      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} ENABLE_HARDENED_RUNTIME=YES"
+      # ShioMac uses iCloud/CloudKit + push + app groups, so even a Developer ID
+      # build needs a provisioning profile. Automatic signing + the ASC API key
+      # (-allowProvisioningUpdates) mints the Developer ID profile on demand.
+      export_options: { signingStyle: "automatic" },
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} ENABLE_HARDENED_RUNTIME=YES -allowProvisioningUpdates"
     )
     notarize(
       package: "build/mac/Shio.app",
