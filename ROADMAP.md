@@ -1,46 +1,50 @@
 # Roadmap
 
-What's coming. Loosely ordered by current priority, not by hardness.
+Where Shio is and where it's going. Loosely ordered by priority, not hardness.
 
-## Currently in flight
+## Shipped
 
-- **Tailscale onboarding & diagnostics refresh** — verification-driven onboarding with a `TailscaleDiagnostic` engine. Largely shipped; still iterating on edge cases.
-- **Polish workstream** — keyboard hygiene, tmux install hint, terminal write buffering, multi-session support. See `~/.claude/plans/cozy-snacking-squid.md` for the active work.
+- **Universal app** — iPhone, iPad, and a **native Mac** companion (AppKit/SwiftUI around libghostty), one shared Swift core.
+- **Real terminal** — libghostty + Metal. Local shells on Mac; SSH everywhere.
+- **SSH + tmux** — SwiftNIO SSH, host-key pinning (trust-on-first-use, refuses a changed key), tmux session continuity across devices. On Mac, Shio uses your existing `~/.ssh` keys.
+- **Projects-first** — organized around the work, not just hosts; tabs and splits on Mac.
+- **Pairing & reach** — Tailscale-native, plus QR/CloudKit pairing for your own devices.
+- **Sync** — profiles via SwiftData + CloudKit (your iCloud, no account with us).
+- **Apple integrations** — Live Activities, widgets, App Intents, Handoff foundations.
+- **Distribution** — iPhone/iPad on TestFlight; Mac as a notarized Developer ID direct download (the App Store sandbox can't host a real terminal).
 
-## Pre-launch must-haves
+## Next major: agent supervision
 
-- **Multi-session support** — multiple terminal windows to the same Mac, with tabs on iPad and a session pill / drawer on iPhone. Distinct tmux session names per Shio session so each persists independently.
-- **Backgrounding + reconnect UX** — iOS suspends SSH within ~30s of backgrounding. We need clean disconnect detection on resume and one-tap reconnect that restores via tmux.
-- **Known-hosts TOFU prompt** — surface the host's SHA-256 fingerprint on first connect, persist, reject mismatches thereafter.
-- **Live Activities + Dynamic Island** behavior — currently a shell. Real lock-screen / Dynamic Island state: hostname, session duration, last command.
-- **Widgets** behavior — tap-to-connect home screen widget.
-- **App Store submission prep** — screenshots, App Preview video, privacy nutrition labels, App Review notes.
+The reason Shio exists in the "agent era" — and the part we're building right rather than shipping as a stub:
 
-## Post-launch / nice-to-have
+- Push when an agent **stops and needs you** (a prompt, a confirmation, a failure).
+- **One-tap approve / deny** from the lock screen, without opening the app.
+- Jump straight back into the **exact session** that needs attention.
 
-- **`brew install shio`** in [Homebrew's official formulas](https://formulae.brew.sh). A small `shio` CLI helper for Mac-side setup and diagnostics (`shio setup`, `shio doctor`, `shio key install`). Requires earning Homebrew's notability threshold first.
-- **Handoff** — `NSUserActivity` broadcast/receive between iPhone, iPad, and (eventually) Mac Catalyst.
-- **Mosh** — survives anything (network changes, sleep, backgrounding) via the SSP protocol. Significant scope; a Swift port of the reference C++ implementation.
-- **Custom themes** — beyond the default light/dark Terminal Basic profile.
-- **iCloud sync of profiles** — requires reintroducing CloudKit with the Host model's fields made optional/defaulted.
-- **Mac Catalyst** — Shio as a Mac app, primarily for users who want to SSH from their Mac into other machines.
+The plumbing (agent detection, away signals, Live Activities) exists; the supervision *experience* lands in a future version.
 
-## Not on the roadmap
+## In progress / near-term
 
-A few things we've deliberately decided against. Documenting so they don't get revisited under pressure.
+- **Reconnect UX** — iOS suspends SSH within ~30s of backgrounding; clean disconnect detection on resume and one-tap tmux-restore.
+- **Live Activities / Dynamic Island** — real lock-screen state (host, session, last command), beyond the current shell.
+- **Widgets** — tap-to-connect home-screen widget behavior.
+- **App Intents** — real `RunCommand` and `ConnectToHost` (currently stubbed/foreground-only).
+- **Public beta hardening** — external TestFlight, landing/onboarding, the polish a first impression needs.
 
-- **A full macOS companion app** — too much install friction, doubles maintenance, can't actually toggle Remote Login anyway (Apple's security boundary).
-- **Custom networking infrastructure** to replace Tailscale — Tailscale solves NAT traversal, identity, and DERP relay better than a side project could. We defer security-critical networking to people who specialize in it.
-- **A `curl | bash` installer** — even well-designed, it asks users to extend trust we haven't earned. The four-step guide is the right shape.
-- **Subscriptions, telemetry, accounts** — one-time purchase or free. Profiles sync via iCloud Keychain. No data leaves your devices.
+## Later / nice-to-have
 
-## Things we want to do, eventually
+- **`brew install shio`** — a small `shio` CLI helper for Mac-side setup/diagnostics (`shio setup`, `shio doctor`), once it earns Homebrew's notability threshold.
+- **Mosh** — survives network changes/sleep via SSP. Significant scope (a Swift port); parked behind tmux + auto-reconnect for now.
+- **Custom themes** beyond the default light/dark.
+- **Apple Watch** glance — connection status, maybe a "run saved command" complication.
+- **visionOS** — the design system maps cleanly.
+- **Persistent host-key pinning across reinstalls / a "trust new key" flow** — current pinning lives in app storage.
 
-- Apple Watch glance (connection status; maybe a "run saved command" complication).
-- visionOS terminal — would feel native given the design system already maps cleanly.
-- Real RunCommand intent — currently stubbed.
-- Predictive local echo on tmux mode for high-latency connections.
+## Deliberately not doing
 
----
+Documented so they don't get revisited under pressure.
 
-The plan file at `~/.claude/plans/cozy-snacking-squid.md` is the canonical source-of-truth for current implementation details. This roadmap is the user-facing version.
+- **Mac App Store distribution** — it mandates the App Sandbox, which forbids running arbitrary shells and reading your files. A real terminal can't live there; Shio ships notarized and direct, like iTerm, Ghostty, and Warp.
+- **Custom networking to replace Tailscale** — Tailscale solves NAT traversal, identity, and relay better than a side project could. We defer security-critical networking to specialists.
+- **A `curl | bash` installer** — it asks for trust we haven't earned. The guided setup is the right shape.
+- **Accounts, telemetry, subscriptions-for-their-own-sake** — no account with us, no telemetry, nothing leaves your devices that you didn't send.
