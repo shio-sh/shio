@@ -119,51 +119,54 @@ private struct ProjectsPane: View {
         }
     }
 
+    private let status = ProjectStatusStore.shared
+
+    /// Needs-you first, then running, then most-recently-opened.
+    private var sortedFiltered: [Project] {
+        filtered.sorted { a, b in
+            let ra = rank(a), rb = rank(b)
+            if ra != rb { return ra < rb }
+            return (a.lastOpenedAt ?? .distantPast) > (b.lastOpenedAt ?? .distantPast)
+        }
+    }
+    private func rank(_ p: Project) -> Int {
+        switch localAgentActivity(p) {
+        case .waiting: return 0
+        case .running: return 1
+        default:       return 2
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if model.showingSearch {
                 SectionSearchField(model: model, placeholder: "Search projects")
             }
             if projects.isEmpty {
-                VStack(spacing: 10) {
-                    Text("塩").font(.system(size: 44)).foregroundStyle(.tertiary)
-                    Text("No projects yet").font(.system(.title2, design: .monospaced))
-                    Text("A repo on this Mac or any machine — open a folder, or clone from Git.")
-                        .font(.callout).foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Add a project") { model.showingAddProject = true }
-                        .padding(.top, 4)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                emptyState
             } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 1) {
-                        PromptSectionHeader(title: "Projects")
-                        ForEach(filtered) { project in
-                            PromptRow(name: project.name,
-                                      detail: detail(project),
-                                      age: shioShortAge(project.lastOpenedAt),
-                                      statusColor: statusColor(project)) {
-                                open(project)
-                            }
-                            // Right-click → remove. Only drops it from Shio; the
-                            // repo on disk / the machine is untouched.
-                            .contextMenu {
-                                Button("Remove from Shio", role: .destructive) {
-                                    context.delete(project)
-                                    try? context.save()
-                                }
-                            }
-                        }
-                        if filtered.isEmpty {
-                            Text("No matches")
-                                .font(.system(.callout, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 12).padding(.top, 8)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)],
+                              alignment: .leading, spacing: 12) {
+                        ForEach(sortedFiltered) { project in
+                            MacProjectCard(
+                                name: project.name,
+                                machines: machinesText(project),
+                                age: shioShortAge(project.lastOpenedAt),
+                                git: gitProbe(project),
+                                agentActivity: localAgentActivity(project),
+                                open: { open(project) },
+                                remove: { remove(project) }
+                            )
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 10)
+                    .padding(12)
+                    if filtered.isEmpty {
+                        Text("No matches")
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding()
+                    }
                 }
                 .navigationTitle("Projects")
                 .toolbar {
@@ -171,42 +174,160 @@ private struct ProjectsPane: View {
                         Button { model.showingAddProject = true } label: { Image(systemName: "plus") }
                     }
                 }
+                .onAppear { refreshStatus() }
             }
         }
         .sheet(isPresented: $model.showingAddProject) { MacAddProjectForm(model: model) }
     }
 
-    /// `~/Shio · this mac` — path first (tilde-abbreviated), then the machine.
-    private func detail(_ project: Project) -> String {
-        let machine: String
-        if let host = project.host {
-            machine = MacSelfHost.isThisMac(host) ? "this mac" : host.name
-        } else {
-            machine = "this mac"
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Text("塩").font(.system(size: 44)).foregroundStyle(.tertiary)
+            Text("No projects yet").font(.system(.title2, design: .monospaced))
+            Text("A repo on this Mac or any machine — open a folder, or clone from Git.")
+                .font(.callout).foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("Add a project") { model.showingAddProject = true }.padding(.top, 4)
         }
-        return "\(shioPrettyPath(project.path)) · \(machine)"
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// Agent status dot for a project's LOCAL terminal: amber = needs you,
-    /// blue = working, green = finished. Sourced from the tmux capture-pane
-    /// monitor, which only sees local sessions — so only consult it for
-    /// projects that run on this Mac, else a same-named remote project would
-    /// borrow a local agent's dot.
-    private func statusColor(_ project: Project) -> Color? {
-        let isLocal = project.host.map { MacSelfHost.isThisMac($0) } ?? true
-        guard isLocal else { return nil }
-        switch agents.snapshot(forProjectNamed: project.name)?.activity {
-        case .waiting:  return MacInk.amber
-        case .running:  return MacInk.info
-        case .finished: return MacInk.green
-        default:        return nil
+    private func remove(_ project: Project) {
+        context.delete(project)
+        try? context.save()
+    }
+
+    private func refreshStatus() {
+        status.refresh(ProjectStatusStore.targets(for: projects, isLocalHost: MacSelfHost.isThisMac))
+    }
+
+    private func gitProbe(_ project: Project) -> GitProbe? {
+        guard let c = project.activeCheckout else { return nil }
+        return status.status(forHost: c.host, path: c.path)?.probe
+    }
+
+    private func machinesText(_ project: Project) -> String {
+        let names = (project.checkouts ?? []).map { c -> String in
+            guard let h = c.host else { return "this mac" }
+            return MacSelfHost.isThisMac(h) ? "this mac" : h.name
         }
+        var seen = Set<String>(); var unique: [String] = []
+        for n in names where !seen.contains(n) { seen.insert(n); unique.append(n) }
+        return unique.isEmpty ? "this mac" : unique.joined(separator: " · ")
+    }
+
+    /// The tmux capture-pane monitor only sees THIS Mac, so only trust it for a
+    /// project that has a checkout here — else a same-named remote project would
+    /// borrow a local agent's state.
+    private func localAgentActivity(_ project: Project) -> AgentActivity {
+        let checkouts = project.checkouts ?? []
+        let hasLocal = checkouts.isEmpty || checkouts.contains { $0.host.map(MacSelfHost.isThisMac) ?? true }
+        guard hasLocal else { return .none }
+        return agents.snapshot(forProjectNamed: project.name)?.activity ?? .none
     }
 
     private func open(_ project: Project) {
         project.lastOpenedAt = .now
         try? context.save()
         model.open(project: project)
+    }
+}
+
+/// One project card in the Mac command center — monospace dialect, git + agent
+/// glance, a quiet amber edge when an agent needs you.
+private struct MacProjectCard: View {
+    let name: String
+    let machines: String
+    let age: String
+    let git: GitProbe?
+    let agentActivity: AgentActivity
+    let open: () -> Void
+    let remove: () -> Void
+    @State private var hovering = false
+
+    private var needsYou: Bool { agentActivity == .waiting }
+
+    var body: some View {
+        Button(action: open) {
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(needsYou ? MacInk.amber : Color.clear)
+                    .frame(width: 3)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(name).font(.system(.body, design: .monospaced)).foregroundStyle(.primary)
+                        Spacer()
+                        if !age.isEmpty {
+                            Text(age).font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.tertiary).monospacedDigit()
+                        }
+                    }
+                    Text(machines)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    gitLine
+                    if let agentText { agentLine(agentText) }
+                }
+                .padding(10)
+            }
+            .background(hovering ? Color.primary.opacity(0.07) : Color.primary.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .contextMenu {
+            Button("Remove from Shio", role: .destructive, action: remove)
+        }
+    }
+
+    @ViewBuilder private var gitLine: some View {
+        let m = GitLineFormatter.make(git)
+        HStack(spacing: 6) {
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.triangle.branch").font(.system(size: 10))
+                Text(m.branch).lineLimit(1).truncationMode(.middle)
+            }
+            .font(.system(.caption, design: .monospaced))
+            .foregroundStyle(m.state == .loading || m.state == .unreachable ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
+
+            if m.hasTracking {
+                if m.ahead > 0 { tag("↑\(m.ahead)", .secondary) }
+                if m.behind > 0 { tag("↓\(m.behind)", .secondary) }
+                if m.dirty > 0 { tag("●\(m.dirty)", nil, color: MacInk.amber) }
+                else { tag("clean", nil, color: MacInk.green) }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func tag(_ text: String, _ style: HierarchicalShapeStyle?, color: Color? = nil) -> some View {
+        Text(text)
+            .font(.system(.caption2, design: .monospaced))
+            .monospacedDigit()
+            .foregroundStyle(color ?? Color.secondary)
+    }
+
+    private var agentText: String? {
+        switch agentActivity {
+        case .waiting:  return "needs you"
+        case .running:  return "working…"
+        case .finished: return "finished"
+        case .none:     return nil
+        }
+    }
+
+    @ViewBuilder private func agentLine(_ text: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(agentActivity == .waiting ? MacInk.amber
+                      : (agentActivity == .finished ? MacInk.green : MacInk.info))
+                .frame(width: 6, height: 6)
+            Text(text).font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
+        }
     }
 }
 
