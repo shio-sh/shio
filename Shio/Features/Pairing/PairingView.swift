@@ -106,7 +106,7 @@ struct PairingView: View {
                 .frame(minHeight: 140)
                 .padding(ShioSpace.sm)
                 .background(ShioColor.Chrome.surface, in: RoundedRectangle(cornerRadius: 10))
-            ShioButton("Pair") {
+            LegacyButton("Pair") {
                 handle(manualText)
             }
             .disabled(manualText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -162,7 +162,7 @@ struct PairingView: View {
                         .background(ShioColor.Chrome.surface, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
-            ShioButton("Done") { dismiss() }
+            LegacyButton("Done") { dismiss() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(ShioPadding.screenHorizontalIPhone)
@@ -180,7 +180,7 @@ struct PairingView: View {
                 .font(ShioFont.callout)
                 .foregroundStyle(ShioColor.Text.secondary)
                 .multilineTextAlignment(.center)
-            ShioButton("Try again") {
+            LegacyButton("Try again") {
                 phase = PairingScanner.isSupported ? .scanning : .manualEntry
             }
         }

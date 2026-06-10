@@ -353,10 +353,10 @@ struct TerminalScene: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack(spacing: ShioSpace.sm) {
-                ShioButton("Reconnect", style: .primary) {
+                LegacyButton("Reconnect", style: .primary) {
                     Task { await viewModel?.start() }
                 }
-                ShioButton("Diagnose", style: .secondary) {
+                LegacyButton("Diagnose", style: .secondary) {
                     showingDiagnose = true
                 }
             }

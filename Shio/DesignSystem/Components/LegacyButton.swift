@@ -1,20 +1,20 @@
 import SwiftUI
 
-enum ShioButtonStyle {
+enum LegacyButtonStyle {
     case primary
     case secondary
     case text
     case destructive
 }
 
-struct ShioButton: View {
+struct LegacyButton: View {
     let title: String
-    let style: ShioButtonStyle
+    let style: LegacyButtonStyle
     let action: () -> Void
 
     @State private var isPressed = false
 
-    init(_ title: String, style: ShioButtonStyle = .primary, action: @escaping () -> Void) {
+    init(_ title: String, style: LegacyButtonStyle = .primary, action: @escaping () -> Void) {
         self.title = title
         self.style = style
         self.action = action

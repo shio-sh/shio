@@ -131,7 +131,7 @@ struct HostListView: View {
                 .font(ShioFont.callout)
                 .foregroundStyle(ShioColor.Text.secondary)
                 .multilineTextAlignment(.center)
-            ShioButton("Get started") {
+            LegacyButton("Get started") {
                 isAddingHost = true
             }
             .padding(.horizontal, ShioPadding.screenHorizontalIPhone)

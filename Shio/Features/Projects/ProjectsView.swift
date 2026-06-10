@@ -147,7 +147,7 @@ struct ProjectsView: View {
                 .foregroundStyle(ShioColor.Text.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            ShioButton("Add a project") { isAddingProject = true }
+            LegacyButton("Add a project") { isAddingProject = true }
                 .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

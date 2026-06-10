@@ -141,7 +141,7 @@ private struct TailscaleAddView: View {
                     .foregroundStyle(ShioColor.Text.tertiary)
             }
             Section {
-                ShioButton("Save") {
+                LegacyButton("Save") {
                     save()
                 }
                 .disabled(!canSave)
@@ -239,7 +239,7 @@ private struct DirectSSHAddView: View {
                 }
             }
             Section {
-                ShioButton("Save") {
+                LegacyButton("Save") {
                     save()
                 }
                 .disabled(hostname.isEmpty || username.isEmpty)

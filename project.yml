@@ -242,6 +242,11 @@ targets:
       - path: Shio/Core/Status
       - path: Shio/Core/Util
       - path: Shio/Core/Design
+      # Platform-agnostic design tokens (spacing/radius/typography) so the Mac
+      # shares the same component kit as iOS. ShioColor (Color+Tokens) stays
+      # iOS-only — ShioTheme supersedes it for the rebuilt surfaces.
+      - path: Shio/DesignSystem/Tokens/Spacing+Tokens.swift
+      - path: Shio/DesignSystem/Tokens/Typography+Tokens.swift
       - path: Shio/Core/Pairing/PairingPayload.swift
       # Reused SFTP browse engine (UIKit-free; owns its own SSH+SFTP).
       - path: Shio/Features/Files/FilesViewModel.swift

@@ -190,11 +190,11 @@ private struct DiagnosticRow: View {
     private func remediationButton(_ remediation: TailscaleDiagnostic.Remediation) -> some View {
         switch remediation {
         case .openTailscaleApp:
-            ShioButton("Open Tailscale", style: .secondary) {
+            LegacyButton("Open Tailscale", style: .secondary) {
                 TailscaleDetector.openTailscaleOrAppStore()
             }
         case .openTailscaleAppStorePage:
-            ShioButton("Get Tailscale", style: .secondary) {
+            LegacyButton("Get Tailscale", style: .secondary) {
                 TailscaleDetector.openTailscaleOrAppStore()
             }
         case .openMacSharingSettings(let text):

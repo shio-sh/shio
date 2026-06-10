@@ -110,7 +110,7 @@ struct FileBrowserView: View {
                     .font(ShioFont.callout)
                     .foregroundStyle(ShioColor.Text.secondary)
                     .multilineTextAlignment(.center)
-                ShioButton("Retry") { Task { await vm.start() } }
+                LegacyButton("Retry") { Task { await vm.start() } }
             }
             .padding(ShioSpace.xl)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

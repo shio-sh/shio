@@ -236,9 +236,9 @@ struct OnboardingView: View {
                 .padding(.horizontal, ShioSpace.md)
 
             VStack(spacing: ShioSpace.sm) {
-                ShioButton(primary, action: primaryAction)
+                LegacyButton(primary, action: primaryAction)
                 if let secondary, let secondaryAction {
-                    ShioButton(secondary, style: .text, action: secondaryAction)
+                    LegacyButton(secondary, style: .text, action: secondaryAction)
                 }
             }
         }
