@@ -13,6 +13,9 @@ struct ShioApp: App {
                 .tint(ShioColor.Text.primary)
                 .task {
                     Haptics.prepare()
+                    // Project-first migration: backfill a ProjectCheckout for each
+                    // legacy single-host project. Idempotent + safe every launch.
+                    ProjectMigration.run(in: ShioModelContainer.shared.mainContext)
                     // Do NOT ask for notifications at launch — a first-run
                     // permission prompt is hostile, and the SSH key survives
                     // reinstalls so `hasKey()` isn't a reliable "onboarded"

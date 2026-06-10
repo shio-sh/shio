@@ -87,6 +87,13 @@ final class Host {
     @Relationship(deleteRule: .nullify, inverse: \Project.host)
     var projects: [Project]?
 
+    /// Per-machine project checkouts on this host (project-first model). Inverse
+    /// of `ProjectCheckout.host`. `.nullify`, optional to-many (CloudKit) — same
+    /// constraints as `projects`. Coexists with the legacy `projects` inverse
+    /// during the additive migration.
+    @Relationship(deleteRule: .nullify, inverse: \ProjectCheckout.host)
+    var checkouts: [ProjectCheckout]?
+
     init(
         name: String,
         hostname: String,

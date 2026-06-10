@@ -57,7 +57,12 @@ struct MacShell: View {
         }
         // Register This Mac as a synced Machine so its local projects are
         // reachable (continuity) and it appears on the user's other devices.
-        .task { MacSelfHost.ensure(in: context) }
+        .task {
+            MacSelfHost.ensure(in: context)
+            // Project-first migration: backfill a ProjectCheckout per legacy
+            // single-host project. Idempotent + safe to run every launch.
+            ProjectMigration.run(in: context)
+        }
         // Watch local tmux sessions so a project row lights up when its agent
         // needs you — even though ghostty owns the local PTY.
         .task { MacProjectAgentMonitor.shared.start() }
