@@ -35,7 +35,11 @@ enum SystemSSHKeys {
     private static let candidates = ["id_ed25519", "id_ecdsa", "id_rsa"]
 
     static var sshDirectory: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ssh")
+        // `homeDirectoryForCurrentUser` is macOS-only; `NSHomeDirectory()` works
+        // on both. On iOS it resolves to the app sandbox (no ~/.ssh), so `load()`
+        // simply finds nothing there — which is exactly the intended behavior.
+        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent(".ssh")
     }
 
     static func load() -> LoadResult {
