@@ -241,6 +241,7 @@ targets:
       - path: Shio/Core/Agents
       - path: Shio/Core/Status
       - path: Shio/Core/Util
+      - path: Shio/Core/Design
       - path: Shio/Core/Pairing/PairingPayload.swift
       # Reused SFTP browse engine (UIKit-free; owns its own SSH+SFTP).
       - path: Shio/Features/Files/FilesViewModel.swift

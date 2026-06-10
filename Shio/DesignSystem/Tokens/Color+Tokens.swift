@@ -136,26 +136,5 @@ enum ShioOpacity {
 }
 
 // MARK: - Color helpers
-
-extension Color {
-    /// Construct from a 24-bit RGB hex literal: `Color(hex: 0xF4EEDF)`.
-    init(hex: UInt32) {
-        let r = Double((hex >> 16) & 0xFF) / 255
-        let g = Double((hex >>  8) & 0xFF) / 255
-        let b = Double( hex        & 0xFF) / 255
-        self.init(.sRGB, red: r, green: g, blue: b, opacity: 1)
-    }
-
-    /// Dynamic color — resolves to `light` in light mode, `dark` in dark mode.
-    init(light: Color, dark: Color) {
-        #if canImport(UIKit)
-        self = Color(uiColor: UIColor { trait in
-            trait.userInterfaceStyle == .dark
-                ? UIColor(dark)
-                : UIColor(light)
-        })
-        #else
-        self = light
-        #endif
-    }
-}
+// `Color(hex:)` and `Color(light:dark:)` moved to the shared, cross-platform
+// Shio/Core/Design/ShioColorHelpers.swift so the Mac target gets real dark mode.
