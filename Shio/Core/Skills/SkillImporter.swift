@@ -76,4 +76,56 @@ enum SkillImporter {
         return upsertGlobals(parsed, into: context)
     }
     #endif
+
+    // MARK: - Remote import (the cross-machine half)
+
+    private static let skMarker = "__SK__", sbMarker = "__SB__", seMarker = "__SE__"
+
+    /// Scan a machine's agent skill dirs over one SSH connection and import the
+    /// global skills not already in Shio. Each pane is base64'd so arbitrary
+    /// content survives the shell. Returns how many were imported.
+    @discardableResult
+    static func importRemote(config: SSHClient.Configuration, into context: ModelContext) async -> Int {
+        let script = """
+        for base in "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.cursor/skills" "$HOME/.codex/skills"; do
+          [ -d "$base" ] || continue
+          for d in "$base"/*/; do
+            f="${d}SKILL.md"
+            [ -f "$f" ] || continue
+            printf '\(skMarker)%s\(sbMarker)' "$(basename "$d")"
+            base64 < "$f" | tr -d '\\n'
+            printf '\(seMarker)'
+          done
+        done
+        """
+        let client = SSHClient(configuration: config)
+        var out = ""
+        do {
+            try await client.connect()
+            out = (try? await client.exec(script, timeout: .seconds(10))) ?? ""
+            await client.disconnect()
+        } catch {
+            await client.disconnect()
+            return 0
+        }
+        return upsertGlobals(parseRemoteScan(out), into: context)
+    }
+
+    /// Pull `<dirname>` + base64 body out of each marked block and parse it.
+    static func parseRemoteScan(_ out: String) -> [Parsed] {
+        var result: [Parsed] = []
+        var seen = Set<String>()
+        for chunk in out.components(separatedBy: skMarker).dropFirst() {
+            guard let bR = chunk.range(of: sbMarker) else { continue }
+            let dirName = String(chunk[..<bR.lowerBound])
+            let after = chunk[bR.upperBound...]
+            let b64 = (after.components(separatedBy: seMarker).first ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let data = Data(base64Encoded: b64),
+                  let text = String(data: data, encoding: .utf8) else { continue }
+            let p = parse(text, fallbackName: dirName)
+            if seen.insert(p.name.lowercased()).inserted { result.append(p) }
+        }
+        return result
+    }
 }

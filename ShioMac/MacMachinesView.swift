@@ -11,6 +11,20 @@ struct MacMachinesView: View {
     @Query(sort: \Host.name) private var hosts: [Host]
     @Query private var projects: [Project]
     @State private var selected: SelectedMachine? = .thisMac
+    @State private var importNote: String?
+
+    /// Pull a remote machine's existing skills into Shio (global), synced to the
+    /// user's other devices and re-materialized on open.
+    private func importSkills(from host: Host) {
+        importNote = "Importing from \(host.name)…"
+        let config = SSHClient.Configuration(
+            host: host.hostname, port: host.port, username: host.username,
+            authentication: .systemKeys, initialCols: 80, initialRows: 24)
+        Task {
+            let n = await SkillImporter.importRemote(config: config, into: context)
+            importNote = n == 0 ? "No new skills found on \(host.name)." : "Imported \(n) skill\(n == 1 ? "" : "s") from \(host.name)."
+        }
+    }
 
     /// The rail selection — the self-Mac is synthetic (not always a saved Host).
     enum SelectedMachine: Hashable { case thisMac, host(PersistentIdentifier) }
@@ -115,7 +129,15 @@ struct MacMachinesView: View {
                         .font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary)
                     Spacer()
                     ShioButton(openTitle, .primary, icon: "terminal", compact: true, action: open)
-                    if let host { ShioButton("Remove", .secondary, compact: true) { remove(host) } }
+                    if let host {
+                        ShioButton("Import skills", .ghost, icon: "square.and.arrow.down", compact: true) {
+                            importSkills(from: host)
+                        }
+                        ShioButton("Remove", .secondary, compact: true) { remove(host) }
+                    }
+                }
+                if let importNote {
+                    Text(importNote).font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
                 }
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(rows, id: \.0) { kv in
