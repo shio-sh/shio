@@ -226,7 +226,9 @@ private struct TabChip: View {
                 .font(.system(size: 12))
                 .lineLimit(1)
                 .truncationMode(.middle)
-            // Reserve the close-button slot so the title doesn't shift on hover.
+            // Reserve the close-button slot so the title never shifts, and reveal
+            // the × on hover only — tying it to selection makes it hop from tab to
+            // tab as you click around, which reads as a glitch.
             Button(action: close) {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .bold))
@@ -234,7 +236,7 @@ private struct TabChip: View {
             }
             .buttonStyle(.plain)
             .frame(width: 12)
-            .opacity(hovering || isSelected ? 1 : 0)
+            .opacity(hovering ? 1 : 0)
         }
         .padding(.horizontal, 10)
         .frame(height: 28)
