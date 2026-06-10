@@ -85,7 +85,7 @@ struct MacShell: View {
         switch model.section {
         case .terminal: TerminalWorkspaceView(model: model)
         case .projects: MacProjectsView(model: model)
-        case .hosts:    HostsPane(model: model)
+        case .hosts:    MacMachinesView(model: model)
         case .files:    MacFilesPane(model: model)
         }
     }
@@ -98,105 +98,6 @@ struct MacShell: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-}
-
-/// Machines list. This Mac is a first-class machine (tap → local terminal);
-/// saved remote machines (SwiftData) connect over SSH.
-private struct HostsPane: View {
-    @Bindable var model: MacTerminalModel
-    @Environment(\.modelContext) private var context
-    @Query(sort: \Host.name) private var hosts: [Host]
-
-    private var query: String { model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased() }
-    private var filteredHosts: [Host] {
-        // Exclude this Mac's own self-Host — it's shown as "This Mac" above.
-        let remote = hosts.filter { !MacSelfHost.isThisMac($0) }
-        guard !query.isEmpty else { return remote }
-        return remote.filter {
-            $0.name.lowercased().contains(query)
-                || $0.hostname.lowercased().contains(query)
-                || $0.username.lowercased().contains(query)
-        }
-    }
-    private var showThisMac: Bool {
-        query.isEmpty || "this mac".contains(query) || Self.localSubtitle.lowercased().contains(query)
-    }
-    /// Remote machines = all hosts minus this Mac's own self-host.
-    private var remoteCount: Int { hosts.filter { !MacSelfHost.isThisMac($0) }.count }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if model.showingSearch {
-                SectionSearchField(model: model, placeholder: "Search machines")
-            }
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 1) {
-                    if showThisMac {
-                        PromptSectionHeader(title: "This Mac")
-                        // 塩 marks your own machine — tap to open a local terminal.
-                        PromptRow(name: "This Mac", detail: Self.localSubtitle,
-                                  pinnedGlyph: "塩") {
-                            model.newLocalTab()
-                        }
-                    }
-                    PromptSectionHeader(title: "Remote")
-                    if remoteCount == 0 {
-                        Text("Add a server or device you own, then tap it to connect.")
-                            .font(.system(.callout, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 12).padding(.top, 4)
-                    } else if filteredHosts.isEmpty {
-                        Text("No matches")
-                            .font(.system(.callout, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 12).padding(.top, 4)
-                    } else {
-                        ForEach(filteredHosts) { host in
-                            PromptRow(name: host.name,
-                                      detail: "\(host.username)@\(host.hostname)",
-                                      age: shioShortAge(host.lastConnectedAt)) {
-                                open(host)
-                            }
-                            .contextMenu {
-                                Button("Remove from Shio", role: .destructive) {
-                                    context.delete(host)
-                                    try? context.save()
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 10)
-            }
-        }
-        .navigationTitle("Machines")
-        .toolbar {
-            ToolbarItem {
-                Button { model.showingPairing = true } label: { Image(systemName: "qrcode") }
-                    .help("Pair your iPhone")
-            }
-            ToolbarItem {
-                Button { model.showingAddHost = true } label: { Image(systemName: "plus") }
-            }
-        }
-        .sheet(isPresented: $model.showingPairing) { MacPairingView() }
-    }
-
-    /// `amrith@Amriths-MacBook-Pro` — the local account + computer name.
-    private static var localSubtitle: String {
-        let host = ProcessInfo.processInfo.hostName.replacingOccurrences(of: ".local", with: "")
-        return "\(NSUserName())@\(host)"
-    }
-
-    /// Tap a saved host to (re)connect with the Shio key.
-    private func open(host: Host) {
-        host.lastConnectedAt = .now
-        try? context.save()
-        model.connect(to: host)
-    }
-    // Trailing-closure label needs an argument label match; bridge it.
-    private func open(_ host: Host) { open(host: host) }
 }
 
 /// Reusable context-aware ⌘F filter field shown at the top of a list section.
@@ -227,28 +128,6 @@ struct SectionSearchField: View {
     }
 
     private func close() { model.showingSearch = false; model.searchQuery = "" }
-}
-
-/// A machine row: icon, name, monospaced subtitle.
-private struct MacMachineRow: View {
-    let icon: String
-    let name: String
-    let subtitle: String
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 18)).foregroundStyle(.secondary).frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(.body)
-                Text(subtitle)
-                    .font(.system(.caption, design: .monospaced)).foregroundStyle(.secondary)
-                    .lineLimit(1).truncationMode(.middle)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .padding(.vertical, 2)
-    }
 }
 
 /// Add a machine and connect to it. One sheet: saves the `Host` for next time
