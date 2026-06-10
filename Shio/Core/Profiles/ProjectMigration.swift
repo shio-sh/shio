@@ -17,10 +17,41 @@ import SwiftData
 enum ProjectMigration {
 
     /// Run after the container loads (alongside `MacSelfHost.ensure`). Cheap and
-    /// safe to call every launch — both passes no-op when there's nothing to do.
+    /// safe to call every launch — every pass no-ops when there's nothing to do.
     static func run(in context: ModelContext) {
-        backfillCheckouts(in: context)
+        backfillCheckouts(in: context)   // M1: legacy project → one ProjectCheckout
+        backfillRepos(in: context)       // M-repo: project → one Repo, reparent checkouts
         reconcile(in: context)
+    }
+
+    /// Give every project that has no repos one `Repo` (carrying the project's
+    /// identity), and reparent the project's direct checkouts onto it. Idempotent:
+    /// the guard is the *synced* `repos` relationship, so the first device to
+    /// migrate wins and the rest skip once it syncs.
+    private static func backfillRepos(in context: ModelContext) {
+        let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+        var didChange = false
+
+        for project in projects {
+            guard (project.repos ?? []).isEmpty else { continue }
+            let checkouts = project.checkouts ?? []
+            // Nothing to hang a repo on yet (no checkout) → skip; backfillCheckouts
+            // runs first, so a legacy project will have one by now.
+            guard !checkouts.isEmpty || project.cloneURL != nil || !project.name.isEmpty else { continue }
+
+            let identity = project.identityKey
+                ?? project.cloneURL.flatMap { normalize(cloneURL: $0) }
+                ?? UUID().uuidString
+            let repo = Repo(name: project.name, cloneURL: project.cloneURL,
+                            identityKey: identity, project: project)
+            repo.lastOpenedAt = project.lastOpenedAt
+            repo.createdAt = project.createdAt
+            context.insert(repo)
+            for checkout in checkouts { checkout.repo = repo }
+            didChange = true
+        }
+
+        if didChange { try? context.save() }
     }
 
     /// Give every legacy project exactly one checkout derived from its host/path,

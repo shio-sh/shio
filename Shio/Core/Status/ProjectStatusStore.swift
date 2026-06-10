@@ -128,7 +128,7 @@ extension ProjectStatusStore {
     static func targets(for projects: [Project], isLocalHost: (Host) -> Bool) -> [Target] {
         var out: [Target] = []
         for project in projects {
-            for checkout in project.checkouts ?? [] where !checkout.path.isEmpty {
+            for checkout in project.allCheckouts where !checkout.path.isEmpty {
                 let host = checkout.host
                 let key = StatusKey.make(host: host, path: checkout.path)
                 if let host, !isLocalHost(host) {

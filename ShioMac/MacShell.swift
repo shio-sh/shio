@@ -207,7 +207,7 @@ private struct ProjectsPane: View {
     }
 
     private func machinesText(_ project: Project) -> String {
-        let names = (project.checkouts ?? []).map { c -> String in
+        let names = project.allCheckouts.map { c -> String in
             guard let h = c.host else { return "this mac" }
             return MacSelfHost.isThisMac(h) ? "this mac" : h.name
         }
@@ -220,7 +220,7 @@ private struct ProjectsPane: View {
     /// project that has a checkout here — else a same-named remote project would
     /// borrow a local agent's state.
     private func localAgentActivity(_ project: Project) -> AgentActivity {
-        let checkouts = project.checkouts ?? []
+        let checkouts = project.allCheckouts
         let hasLocal = checkouts.isEmpty || checkouts.contains { $0.host.map(MacSelfHost.isThisMac) ?? true }
         guard hasLocal else { return .none }
         return agents.snapshot(forProjectNamed: project.name)?.activity ?? .none

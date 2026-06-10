@@ -31,7 +31,13 @@ final class ProjectCheckout {
     var lastOpenedAt: Date?
     var createdAt: Date = Date()
 
-    /// Owning logical project. Inverse declared on `Project.checkouts`.
+    /// The repo this checkout is of. Inverse declared on `Repo.checkouts`. The
+    /// project-first owner since the Project→Repo→Checkout refactor.
+    var repo: Repo?
+
+    /// LEGACY (M1) owning project — checkouts now hang off `Repo`. Kept during
+    /// the additive migration so older clients keep syncing; reach the project via
+    /// `repo?.project`.
     var project: Project?
 
     /// The machine this checkout lives on. Inverse declared on `Host.checkouts`.

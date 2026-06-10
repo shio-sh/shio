@@ -258,14 +258,14 @@ final class MacTerminalModel {
             let resume = TmuxResume.resumeCommand(
                 named: "shio-\(TmuxResume.scrubName(project.name))",
                 startDir: path,
-                cloneURL: project.cloneURL
+                cloneURL: project.effectiveCloneURL
             )
             let session = MacSSHSession(host: host.hostname, port: host.port,
                                         username: host.username, password: nil,
                                         resumeCommand: resume)
             openSSH(session, title: project.name)
         } else {
-            addTab(.project(MacLocalProjectSession(name: project.name, path: path, cloneURL: project.cloneURL)),
+            addTab(.project(MacLocalProjectSession(name: project.name, path: path, cloneURL: project.effectiveCloneURL)),
                    title: project.name)
         }
     }

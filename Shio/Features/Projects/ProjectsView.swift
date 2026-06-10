@@ -203,7 +203,7 @@ private struct ProjectCard: View {
     }
 
     private var machines: [String] {
-        let names = (project.checkouts ?? []).compactMap { $0.host?.name }
+        let names = project.allCheckouts.compactMap { $0.host?.name }
         var seen = Set<String>(); var unique: [String] = []
         for n in names where !seen.contains(n) { seen.insert(n); unique.append(n) }
         if unique.isEmpty, let legacy = project.host?.name { return [legacy] }

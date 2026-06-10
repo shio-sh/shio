@@ -152,7 +152,7 @@ final class SessionStore {
             // Read the working dir from the active checkout; fall back to the
             // legacy project.path for safety during the migration window.
             startDir = checkout?.path ?? project.path
-            cloneURL = project.cloneURL
+            cloneURL = project.effectiveCloneURL
             baseName = project.name
             project.lastOpenedAt = .now
             checkout?.lastOpenedAt = .now

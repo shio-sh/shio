@@ -66,7 +66,7 @@ final class MacLocalProjectSession: Identifiable {
     convenience init(project: Project) {
         self.init(name: project.name,
                   path: project.activeCheckout?.path ?? project.path,
-                  cloneURL: project.cloneURL)
+                  cloneURL: project.effectiveCloneURL)
     }
 
     init(name: String, path: String, cloneURL: String?) {
