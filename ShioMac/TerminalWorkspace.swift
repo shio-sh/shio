@@ -205,8 +205,12 @@ private struct TabStrip: View {
                 Spacer(minLength: 0)
             }
         }
-        .frame(height: 28)
-        .background(.bar)
+        .frame(height: 30)
+        // Solid, opaque chrome — NOT `.bar`. The `.bar` material triggers
+        // macOS's unified titlebar, which extends the strip's tint up through
+        // the window title to the very top of the window (the "color goes to the
+        // top" glitch). An explicit window-background keeps the strip contained.
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 }
 
@@ -239,9 +243,16 @@ private struct TabChip: View {
             .opacity(hovering ? 1 : 0)
         }
         .padding(.horizontal, 10)
-        .frame(height: 28)
+        .frame(height: 24)
         .frame(maxWidth: 180)
-        .background(isSelected ? Color.primary.opacity(0.10) : Color.clear)
+        // A contained, inset pill — clearly within the strip, so the selected
+        // state can never read as a full-height column.
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isSelected ? Color.primary.opacity(0.10)
+                      : (hovering ? Color.primary.opacity(0.05) : Color.clear))
+        )
+        .padding(.horizontal, 2)
         .contentShape(Rectangle())
         .onTapGesture(perform: select)
         .onHover { hovering = $0 }
