@@ -29,7 +29,7 @@ struct FilePreviewView: View {
                     ScrollView([.vertical, .horizontal]) {
                         Text(contents)
                             .font(ShioFont.Mono.inline)
-                            .foregroundStyle(ShioColor.Text.primary)
+                            .foregroundStyle(ShioTheme.textPrimary)
                             .textSelection(.enabled)
                             .padding(ShioSpace.md)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -38,13 +38,13 @@ struct FilePreviewView: View {
                     VStack(spacing: ShioSpace.md) {
                         Image(systemName: "doc.fill")
                             .font(.largeTitle)
-                            .foregroundStyle(ShioColor.Text.secondary)
+                            .foregroundStyle(ShioTheme.textSecondary)
                         Text("Binary file")
                             .font(ShioFont.title2)
-                            .foregroundStyle(ShioColor.Text.primary)
+                            .foregroundStyle(ShioTheme.textPrimary)
                         Text(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file))
                             .font(ShioFont.callout)
-                            .foregroundStyle(ShioColor.Text.secondary)
+                            .foregroundStyle(ShioTheme.textSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .failed(let message):
@@ -54,14 +54,14 @@ struct FilePreviewView: View {
                             .foregroundStyle(.orange)
                         Text(message)
                             .font(ShioFont.callout)
-                            .foregroundStyle(ShioColor.Text.secondary)
+                            .foregroundStyle(ShioTheme.textSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding(ShioSpace.xl)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .background(ShioColor.Chrome.background)
+            .background(ShioTheme.background)
             .navigationTitle(file.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

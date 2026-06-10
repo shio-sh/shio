@@ -28,6 +28,7 @@ struct MacFilesPane: View {
                     machineList
                 }
             }
+            .background(ShioTheme.background)
             .navigationTitle("Files")
         }
         .onChange(of: model.searchQuery) { _, q in spotlight.search(q) }

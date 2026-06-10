@@ -34,7 +34,7 @@ struct FilesView: View {
                     .scrollContentBackground(.hidden)
                 }
             }
-            .background(ShioColor.Chrome.background)
+            .background(ShioTheme.background)
             .shioNavTitle("Files")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -45,7 +45,7 @@ struct FilesView: View {
                         }
                     } label: {
                         Image(systemName: "arrow.up.arrow.down")
-                            .foregroundStyle(ShioColor.Text.primary)
+                            .foregroundStyle(ShioTheme.textPrimary)
                     }
                     .accessibilityLabel("Sort machines")
                 }
@@ -54,7 +54,7 @@ struct FilesView: View {
                         showingSettings = true
                     } label: {
                         Image(systemName: "person.crop.circle")
-                            .foregroundStyle(ShioColor.Text.primary)
+                            .foregroundStyle(ShioTheme.textPrimary)
                     }
                     .accessibilityLabel("Settings")
                 }
@@ -69,18 +69,18 @@ struct FilesView: View {
         VStack(spacing: ShioSpace.lg) {
             Image(systemName: "tray.full.fill")
                 .font(.largeTitle)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
             Text("No machines yet")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("Add or pair a machine in the Machines tab, then browse its files here.")
                 .font(ShioFont.body)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ShioColor.Chrome.background)
+        .background(ShioTheme.background)
     }
 }
 
@@ -90,15 +90,15 @@ private struct HostFileRow: View {
         HStack(spacing: ShioSpace.md) {
             Image(systemName: "desktopcomputer")
                 .font(.system(size: 18))
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(host.name)
                     .font(ShioFont.bodyEmphasis)
-                    .foregroundStyle(ShioColor.Text.primary)
+                    .foregroundStyle(ShioTheme.textPrimary)
                 Text(host.hostname)
                     .font(ShioFont.Mono.inline)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }

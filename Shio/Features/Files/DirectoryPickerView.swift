@@ -16,7 +16,7 @@ struct DirectoryPickerView: View {
 
     var body: some View {
         content
-            .background(ShioColor.Chrome.background)
+            .background(ShioTheme.background)
             .navigationTitle(titleComponent)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -59,7 +59,7 @@ struct DirectoryPickerView: View {
                 ProgressView().controlSize(.large)
                 Text("Connecting to \(vm.hostName)…")
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -70,7 +70,7 @@ struct DirectoryPickerView: View {
                     .foregroundStyle(.orange)
                 Text(message)
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
                     .multilineTextAlignment(.center)
                 LegacyButton("Retry") { Task { await vm.start() } }
             }
@@ -82,7 +82,7 @@ struct DirectoryPickerView: View {
                 if vm.entries.allSatisfy({ !$0.isDirectory }) {
                     Text("No subfolders here — use the button below to pick this folder.")
                         .font(ShioFont.footnote)
-                        .foregroundStyle(ShioColor.Text.tertiary)
+                        .foregroundStyle(ShioTheme.textTertiary)
                 }
                 ForEach(vm.entries) { file in
                     if file.isDirectory {
@@ -104,18 +104,18 @@ struct DirectoryPickerView: View {
         HStack(spacing: ShioSpace.md) {
             Image(systemName: file.isDirectory ? "folder.fill" : "doc")
                 .font(.system(size: 18))
-                .foregroundStyle(enabled ? ShioColor.Text.primary : ShioColor.Text.tertiary)
+                .foregroundStyle(enabled ? ShioTheme.textPrimary : ShioTheme.textTertiary)
                 .frame(width: 24)
             Text(file.name)
                 .font(ShioFont.body)
-                .foregroundStyle(enabled ? ShioColor.Text.primary : ShioColor.Text.tertiary)
+                .foregroundStyle(enabled ? ShioTheme.textPrimary : ShioTheme.textTertiary)
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer()
             if file.isDirectory {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
         }
         .padding(.vertical, 2)

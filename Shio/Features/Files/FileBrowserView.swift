@@ -22,7 +22,7 @@ struct FileBrowserView: View {
 
     var body: some View {
         content
-            .background(ShioColor.Chrome.background)
+            .background(ShioTheme.background)
             .navigationTitle(titleComponent)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarContent }
@@ -97,7 +97,7 @@ struct FileBrowserView: View {
                 ProgressView().controlSize(.large)
                 Text("Connecting to \(vm.hostName)…")
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -108,7 +108,7 @@ struct FileBrowserView: View {
                     .foregroundStyle(.orange)
                 Text(message)
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
                     .multilineTextAlignment(.center)
                 LegacyButton("Retry") { Task { await vm.start() } }
             }
@@ -125,7 +125,7 @@ struct FileBrowserView: View {
             if vm.entries.isEmpty {
                 Text("Empty folder")
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
             ForEach(vm.entries) { file in
                 Button {
@@ -182,23 +182,23 @@ private struct FileRow: View {
         HStack(spacing: ShioSpace.md) {
             Image(systemName: icon)
                 .font(.system(size: 18))
-                .foregroundStyle(file.isDirectory ? ShioColor.Text.primary : ShioColor.Text.secondary)
+                .foregroundStyle(file.isDirectory ? ShioTheme.textPrimary : ShioTheme.textSecondary)
                 .frame(width: 24)
             Text(file.name)
                 .font(ShioFont.body)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer()
             if let size = file.attributes.size, !file.isDirectory {
                 Text(byteString(size))
                     .font(ShioFont.footnote)
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
             if file.isDirectory {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
         }
         .padding(.vertical, 2)
