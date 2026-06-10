@@ -62,6 +62,8 @@ struct MacShell: View {
             // Project-first migration: backfill a ProjectCheckout per legacy
             // single-host project. Idempotent + safe to run every launch.
             ProjectMigration.run(in: context)
+            // Mirror enabled global skills into this Mac's ~/.claude/skills.
+            SkillMaterializer.shared.scheduleGlobalSync()
         }
         // Watch local tmux sessions so a project row lights up when its agent
         // needs you — even though ghostty owns the local PTY.

@@ -67,7 +67,7 @@ struct SkillsLibraryView: View {
 
     private func skillRow(_ skill: Skill) -> some View {
         HStack(spacing: 10) {
-            Button { skill.enabled.toggle(); try? context.save() } label: {
+            Button { skill.enabled.toggle(); try? context.save(); SkillMaterializer.shared.scheduleGlobalSync() } label: {
                 Image(systemName: skill.enabled ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 14))
                     .foregroundStyle(skill.enabled ? ShioTheme.success : ShioTheme.textTertiary)
@@ -84,7 +84,10 @@ struct SkillsLibraryView: View {
         .padding(.horizontal, 6).padding(.vertical, 9)
         .contextMenu {
             Button("Edit") { editing = skill }
-            Button("Remove", role: .destructive) { context.delete(skill); try? context.save() }
+            Button("Remove", role: .destructive) {
+                SkillMaterializer.shared.removeGlobalLocally(dirName: skill.dirName)
+                context.delete(skill); try? context.save()
+            }
         }
     }
 
@@ -110,6 +113,7 @@ struct SkillEditor: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    @State private var desc = ""
     @State private var content = ""
 
     var body: some View {
@@ -119,6 +123,9 @@ struct SkillEditor: View {
             TextField("name (e.g. swift-style)", text: $name)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 14, design: .monospaced))
+            TextField("description — when should the agent use this?", text: $desc)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 13))
             Text("The rule")
                 .font(ShioKitFont.label).tracking(1).textCase(.uppercase)
                 .foregroundStyle(ShioTheme.textTertiary)
@@ -144,6 +151,7 @@ struct SkillEditor: View {
         .background(ShioTheme.background)
         .onAppear {
             name = skill?.name ?? ""
+            desc = skill?.skillDescription ?? ""
             content = skill?.content ?? ""
         }
     }
@@ -152,11 +160,12 @@ struct SkillEditor: View {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { return }
         if let skill {
-            skill.name = n; skill.content = content
+            skill.name = n; skill.skillDescription = desc; skill.content = content
         } else {
-            context.insert(Skill(name: n, content: content, project: project))
+            context.insert(Skill(name: n, skillDescription: desc, content: content, project: project))
         }
         try? context.save()
+        SkillMaterializer.shared.scheduleGlobalSync()
         dismiss()
     }
 

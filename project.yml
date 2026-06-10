@@ -240,6 +240,7 @@ targets:
       - path: Shio/Core/Profiles
       - path: Shio/Core/Agents
       - path: Shio/Core/Status
+      - path: Shio/Core/Skills
       - path: Shio/Core/Util
       - path: Shio/Core/Design
       # Platform-agnostic design tokens (spacing/radius/typography) so the Mac

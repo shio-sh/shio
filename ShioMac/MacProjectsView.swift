@@ -125,7 +125,12 @@ struct MacProjectsView: View {
                 repos: repoRows(project),
                 glance: glance(project),
                 liveAgents: liveAgents(project),
-                openRepo: { model.open(repo: $0) },
+                openRepo: { repo in
+                    if let p = repo.project {
+                        SkillMaterializer.shared.materialize(project: p, isLocalHost: MacSelfHost.isThisMac)
+                    }
+                    model.open(repo: repo)
+                },
                 openTerminal: { open(project) },
                 addRepo: { addRepoTarget = project }
             )
@@ -186,6 +191,9 @@ struct MacProjectsView: View {
     private func open(_ project: Project) {
         project.lastOpenedAt = .now
         try? context.save()
+        // Write this project's skills (globals ∪ project) into its checkout's
+        // .claude/skills so the agent there picks them up.
+        SkillMaterializer.shared.materialize(project: project, isLocalHost: MacSelfHost.isThisMac)
         model.open(project: project)
     }
 

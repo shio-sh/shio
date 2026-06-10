@@ -14,6 +14,12 @@ import SwiftData
 final class Skill {
     var id: UUID = UUID()
     var name: String = ""
+    /// One-line summary written as the SKILL.md frontmatter `description:`. This
+    /// is what an agent (e.g. Claude Code) uses to decide WHEN to load the skill
+    /// — skills are progressively disclosed, so without a good description the
+    /// rule barely fires. Named `skillDescription` to avoid shadowing
+    /// `CustomStringConvertible.description`.
+    var skillDescription: String = ""
     /// The rule itself (markdown) — what the agent is told to follow.
     var content: String = ""
     /// Library on/off. A disabled global stops applying everywhere.
@@ -24,9 +30,11 @@ final class Skill {
     /// (`Project.skills`) is declared on Project — CloudKit requires it.
     var project: Project?
 
-    init(name: String, content: String = "", enabled: Bool = true, project: Project? = nil) {
+    init(name: String, skillDescription: String = "", content: String = "",
+         enabled: Bool = true, project: Project? = nil) {
         self.id = UUID()
         self.name = name
+        self.skillDescription = skillDescription
         self.content = content
         self.enabled = enabled
         self.createdAt = .now
@@ -34,4 +42,15 @@ final class Skill {
     }
 
     var isGlobal: Bool { project == nil }
+
+    /// Filesystem-safe directory name for this skill (the SKILL.md lives in
+    /// `<base>/<dirName>/SKILL.md`). The frontmatter keeps the original `name`.
+    var dirName: String {
+        let lowered = name.lowercased()
+        let mapped = lowered.map { ch -> Character in
+            ch.isLetter || ch.isNumber ? ch : "-"
+        }
+        let collapsed = String(mapped).split(separator: "-").joined(separator: "-")
+        return collapsed.isEmpty ? "skill-\(id.uuidString.prefix(8))" : collapsed
+    }
 }
