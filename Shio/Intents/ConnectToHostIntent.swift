@@ -46,7 +46,5 @@ struct RunCommandIntent: AppIntent {
         return .result(value: "\(command) — pending implementation")
     }
 }
-
-extension Notification.Name {
-    static let shioConnectToHost = Notification.Name("sh.shio.app.connectToHost")
-}
+// `.shioConnectToHost` now lives in Core/Util/ShioNotifications.swift (shared
+// with the Mac target so the away-push path compiles there too).

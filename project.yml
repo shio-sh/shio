@@ -249,6 +249,9 @@ targets:
       - path: Shio/DesignSystem/Tokens/Spacing+Tokens.swift
       - path: Shio/DesignSystem/Tokens/Typography+Tokens.swift
       - path: Shio/Core/Pairing/PairingPayload.swift
+      # Sovereign away-push: the Mac watcher writes a Signal when a local agent
+      # blocks; the phone's subscription turns it into an alert.
+      - path: Shio/Core/Push/CloudKitSignalService.swift
       # Reused SFTP browse engine (UIKit-free; owns its own SSH+SFTP).
       - path: Shio/Features/Files/FilesViewModel.swift
       # Shared Skills library shell (UIKit-free; ShioTheme + kit only).

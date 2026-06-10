@@ -39,12 +39,36 @@ final class MacProjectAgentMonitor {
         byTmux["shio-\(TmuxResume.scrubName(name))"]
     }
 
+    /// tmux sessions we've already pushed an away-signal for while they're
+    /// blocked — so the phone buzzes once per "needs you", not every poll.
+    private var signaledWaiting: Set<String> = []
+
     private func poll() {
         guard let tmux else { return }
         Task { @MainActor [weak self] in
+            guard let self else { return }
             let result = await MacProjectAgentMonitor.scan(tmux: tmux)
-            self?.byTmux = result
+            self.fireAwaySignals(for: result)
+            self.byTmux = result
         }
+    }
+
+    /// On a session newly transitioning to `.waiting`, push the phone via the
+    /// sovereign CloudKit away-path. Re-armed once it stops waiting.
+    private func fireAwaySignals(for snapshots: [String: AgentSnapshot]) {
+        for (name, snap) in snapshots where snap.activity == .waiting {
+            guard !signaledWaiting.contains(name) else { continue }
+            signaledWaiting.insert(name)
+            let project = name.hasPrefix("shio-") ? String(name.dropFirst(5)) : name
+            let title = "\(snap.agentName ?? "An agent") needs you"
+            let body = snap.detail ?? "\(project) is waiting on you."
+            Task {
+                await CloudKitSignalService.shared.sendAgentSignal(
+                    hostId: "", sessionId: name, title: title, body: body)
+            }
+        }
+        // Re-arm sessions that are no longer waiting (or vanished).
+        signaledWaiting = signaledWaiting.filter { snapshots[$0]?.activity == .waiting }
     }
 
     /// Off-main: list shio-* sessions, capture each pane, classify.

@@ -92,6 +92,20 @@ final class CloudKitSignalService {
 
     // MARK: Verification
 
+    /// Fire the away-push for a real "an agent needs you" event — a Shio
+    /// companion (the Mac watcher) calls this when a local agent blocks on
+    /// input. Best-effort and guarded on iCloud availability, so it's a safe
+    /// no-op when offline / not signed in.
+    func sendAgentSignal(hostId: String, sessionId: String, title: String, body: String) async {
+        guard await iCloudAvailable() else { return }
+        let record = CKRecord(recordType: Self.recordType)
+        record["hostId"] = hostId
+        record["sessionId"] = sessionId
+        record["title"] = title
+        record["body"] = body
+        _ = try? await database.save(record)
+    }
+
     /// Write a test Signal record. The subscription fires and Apple pushes a
     /// Shio-branded alert back to this (and any same-account) device — the way
     /// to verify delivery + branding on a real device before the Mac companion
