@@ -125,4 +125,21 @@ extension Project {
 
     /// The effective clone URL of the active repo (transition: legacy field).
     var effectiveCloneURL: String? { activeRepo?.cloneURL ?? cloneURL }
+
+    /// Add another repo to this project (the multi-repo path) with its first
+    /// checkout, inserted into the context.
+    @discardableResult
+    func addRepo(name: String, path: String, host: Host?, cloneURL: String? = nil,
+                 in context: ModelContext) -> Repo {
+        let identity = cloneURL.flatMap { ProjectMigration.normalize(cloneURL: $0) } ?? UUID().uuidString
+        let repo = Repo(name: name, cloneURL: cloneURL, identityKey: identity, project: self)
+        repo.lastOpenedAt = .now
+        context.insert(repo)
+
+        let checkout = ProjectCheckout(path: path, project: self, host: host)
+        checkout.repo = repo
+        checkout.lastOpenedAt = .now
+        context.insert(checkout)
+        return repo
+    }
 }

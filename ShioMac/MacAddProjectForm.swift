@@ -7,6 +7,8 @@ import SwiftData
 /// browsing comes with the Files SFTP work); local folders use a picker.
 struct MacAddProjectForm: View {
     @Bindable var model: MacTerminalModel
+    /// When set, adds another repo under this project instead of creating a new one.
+    var targetProject: Project?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var machines: [Host]
@@ -29,7 +31,7 @@ struct MacAddProjectForm: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Add a project")
+            Text(targetProject == nil ? "Add a project" : "Add a repo to \(targetProject!.name)")
                 .font(.system(.title3, design: .monospaced).weight(.semibold))
             Form {
                 Picker("Machine", selection: $machineID) {
@@ -144,21 +146,32 @@ struct MacAddProjectForm: View {
         let host = selectedMachine ?? MacSelfHost.ensure(in: context)
         let cleanLocation = location.trimmingCharacters(in: .whitespaces)
 
-        let project: Project
+        let rName: String
+        let path: String
+        let cloneURL: String?
         switch source {
         case .folder:
-            let finalName = name.isEmpty ? (cleanLocation as NSString).lastPathComponent : name
-            project = Project.create(name: finalName, path: cleanLocation, host: host, in: context)
+            rName = name.isEmpty ? (cleanLocation as NSString).lastPathComponent : name
+            path = cleanLocation
+            cloneURL = nil
         case .git:
-            let repo = name.isEmpty ? repoName(from: gitURL) : name
-            let fullPath = (cleanLocation as NSString).appendingPathComponent(repo)
-            project = Project.create(name: repo, path: fullPath, host: host,
-                                     cloneURL: gitURL.trimmingCharacters(in: .whitespaces), in: context)
+            rName = name.isEmpty ? repoName(from: gitURL) : name
+            path = (cleanLocation as NSString).appendingPathComponent(rName)
+            cloneURL = gitURL.trimmingCharacters(in: .whitespaces)
         }
 
-        project.lastOpenedAt = .now
-        try? context.save()
-        model.open(project: project)
+        if let target = targetProject {
+            // Add another repo under an existing project.
+            let repo = target.addRepo(name: rName, path: path, host: host, cloneURL: cloneURL, in: context)
+            target.lastOpenedAt = .now
+            try? context.save()
+            model.open(repo: repo)
+        } else {
+            let project = Project.create(name: rName, path: path, host: host, cloneURL: cloneURL, in: context)
+            project.lastOpenedAt = .now
+            try? context.save()
+            model.open(project: project)
+        }
         dismiss()
     }
 }

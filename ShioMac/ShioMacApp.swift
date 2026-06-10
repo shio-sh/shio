@@ -243,7 +243,30 @@ final class MacTerminalModel {
     /// for projects that live on a machine. Used by the Projects list and the
     /// Add-Project sheet alike.
     func open(project: Project) {
-        open(project: project, checkout: project.activeCheckout)
+        if let repo = project.activeRepo { open(repo: repo) }
+        else { open(project: project, checkout: project.activeCheckout) }
+    }
+
+    /// Open a specific repo (the project-first path) on its active checkout. The
+    /// tmux session is named per-repo (`shio-<repo>`), so different repos in one
+    /// project are independent sessions.
+    func open(repo: Repo) {
+        let checkout = repo.activeCheckout
+        let host = checkout?.host
+        let path = checkout?.path ?? ""
+        repo.lastOpenedAt = .now
+        checkout?.lastOpenedAt = .now
+        repo.project?.lastOpenedAt = .now
+        let tmuxName = "shio-\(TmuxResume.scrubName(repo.name))"
+        if let host, !MacSelfHost.isThisMac(host) {
+            let resume = TmuxResume.resumeCommand(named: tmuxName, startDir: path, cloneURL: repo.cloneURL)
+            let session = MacSSHSession(host: host.hostname, port: host.port,
+                                        username: host.username, password: nil, resumeCommand: resume)
+            openSSH(session, title: repo.name)
+        } else {
+            addTab(.project(MacLocalProjectSession(name: repo.name, path: path, cloneURL: repo.cloneURL)),
+                   title: repo.name)
+        }
     }
 
     /// Open a project on a specific machine checkout (the machine switcher's path).

@@ -108,6 +108,7 @@ private struct ProjectsPane: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
     @State private var agents = MacProjectAgentMonitor.shared
+    @State private var addRepoTarget: Project?
 
     private var filtered: [Project] {
         let q = model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
@@ -130,7 +131,7 @@ private struct ProjectsPane: View {
         }
     }
     private func rank(_ p: Project) -> Int {
-        switch localAgentActivity(p) {
+        switch projectAgent(p) {
         case .waiting: return 0
         case .running: return 1
         default:       return 2
@@ -150,12 +151,12 @@ private struct ProjectsPane: View {
                               alignment: .leading, spacing: 12) {
                         ForEach(sortedFiltered) { project in
                             MacProjectCard(
-                                name: project.name,
-                                machines: machinesText(project),
+                                projectName: project.name,
                                 age: shioShortAge(project.lastOpenedAt),
-                                git: gitProbe(project),
-                                agentActivity: localAgentActivity(project),
-                                open: { open(project) },
+                                repos: repoRows(project),
+                                needsYou: projectAgent(project) == .waiting,
+                                openRepo: { model.open(repo: $0) },
+                                addRepo: { addRepoTarget = project },
                                 remove: { remove(project) }
                             )
                         }
@@ -178,6 +179,7 @@ private struct ProjectsPane: View {
             }
         }
         .sheet(isPresented: $model.showingAddProject) { MacAddProjectForm(model: model) }
+        .sheet(item: $addRepoTarget) { proj in MacAddProjectForm(model: model, targetProject: proj) }
     }
 
     private var emptyState: some View {
@@ -201,13 +203,21 @@ private struct ProjectsPane: View {
         status.refresh(ProjectStatusStore.targets(for: projects, isLocalHost: MacSelfHost.isThisMac))
     }
 
-    private func gitProbe(_ project: Project) -> GitProbe? {
-        guard let c = project.activeCheckout else { return nil }
+    private func repoRows(_ project: Project) -> [RepoRowVM] {
+        project.sortedRepos.map { repo in
+            RepoRowVM(id: repo.persistentModelID, repo: repo, name: repo.name,
+                      machines: machinesText(repo), git: gitProbe(repo),
+                      agent: localAgentActivity(repo))
+        }
+    }
+
+    private func gitProbe(_ repo: Repo) -> GitProbe? {
+        guard let c = repo.activeCheckout else { return nil }
         return status.status(forHost: c.host, path: c.path)?.probe
     }
 
-    private func machinesText(_ project: Project) -> String {
-        let names = project.allCheckouts.map { c -> String in
+    private func machinesText(_ repo: Repo) -> String {
+        let names = (repo.checkouts ?? []).map { c -> String in
             guard let h = c.host else { return "this mac" }
             return MacSelfHost.isThisMac(h) ? "this mac" : h.name
         }
@@ -217,13 +227,22 @@ private struct ProjectsPane: View {
     }
 
     /// The tmux capture-pane monitor only sees THIS Mac, so only trust it for a
-    /// project that has a checkout here — else a same-named remote project would
-    /// borrow a local agent's state.
-    private func localAgentActivity(_ project: Project) -> AgentActivity {
-        let checkouts = project.allCheckouts
+    /// repo that has a checkout here — else a same-named remote repo would borrow
+    /// a local agent's state.
+    private func localAgentActivity(_ repo: Repo) -> AgentActivity {
+        let checkouts = repo.checkouts ?? []
         let hasLocal = checkouts.isEmpty || checkouts.contains { $0.host.map(MacSelfHost.isThisMac) ?? true }
         guard hasLocal else { return .none }
-        return agents.snapshot(forProjectNamed: project.name)?.activity ?? .none
+        return agents.snapshot(forProjectNamed: repo.name)?.activity ?? .none
+    }
+
+    /// Worst-case agent across the project's repos (drives sort + the needs-you edge).
+    private func projectAgent(_ project: Project) -> AgentActivity {
+        let acts = project.sortedRepos.map { localAgentActivity($0) }
+        if acts.contains(.waiting) { return .waiting }
+        if acts.contains(.running) { return .running }
+        if acts.contains(.finished) { return .finished }
+        return .none
     }
 
     private func open(_ project: Project) {
@@ -233,59 +252,108 @@ private struct ProjectsPane: View {
     }
 }
 
-/// One project card in the Mac command center — monospace dialect, git + agent
-/// glance, a quiet amber edge when an agent needs you.
-private struct MacProjectCard: View {
+/// Display data for one repo row inside a project card.
+private struct RepoRowVM: Identifiable {
+    let id: PersistentIdentifier
+    let repo: Repo
     let name: String
     let machines: String
-    let age: String
     let git: GitProbe?
-    let agentActivity: AgentActivity
-    let open: () -> Void
+    let agent: AgentActivity
+}
+
+/// A project card in the Mac command center — an org that holds repos. A
+/// single-repo project renders compact (looks like one repo); a multi-repo
+/// project lists its repos, each openable. Quiet amber edge when an agent needs
+/// you anywhere in the project.
+private struct MacProjectCard: View {
+    let projectName: String
+    let age: String
+    let repos: [RepoRowVM]
+    let needsYou: Bool
+    let openRepo: (Repo) -> Void
+    let addRepo: () -> Void
     let remove: () -> Void
     @State private var hovering = false
 
-    private var needsYou: Bool { agentActivity == .waiting }
+    private var isSingle: Bool { repos.count <= 1 }
 
     var body: some View {
-        Button(action: open) {
-            HStack(spacing: 0) {
-                Rectangle()
-                    .fill(needsYou ? MacInk.amber : Color.clear)
-                    .frame(width: 3)
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text(name).font(.system(.body, design: .monospaced)).foregroundStyle(.primary)
-                        Spacer()
-                        if !age.isEmpty {
-                            Text(age).font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(.tertiary).monospacedDigit()
+        HStack(spacing: 0) {
+            Rectangle().fill(needsYou ? MacInk.amber : Color.clear).frame(width: 3)
+            VStack(alignment: .leading, spacing: isSingle ? 6 : 8) {
+                header
+                if isSingle, let row = repos.first {
+                    Button { openRepo(row.repo) } label: { RepoStatus(row: row) }
+                        .buttonStyle(.plain)
+                } else {
+                    ForEach(repos) { row in
+                        Button { openRepo(row.repo) } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(row.name)
+                                    .font(.system(.caption, design: .monospaced).weight(.medium))
+                                    .foregroundStyle(.primary)
+                                RepoStatus(row: row)
+                            }
+                            .padding(.leading, 4)
                         }
+                        .buttonStyle(.plain)
                     }
-                    Text(machines)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
-                    gitLine
-                    if let agentText { agentLine(agentText) }
                 }
-                .padding(10)
             }
-            .background(hovering ? Color.primary.opacity(0.07) : Color.primary.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-            )
+            .padding(10)
         }
-        .buttonStyle(.plain)
+        .background(hovering ? Color.primary.opacity(0.07) : Color.primary.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
         .onHover { hovering = $0 }
         .contextMenu {
+            Button("Add repo…", action: addRepo)
+            Divider()
             Button("Remove from Shio", role: .destructive, action: remove)
         }
     }
 
+    private var header: some View {
+        HStack(spacing: 6) {
+            Image(systemName: isSingle ? "folder.fill" : "square.stack.3d.up.fill")
+                .font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(projectName).font(.system(.body, design: .monospaced)).foregroundStyle(.primary)
+            if !isSingle {
+                Text("\(repos.count) repos")
+                    .font(.system(.caption2, design: .monospaced)).foregroundStyle(.tertiary)
+            }
+            Spacer()
+            if !age.isEmpty {
+                Text(age).font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.tertiary).monospacedDigit()
+            }
+        }
+    }
+}
+
+/// The status lines for one repo — machines, git glance, agent — shared by the
+/// compact (single-repo) and listed (multi-repo) card layouts.
+private struct RepoStatus: View {
+    let row: RepoRowVM
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(row.machines)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            gitLine
+            if let agentText { agentLine(agentText) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
     @ViewBuilder private var gitLine: some View {
-        let m = GitLineFormatter.make(git)
+        let m = GitLineFormatter.make(row.git)
         HStack(spacing: 6) {
             HStack(spacing: 3) {
                 Image(systemName: "arrow.triangle.branch").font(.system(size: 10))
@@ -295,24 +363,22 @@ private struct MacProjectCard: View {
             .foregroundStyle(m.state == .loading || m.state == .unreachable ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
 
             if m.hasTracking {
-                if m.ahead > 0 { tag("↑\(m.ahead)", .secondary) }
-                if m.behind > 0 { tag("↓\(m.behind)", .secondary) }
-                if m.dirty > 0 { tag("●\(m.dirty)", nil, color: MacInk.amber) }
-                else { tag("clean", nil, color: MacInk.green) }
+                if m.ahead > 0 { tag("↑\(m.ahead)") }
+                if m.behind > 0 { tag("↓\(m.behind)") }
+                if m.dirty > 0 { tag("●\(m.dirty)", MacInk.amber) }
+                else { tag("clean", MacInk.green) }
             }
             Spacer(minLength: 0)
         }
     }
 
-    private func tag(_ text: String, _ style: HierarchicalShapeStyle?, color: Color? = nil) -> some View {
-        Text(text)
-            .font(.system(.caption2, design: .monospaced))
-            .monospacedDigit()
+    private func tag(_ text: String, _ color: Color? = nil) -> some View {
+        Text(text).font(.system(.caption2, design: .monospaced)).monospacedDigit()
             .foregroundStyle(color ?? Color.secondary)
     }
 
     private var agentText: String? {
-        switch agentActivity {
+        switch row.agent {
         case .waiting:  return "needs you"
         case .running:  return "working…"
         case .finished: return "finished"
@@ -323,8 +389,8 @@ private struct MacProjectCard: View {
     @ViewBuilder private func agentLine(_ text: String) -> some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(agentActivity == .waiting ? MacInk.amber
-                      : (agentActivity == .finished ? MacInk.green : MacInk.info))
+                .fill(row.agent == .waiting ? MacInk.amber
+                      : (row.agent == .finished ? MacInk.green : MacInk.info))
                 .frame(width: 6, height: 6)
             Text(text).font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
         }
