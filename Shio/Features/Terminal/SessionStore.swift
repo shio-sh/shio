@@ -85,12 +85,25 @@ final class SessionStore {
         sessions.filter { $0.checkoutID == checkoutID }
     }
 
-    /// Open the first existing session for this project (on its active checkout),
-    /// or create one. Returns nil if the project has no usable checkout yet.
+    /// Open the first existing session for this project (its active repo's active
+    /// checkout), or create one. Returns nil if there's no usable checkout yet.
     @discardableResult
     func openOrCreate(project: Project) -> Session? {
+        if let repo = project.activeRepo { return openOrCreate(repo: repo) }
         guard let checkout = project.activeCheckout else { return nil }
         return openOrCreate(project: project, checkout: checkout)
+    }
+
+    /// Open or create a session for a specific repo (the project-first path), on
+    /// its active checkout. The tmux session is named per-repo.
+    @discardableResult
+    func openOrCreate(repo: Repo) -> Session? {
+        guard let checkout = repo.activeCheckout, let host = checkout.host else { return nil }
+        if let existing = sessions.first(where: { $0.checkoutID == checkout.persistentModelID }) {
+            activeSession = existing
+            return existing
+        }
+        return createNewSession(on: host, project: repo.project, checkout: checkout, repoName: repo.name)
     }
 
     /// Open or create a session for a specific checkout of a project — the path
@@ -115,7 +128,7 @@ final class SessionStore {
     /// independently. Reusing index 0 is intentional — the single-session
     /// user's existing tmux session survives.
     @discardableResult
-    func createNewSession(on host: Host, project: Project? = nil, checkout: ProjectCheckout? = nil) -> Session {
+    func createNewSession(on host: Host, project: Project? = nil, checkout: ProjectCheckout? = nil, repoName: String? = nil) -> Session {
         // Contextual notification opt-in: away-push is *for* sessions, so this
         // is the moment to ask — not at first launch. The system prompts only
         // once; subsequent calls are no-ops.
@@ -147,14 +160,17 @@ final class SessionStore {
         let cloneURL: String?
         let baseName: String
         if let project {
-            let scrubbed = TmuxResume.scrubName(project.name)
+            // Name tmux per-repo so different repos in one project are independent.
+            let base = repoName ?? project.name
+            let scrubbed = TmuxResume.scrubName(base)
             tmuxName = nextIndex == 0 ? "shio-\(scrubbed)" : "shio-\(scrubbed)-\(nextIndex)"
             // Read the working dir from the active checkout; fall back to the
             // legacy project.path for safety during the migration window.
             startDir = checkout?.path ?? project.path
-            cloneURL = project.effectiveCloneURL
-            baseName = project.name
+            cloneURL = checkout?.repo?.cloneURL ?? project.effectiveCloneURL
+            baseName = base
             project.lastOpenedAt = .now
+            checkout?.repo?.lastOpenedAt = .now
             checkout?.lastOpenedAt = .now
         } else {
             tmuxName = nil      // SessionViewModel derives `shio-<host>`

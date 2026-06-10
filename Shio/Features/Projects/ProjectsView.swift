@@ -11,6 +11,7 @@ struct ProjectsView: View {
     @State private var showingSettings = false
     @State private var isAddingProject = false
     @State private var showingTerminal = false
+    @State private var selectedProject: Project?
     private let sessionStore = SessionStore.shared
     private let agents = AgentStateStore.shared
     private let status = ProjectStatusStore.shared
@@ -47,7 +48,8 @@ struct ProjectsView: View {
                                     agentName: agentSnapshot(for: project)?.agentName,
                                     agentDetail: agentSnapshot(for: project)?.detail,
                                     git: gitProbe(for: project),
-                                    open: { open(project) },
+                                    repoCount: (project.repos ?? []).count,
+                                    open: { selectedProject = project },
                                     remove: { remove(project) }
                                 )
                             }
@@ -77,10 +79,19 @@ struct ProjectsView: View {
                     .accessibilityLabel("Settings")
                 }
             }
+            .navigationDestination(item: $selectedProject) { proj in
+                ProjectOverviewView(project: proj, openRepo: openRepo)
+            }
             .sheet(isPresented: $showingSettings) { NavigationStack { SettingsView() } }
             .sheet(isPresented: $isAddingProject) { AddProjectSheet() }
             .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
             .onAppear { refreshStatus() }
+        }
+    }
+
+    private func openRepo(_ repo: Repo) {
+        if sessionStore.openOrCreate(repo: repo) != nil {
+            showingTerminal = true
         }
     }
 
@@ -152,6 +163,7 @@ private struct ProjectCard: View {
     let agentName: String?
     let agentDetail: String?
     let git: GitProbe?
+    var repoCount: Int = 1
     let open: () -> Void
     let remove: () -> Void
 
@@ -191,6 +203,11 @@ private struct ProjectCard: View {
             Text(project.name)
                 .font(ShioFont.bodyEmphasis)
                 .foregroundStyle(ShioColor.Text.primary)
+            if repoCount > 1 {
+                Text("\(repoCount) repos")
+                    .font(ShioFont.footnote)
+                    .foregroundStyle(ShioColor.Text.tertiary)
+            }
             Spacer()
             let age = shioShortAge(project.lastOpenedAt)
             if !age.isEmpty {

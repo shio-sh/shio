@@ -4,6 +4,8 @@ import SwiftData
 /// Minimal v1 add-project: pick a host you've connected and point at a repo
 /// path on it. Repo auto-discovery and clone-by-URL come next in Phase 2.
 struct AddProjectSheet: View {
+    /// When set, adds another repo under this project instead of a new project.
+    var targetProject: Project?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var hosts: [Host]
@@ -137,7 +139,12 @@ struct AddProjectSheet: View {
         let leaf = (trimmedPath as NSString).lastPathComponent
         let name = leaf.isEmpty ? trimmedPath : leaf
         let cloneURL = (source == .clone && !trimmedURL.isEmpty) ? trimmedURL : nil
-        Project.create(name: name, path: trimmedPath, host: host, cloneURL: cloneURL, in: context)
+        if let target = targetProject {
+            target.addRepo(name: name, path: trimmedPath, host: host, cloneURL: cloneURL, in: context)
+            target.lastOpenedAt = .now
+        } else {
+            Project.create(name: name, path: trimmedPath, host: host, cloneURL: cloneURL, in: context)
+        }
         try? context.save()
         dismiss()
     }
