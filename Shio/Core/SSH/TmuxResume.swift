@@ -90,7 +90,15 @@ enum TmuxResume {
     /// omit it): `window-size` is a global server option that persists, so a
     /// session previously attached with `smallest` stays pinned small (the
     /// dotted dead-zone) until something overrides it.
-    static let attachOptions = " \\; set mouse on \\; setw -g window-size latest"
+    ///
+    /// `escape-time 0` kills the single biggest source of perceived lag: tmux's
+    /// default 500ms wait after ESC (to disambiguate escape sequences) makes vim
+    /// and agent TUIs feel sluggish over SSH. It's a server option (`-sg`), so it
+    /// applies to every Shio attach. `status off` hides tmux's own status bar so
+    /// the terminal reads as a clean native surface — session-scoped (no `-g`),
+    /// so it never touches the user's other tmux sessions on the same server.
+    static let attachOptions =
+        " \\; set mouse on \\; setw -g window-size latest \\; set -sg escape-time 0 \\; set status off"
 
     private static func singleQuoted(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
