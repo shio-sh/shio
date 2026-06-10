@@ -41,6 +41,17 @@ struct MacProjectsView: View {
         .sheet(item: $addRepoTarget) { proj in MacAddProjectForm(model: model, targetProject: proj) }
         .onAppear { ensureSelection(); refreshStatus() }
         .onChange(of: projects.count) { _, _ in ensureSelection() }
+        // Cheap keep-fresh while Projects is on screen: this view only exists
+        // when the section is selected, so the timer pauses the moment you leave.
+        // warmOnly so it never wakes a sleeping remote.
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(20))
+                if Task.isCancelled { break }
+                status.refresh(ProjectStatusStore.targets(
+                    for: projects, isLocalHost: MacSelfHost.isThisMac, warmOnly: true))
+            }
+        }
     }
 
     // MARK: rail

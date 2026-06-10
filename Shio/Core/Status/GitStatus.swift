@@ -145,7 +145,7 @@ extension GitStatus {
 
 /// The result of probing one checkout — every failure is first-class so the UI
 /// degrades gracefully instead of guessing.
-enum GitProbe: Equatable, Sendable {
+enum GitProbe: Codable, Equatable, Sendable {
     case ok(GitStatus)
     case notARepo
     case gitMissing

@@ -25,11 +25,42 @@ enum StatusKey {
 @Observable
 final class ProjectStatusStore {
     static let shared = ProjectStatusStore()
-    private init() {}
+    private init() { loadDiskCache() }
 
-    struct Cached: Equatable {
+    struct Cached: Codable, Equatable {
         var probe: GitProbe
         var fetchedAt: Date
+    }
+
+    /// Last-known-good lives in the App Group so the dashboard paints the moment
+    /// it appears — branch, ahead/behind, dirty counts — before a single byte of
+    /// SSH. A refresh then upgrades it in place. Only `.ok` probes are persisted
+    /// (we never want to cold-launch into a stale failure), and entries older
+    /// than a week are dropped on load.
+    private static let cacheURL: URL? = FileManager.default
+        .containerURL(forSecurityApplicationGroupIdentifier: ShioModelContainer.appGroup)?
+        .appendingPathComponent("git-status-cache.json")
+
+    private func loadDiskCache() {
+        guard let url = Self.cacheURL,
+              let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode([String: Cached].self, from: data)
+        else { return }
+        let cutoff = Date().addingTimeInterval(-7 * 24 * 3600)
+        statuses = decoded.filter { $0.value.fetchedAt > cutoff }
+    }
+
+    private func saveDiskCache() {
+        guard let url = Self.cacheURL else { return }
+        let okOnly = statuses.filter { if case .ok = $0.value.probe { return true } else { return false } }
+        guard let data = try? JSONEncoder().encode(okOnly) else { return }
+        Task.detached(priority: .utility) { try? data.write(to: url, options: .atomic) }
+    }
+
+    /// A cached status counts as stale once it's older than this; surfaces decide
+    /// how loudly to say so (a dimmed dot, a "·· " prefix).
+    func isStale(_ cached: Cached, maxAge: TimeInterval = 90) -> Bool {
+        Date().timeIntervalSince(cached.fetchedAt) > maxAge
     }
 
     /// Where a checkout lives, pre-resolved on the main actor so the fan-out
@@ -93,6 +124,7 @@ final class ProjectStatusStore {
             }
         }
         isRefreshing = false
+        if !Task.isCancelled { saveDiskCache() }
     }
 
     /// Transient failures keep the last good status visible (stale-but-useful).
@@ -125,13 +157,18 @@ extension ProjectStatusStore {
     /// Build refresh targets from the visible projects. `isLocalHost` is the
     /// platform's "this is my own machine" test (Mac: MacSelfHost.isThisMac;
     /// iOS: always false). Main-actor — reads SwiftData.
-    static func targets(for projects: [Project], isLocalHost: (Host) -> Bool) -> [Target] {
+    /// `warmOnly` skips remote machines that haven't been reached recently — so a
+    /// background/timer refresh never wakes a sleeping Pi every few seconds. The
+    /// local machine and on-appear/manual refreshes always go through.
+    static func targets(for projects: [Project], isLocalHost: (Host) -> Bool,
+                        warmOnly: Bool = false) -> [Target] {
         var out: [Target] = []
         for project in projects {
             for checkout in project.allCheckouts where !checkout.path.isEmpty {
                 let host = checkout.host
                 let key = StatusKey.make(host: host, path: checkout.path)
                 if let host, !isLocalHost(host) {
+                    if warmOnly && !isWarm(host) { continue }
                     out.append(Target(key: key, path: checkout.path,
                                       hostKey: "\(host.persistentModelID)",
                                       location: .remote(statusConfig(for: host))))
@@ -142,6 +179,13 @@ extension ProjectStatusStore {
             }
         }
         return out
+    }
+
+    /// A machine is "warm" if it was connected in the last 10 minutes — a cheap
+    /// proxy for "awake and reachable" without a live probe.
+    private static func isWarm(_ host: Host) -> Bool {
+        guard let last = host.lastConnectedAt else { return false }
+        return last.timeIntervalSinceNow > -600
     }
 
     /// Auth for status probes: `.systemKeys` matches Mac's interactive sessions
