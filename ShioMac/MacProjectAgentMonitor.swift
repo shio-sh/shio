@@ -29,7 +29,8 @@ final class MacProjectAgentMonitor {
         guard timer == nil, tmux != nil else { return }
         poll()
         timer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in
-            self?.poll()
+            // Timer callbacks are nonisolated; hop to the main actor explicitly.
+            Task { @MainActor in self?.poll() }
         }
     }
 
