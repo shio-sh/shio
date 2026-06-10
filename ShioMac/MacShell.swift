@@ -109,6 +109,7 @@ private struct ProjectsPane: View {
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
     @State private var agents = MacProjectAgentMonitor.shared
     @State private var addRepoTarget: Project?
+    @State private var openedProject: Project?
 
     private var filtered: [Project] {
         let q = model.searchQuery.trimmingCharacters(in: .whitespaces).lowercased()
@@ -139,6 +140,25 @@ private struct ProjectsPane: View {
     }
 
     var body: some View {
+        Group {
+            if let proj = openedProject {
+                MacProjectOverview(
+                    project: proj,
+                    repos: repoRows(proj),
+                    back: { openedProject = nil },
+                    openRepo: { model.open(repo: $0) },
+                    addRepo: { addRepoTarget = proj }
+                )
+                .onAppear { refreshStatus() }
+            } else {
+                grid
+            }
+        }
+        .sheet(isPresented: $model.showingAddProject) { MacAddProjectForm(model: model) }
+        .sheet(item: $addRepoTarget) { proj in MacAddProjectForm(model: model, targetProject: proj) }
+    }
+
+    private var grid: some View {
         VStack(spacing: 0) {
             if model.showingSearch {
                 SectionSearchField(model: model, placeholder: "Search projects")
@@ -155,7 +175,7 @@ private struct ProjectsPane: View {
                                 age: shioShortAge(project.lastOpenedAt),
                                 repos: repoRows(project),
                                 needsYou: projectAgent(project) == .waiting,
-                                openRepo: { model.open(repo: $0) },
+                                openProject: { openedProject = project },
                                 addRepo: { addRepoTarget = project },
                                 remove: { remove(project) }
                             )
@@ -178,8 +198,6 @@ private struct ProjectsPane: View {
                 .onAppear { refreshStatus() }
             }
         }
-        .sheet(isPresented: $model.showingAddProject) { MacAddProjectForm(model: model) }
-        .sheet(item: $addRepoTarget) { proj in MacAddProjectForm(model: model, targetProject: proj) }
     }
 
     private var emptyState: some View {
@@ -271,7 +289,7 @@ private struct MacProjectCard: View {
     let age: String
     let repos: [RepoRowVM]
     let needsYou: Bool
-    let openRepo: (Repo) -> Void
+    let openProject: () -> Void
     let addRepo: () -> Void
     let remove: () -> Void
     @State private var hovering = false
@@ -279,16 +297,15 @@ private struct MacProjectCard: View {
     private var isSingle: Bool { repos.count <= 1 }
 
     var body: some View {
-        HStack(spacing: 0) {
-            Rectangle().fill(needsYou ? MacInk.amber : Color.clear).frame(width: 3)
-            VStack(alignment: .leading, spacing: isSingle ? 6 : 8) {
-                header
-                if isSingle, let row = repos.first {
-                    Button { openRepo(row.repo) } label: { RepoStatus(row: row) }
-                        .buttonStyle(.plain)
-                } else {
-                    ForEach(repos) { row in
-                        Button { openRepo(row.repo) } label: {
+        Button(action: openProject) {
+            HStack(spacing: 0) {
+                Rectangle().fill(needsYou ? MacInk.amber : Color.clear).frame(width: 3)
+                VStack(alignment: .leading, spacing: isSingle ? 6 : 8) {
+                    header
+                    if isSingle, let row = repos.first {
+                        RepoStatus(row: row)
+                    } else {
+                        ForEach(repos.prefix(3)) { row in
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(row.name)
                                     .font(.system(.caption, design: .monospaced).weight(.medium))
@@ -297,18 +314,23 @@ private struct MacProjectCard: View {
                             }
                             .padding(.leading, 4)
                         }
-                        .buttonStyle(.plain)
+                        if repos.count > 3 {
+                            Text("+\(repos.count - 3) more")
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.tertiary).padding(.leading, 4)
+                        }
                     }
                 }
+                .padding(10)
             }
-            .padding(10)
+            .background(hovering ? Color.primary.opacity(0.07) : Color.primary.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
         }
-        .background(hovering ? Color.primary.opacity(0.07) : Color.primary.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        )
+        .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .contextMenu {
             Button("Add repo…", action: addRepo)
@@ -394,6 +416,96 @@ private struct RepoStatus: View {
                 .frame(width: 6, height: 6)
             Text(text).font(.system(.caption2, design: .monospaced)).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// The project dashboard — the home you land on when you open a project (single-
+/// or multi-repo). Lists its repos (each openable into a terminal), with rename,
+/// add-repo, and a notes scratchpad. Grounding + agent-supervision surfaces land
+/// here next.
+private struct MacProjectOverview: View {
+    @Bindable var project: Project
+    let repos: [RepoRowVM]
+    let back: () -> Void
+    let openRepo: (Repo) -> Void
+    let addRepo: () -> Void
+    @Environment(\.modelContext) private var context
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Button(action: back) {
+                    Label("Projects", systemImage: "chevron.left")
+                        .font(.system(.callout, design: .monospaced))
+                }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+                Spacer()
+                Button(action: addRepo) {
+                    Label("Add repo", systemImage: "plus")
+                        .font(.system(.callout, design: .monospaced))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    TextField("Project name", text: $project.name)
+                        .textFieldStyle(.plain)
+                        .font(.system(.title, design: .monospaced).weight(.semibold))
+                        .onSubmit { try? context.save() }
+
+                    sectionHeader("REPOS")
+                    VStack(spacing: 8) {
+                        ForEach(repos) { row in
+                            repoRow(row)
+                        }
+                    }
+
+                    sectionHeader("NOTES")
+                    TextEditor(text: Binding(
+                        get: { project.notes ?? "" },
+                        set: { project.notes = $0 }))
+                        .font(.system(.callout, design: .monospaced))
+                        .frame(minHeight: 80)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .background(boxBackground)
+                        .onChange(of: project.notes) { _, _ in try? context.save() }
+                }
+                .padding(16)
+            }
+        }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(.caption2, design: .monospaced).weight(.semibold))
+            .tracking(2).foregroundStyle(.tertiary)
+    }
+
+    private func repoRow(_ row: RepoRowVM) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(row.name).font(.system(.body, design: .monospaced)).foregroundStyle(.primary)
+                RepoStatus(row: row)
+            }
+            Spacer(minLength: 8)
+            Button("Open") { openRepo(row.repo) }
+                .controlSize(.small)
+        }
+        .padding(10)
+        .background(boxBackground)
+    }
+
+    private var boxBackground: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(Color.primary.opacity(0.03))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
     }
 }
 
