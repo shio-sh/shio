@@ -43,36 +43,36 @@ struct HostListView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 KeyReinstallBanner()
-                List {
-                    if hosts.isEmpty {
-                        emptyState
-                    } else {
-                        Section {
-                            ForEach(dedupedHosts) { host in
-                                Button {
-                                    sessionStore.openOrCreate(host: host)
-                                    showingTerminal = true
-                                } label: {
-                                    HostRow(host: host)
+                if hosts.isEmpty {
+                    emptyState
+                } else {
+                    List {
+                        ForEach(dedupedHosts) { host in
+                            Button {
+                                sessionStore.openOrCreate(host: host)
+                                showingTerminal = true
+                            } label: {
+                                HostRow(host: host)
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(ShioTheme.background)
+                            .listRowSeparatorTint(ShioTheme.line)
+                            // "Remove" (not "Delete") — drops it from Shio
+                            // only; the machine itself is untouched.
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) { remove(host) } label: {
+                                    Label("Remove", systemImage: "trash")
                                 }
-                                .buttonStyle(.plain)
-                                // "Remove" (not "Delete") — drops it from Shio
-                                // only; the machine itself is untouched.
-                                .swipeActions(edge: .trailing) {
-                                    Button(role: .destructive) { remove(host) } label: {
-                                        Label("Remove", systemImage: "trash")
-                                    }
-                                    .tint(.red)
-                                }
+                                .tint(.red)
                             }
                         }
                     }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .refreshable { await SyncRefresh.run(context) }
                 }
-                .listStyle(.insetGrouped)
-                .scrollContentBackground(.hidden)
-                .refreshable { await SyncRefresh.run(context) }
             }
-            .background(ShioColor.Chrome.background)
+            .background(ShioTheme.background)
             .shioNavTitle("Machines")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -89,7 +89,7 @@ struct HostListView: View {
                         }
                     } label: {
                         Image(systemName: "plus")
-                            .foregroundStyle(ShioColor.Text.primary)
+                            .foregroundStyle(ShioTheme.textPrimary)
                     }
                     .accessibilityLabel("Add a machine")
                 }
@@ -98,7 +98,7 @@ struct HostListView: View {
                         showingSettings = true
                     } label: {
                         Image(systemName: "person.crop.circle")
-                            .foregroundStyle(ShioColor.Text.primary)
+                            .foregroundStyle(ShioTheme.textPrimary)
                     }
                     .accessibilityLabel("Settings")
                 }
@@ -120,25 +120,21 @@ struct HostListView: View {
 
     private var emptyState: some View {
         VStack(spacing: ShioSpace.lg) {
-            Spacer().frame(height: 60)
             Text("塩")
                 .font(ShioFont.kanji(size: 64))
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textTertiary)
             Text("Add a machine")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("Reach your Mac — or any SSH server — from your iPhone over Tailscale.")
                 .font(ShioFont.callout)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .multilineTextAlignment(.center)
-            LegacyButton("Get started") {
-                isAddingHost = true
-            }
-            .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
-            Spacer()
+                .padding(.horizontal, 32)
+            ShioButton("Get started", .primary, icon: "plus") { isAddingHost = true }
+                .padding(.top, 4)
         }
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     /// Remove a machine from Shio (the machine itself is left alone).
@@ -151,24 +147,29 @@ struct HostListView: View {
 private struct HostRow: View {
     let host: Host
 
+    /// No live probe yet — a machine not reached in 3 days reads as asleep.
+    private var reachable: Bool {
+        guard let last = host.lastConnectedAt else { return false }
+        return last.timeIntervalSinceNow > -3 * 24 * 3600
+    }
+
     var body: some View {
         HStack(spacing: ShioSpace.md) {
-            Image(systemName: "desktopcomputer")
-                .font(.system(size: 18))
-                .foregroundStyle(ShioColor.Text.secondary)
+            ShioStatusDot(status: reachable ? .success : .neutral, filled: reachable)
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(host.name)
-                    .font(ShioFont.bodyEmphasis)
-                    .foregroundStyle(ShioColor.Text.primary)
-                Text("\(host.username)@\(host.hostname)")
-                    .font(ShioFont.Mono.inline)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(ShioTheme.textPrimary)
+                Text("\(host.username)@\(host.hostname) · \(host.kind.rawValue)")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
+                    .lineLimit(1).truncationMode(.middle)
             }
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(ShioColor.Text.tertiary)
+                .foregroundStyle(ShioTheme.textTertiary)
         }
         .padding(.vertical, ShioSpace.xs)
     }
