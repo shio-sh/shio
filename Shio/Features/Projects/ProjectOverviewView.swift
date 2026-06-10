@@ -27,15 +27,11 @@ struct ProjectOverviewView: View {
                 glanceBar
                 if !needsYou.isEmpty {
                     sectionHeader("needs you")
-                    ForEach(needsYou, id: \.0.id) { (s, snap) in
-                        needsYouCard(session: s, snap: snap)
-                    }
+                    ForEach(needsYou) { item in needsYouCard(item) }
                 }
                 if !working.isEmpty {
                     sectionHeader("agents")
-                    ForEach(working, id: \.0.id) { (s, snap) in
-                        agentRow(session: s, snap: snap)
-                    }
+                    ForEach(working) { item in agentRow(item) }
                 }
                 sectionHeader("repos", add: { showingAddRepo = true })
                 ForEach(project.sortedRepos) { repo in repoRow(repo) }
@@ -100,13 +96,30 @@ struct ProjectOverviewView: View {
 
     // MARK: - Agent reads
 
-    private var sessionSnaps: [(SessionStore.Session, AgentSnapshot)] {
-        sessionStore.sessions(forProject: project.persistentModelID).compactMap { s in
-            agents.snapshot(for: s.id).map { (s, $0) }
+    /// A supervised agent for this project — from an open in-app session, or
+    /// detected on a machine during the status fetch. Dedup keeps one per label.
+    struct AgentItem: Identifiable { let id: String; let title: String; let snap: AgentSnapshot }
+
+    private var agentItems: [AgentItem] {
+        var items: [AgentItem] = []
+        var seen = Set<String>()
+        for s in sessionStore.sessions(forProject: project.persistentModelID) {
+            if let snap = agents.snapshot(for: s.id) {
+                let title = "\(snap.agentName ?? "Agent") · \(s.displayName)"
+                if seen.insert(title).inserted { items.append(.init(id: s.id.uuidString, title: title, snap: snap)) }
+            }
         }
+        for repo in project.sortedRepos {
+            for c in (repo.checkouts ?? []) {
+                guard let h = c.host, let snap = status.remoteAgent(host: h, repoName: repo.name) else { continue }
+                let title = "\(snap.agentName ?? "Agent") · \(repo.name)"
+                if seen.insert(title).inserted { items.append(.init(id: "remote-\(repo.name)", title: title, snap: snap)) }
+            }
+        }
+        return items
     }
-    private var needsYou: [(SessionStore.Session, AgentSnapshot)] { sessionSnaps.filter { $0.1.activity == .waiting } }
-    private var working:  [(SessionStore.Session, AgentSnapshot)] { sessionSnaps.filter { $0.1.activity == .running } }
+    private var needsYou: [AgentItem] { agentItems.filter { $0.snap.activity == .waiting } }
+    private var working:  [AgentItem] { agentItems.filter { $0.snap.activity == .running } }
 
     // MARK: - Glance
 
@@ -154,9 +167,10 @@ struct ProjectOverviewView: View {
         .padding(.horizontal, 18).padding(.top, 16).padding(.bottom, 7)
     }
 
-    private func needsYouCard(session: SessionStore.Session, snap: AgentSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("\(snap.agentName ?? "Agent") · \(session.displayName)")
+    private func needsYouCard(_ item: AgentItem) -> some View {
+        let snap = item.snap
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(item.title)
                 .font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
             if let d = snap.detail, !d.isEmpty {
                 Text("\"\(d)\"").font(.system(size: 13)).foregroundStyle(ShioTheme.warning)
@@ -172,12 +186,13 @@ struct ProjectOverviewView: View {
         .padding(.horizontal, 12).padding(.bottom, 4)
     }
 
-    private func agentRow(session: SessionStore.Session, snap: AgentSnapshot) -> some View {
-        Button { openProject() } label: {
+    private func agentRow(_ item: AgentItem) -> some View {
+        let snap = item.snap
+        return Button { openProject() } label: {
             HStack(spacing: 11) {
                 ShioBrailleSpinner(status: .info, size: 11)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(snap.agentName ?? session.displayName)
+                    Text(item.title)
                         .font(.system(size: 14)).foregroundStyle(ShioTheme.textPrimary)
                     if let d = snap.detail, !d.isEmpty {
                         Text(d).font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary).lineLimit(1)

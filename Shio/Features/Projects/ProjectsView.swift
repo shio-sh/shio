@@ -137,8 +137,18 @@ struct ProjectsView: View {
     /// Worst-case agent snapshot across this project's open sessions (waiting
     /// outranks running outranks finished).
     private func agentSnapshot(for project: Project) -> AgentSnapshot? {
-        let snaps = sessionStore.sessions(forProject: project.persistentModelID)
+        var snaps = sessionStore.sessions(forProject: project.persistentModelID)
             .compactMap { agents.snapshot(for: $0.id) }
+        // Also any agent detected on a machine during the status fetch — so a
+        // project with an agent working on a remote you aren't viewing still
+        // floats up (the supervision-first away case).
+        for repo in project.sortedRepos {
+            for c in (repo.checkouts ?? []) {
+                if let h = c.host, let r = status.remoteAgent(host: h, repoName: repo.name) {
+                    snaps.append(r)
+                }
+            }
+        }
         return snaps.first { $0.activity == .waiting }
             ?? snaps.first { $0.activity == .running }
             ?? snaps.first { $0.activity == .finished }

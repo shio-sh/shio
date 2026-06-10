@@ -221,8 +221,16 @@ struct MacProjectsView: View {
     private func agentSnapshot(_ repo: Repo) -> AgentSnapshot? {
         let checkouts = repo.checkouts ?? []
         let hasLocal = checkouts.isEmpty || checkouts.contains { $0.host.map(MacSelfHost.isThisMac) ?? true }
-        guard hasLocal else { return nil }
-        return agents.snapshot(forProjectNamed: repo.name)
+        // Local agents (this Mac's tmux) win; otherwise a remote agent detected
+        // during the status fetch on any of the repo's machines.
+        if hasLocal, let local = agents.snapshot(forProjectNamed: repo.name) { return local }
+        for c in checkouts {
+            if let h = c.host, !MacSelfHost.isThisMac(h),
+               let remote = status.remoteAgent(host: h, repoName: repo.name) {
+                return remote
+            }
+        }
+        return nil
     }
 
     private func localAgentActivity(_ repo: Repo) -> AgentActivity {

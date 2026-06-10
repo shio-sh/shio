@@ -13,6 +13,10 @@ enum GitStatusReader {
     private static let exMarker = "__SHIO_EX__"
     private static let endMarker = "__SHIO_END__"
     private static let noGitMarker = "__SHIO_NOGIT__"
+    // Agent-capture markers (a separate block appended to the same round trip).
+    private static let agMarker = "__SHIO_AG__"
+    private static let agBodyMarker = "__SHIO_AGB__"
+    private static let agEndMarker = "__SHIO_AGE__"
 
     private static let gitFlags =
         "--no-optional-locks -c core.pager=cat -c color.ui=false"
@@ -25,22 +29,31 @@ enum GitStatusReader {
     /// Probe every `path` on one host over a single SSH connection. Returns a
     /// probe per path; a path missing from the parse (truncation) → `.timedOut`.
     static func probeRemote(config: SSHClient.Configuration, paths: [String]) async -> [String: GitProbe] {
-        guard !paths.isEmpty else { return [:] }
+        await probeRemoteWithAgents(config: config, paths: paths).git
+    }
+
+    /// Same single round trip, but also captures any `shio-*` tmux panes on the
+    /// host and classifies them — so an agent working on a machine you're *not*
+    /// viewing still surfaces. Keyed by tmux session name (`shio-<scrubbed>`).
+    static func probeRemoteWithAgents(config: SSHClient.Configuration, paths: [String])
+    async -> (git: [String: GitProbe], agents: [String: AgentSnapshot]) {
+        guard !paths.isEmpty else { return ([:], [:]) }
         let client = SSHClient(configuration: config)
         do {
             try await client.connect()
             let out = try await client.exec(remoteScript(paths: paths), timeout: .seconds(8))
             await client.disconnect()
+            let agents = parseAgents(combined: out)
             if out.contains(noGitMarker) {
-                return Dictionary(uniqueKeysWithValues: paths.map { ($0, GitProbe.gitMissing) })
+                return (Dictionary(uniqueKeysWithValues: paths.map { ($0, GitProbe.gitMissing) }), agents)
             }
             var parsed = parse(combined: out)
             for p in paths where parsed[p] == nil { parsed[p] = .timedOut }
-            return parsed
+            return (parsed, agents)
         } catch {
             await client.disconnect()
             let why = error.localizedDescription
-            return Dictionary(uniqueKeysWithValues: paths.map { ($0, GitProbe.unreachable(why)) })
+            return (Dictionary(uniqueKeysWithValues: paths.map { ($0, GitProbe.unreachable(why)) }), [:])
         }
     }
 
@@ -53,7 +66,35 @@ enum GitStatusReader {
             printf '\(exMarker)%d\(endMarker)' "$?"
             """
         }.joined(separator: "\n")
-        return "command -v git >/dev/null 2>&1 || { printf '\(noGitMarker)'; exit 0; }\n" + blocks + "\n"
+        let gitPart = "command -v git >/dev/null 2>&1 || { printf '\(noGitMarker)'; }\n" + blocks + "\n"
+        // Agent capture: base64 each shio-* pane so arbitrary terminal bytes can
+        // never collide with our markers. tmux absent → silently no agents.
+        let agentPart = """
+        if command -v tmux >/dev/null 2>&1; then
+        tmux list-sessions -F '#{session_name}' 2>/dev/null | grep '^shio-' | while IFS= read -r s; do
+        printf '\(agMarker)%s\(agBodyMarker)' "$s"
+        tmux capture-pane -p -t "$s" 2>/dev/null | base64 | tr -d '\\n'
+        printf '\(agEndMarker)'
+        done
+        fi
+        """
+        return gitPart + agentPart + "\n"
+    }
+
+    /// Pull the base64 pane captures back out and classify each via AgentDetector.
+    private static func parseAgents(combined out: String) -> [String: AgentSnapshot] {
+        var result: [String: AgentSnapshot] = [:]
+        for chunk in out.components(separatedBy: agMarker).dropFirst() {
+            guard let bR = chunk.range(of: agBodyMarker) else { continue }
+            let session = String(chunk[..<bR.lowerBound])
+            let after = chunk[bR.upperBound...]
+            let b64 = after.components(separatedBy: agEndMarker).first ?? ""
+            guard let data = Data(base64Encoded: b64.trimmingCharacters(in: .whitespacesAndNewlines)),
+                  let pane = String(data: data, encoding: .utf8), !pane.isEmpty else { continue }
+            let snap = AgentDetector.classify(cleanTail: AgentDetector.strip(pane))
+            if snap.activity != .none { result[session] = snap }
+        }
+        return result
     }
 
     private static func shellQuote(_ s: String) -> String {

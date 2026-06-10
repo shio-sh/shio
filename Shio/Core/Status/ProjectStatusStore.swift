@@ -74,6 +74,10 @@ final class ProjectStatusStore {
     }
 
     private(set) var statuses: [String: Cached] = [:]
+    /// Remote agents detected during the status fetch, keyed by host then tmux
+    /// session name (`shio-<scrubbed repo>`). Local agents come from the Mac's
+    /// own `MacProjectAgentMonitor`; this covers machines you aren't viewing.
+    private(set) var remoteAgents: [String: [String: AgentSnapshot]] = [:]
     private(set) var isRefreshing = false
     private var inFlight: Task<Void, Never>?
 
@@ -81,6 +85,11 @@ final class ProjectStatusStore {
 
     func status(forHost host: Host?, path: String) -> Cached? {
         statuses[StatusKey.make(host: host, path: path)]
+    }
+
+    /// A remote agent for a repo by name on a given host, if one was detected.
+    func remoteAgent(host: Host, repoName: String) -> AgentSnapshot? {
+        remoteAgents["\(host.persistentModelID)"]?["shio-\(TmuxResume.scrubName(repoName))"]
     }
 
     /// Refresh the given checkouts. Cancels any in-flight refresh.
@@ -96,7 +105,7 @@ final class ProjectStatusStore {
         var pending = groups
         let cap = 4
 
-        await withTaskGroup(of: [(String, GitProbe)].self) { group in
+        await withTaskGroup(of: GroupResult.self) { group in
             var running = 0
             func addNext() {
                 guard let g = pending.popLast() else { return }
@@ -105,11 +114,14 @@ final class ProjectStatusStore {
             }
             for _ in 0..<min(cap, groups.count) { addNext() }
             while running > 0 {
-                guard let results = await group.next() else { break }
+                guard let result = await group.next() else { break }
                 running -= 1
                 if !Task.isCancelled {
                     let now = Date()
-                    for (key, probe) in results {
+                    if let hostKey = result.hostKey {
+                        remoteAgents[hostKey] = result.agents   // replace: empty clears stale agents
+                    }
+                    for (key, probe) in result.git {
                         // Never discard a good status for a transient failure.
                         if case .ok = probe {
                             statuses[key] = Cached(probe: probe, fetchedAt: now)
@@ -135,10 +147,20 @@ final class ProjectStatusStore {
         }
     }
 
-    private static func probeGroup(_ targets: [Target]) async -> [(String, GitProbe)] {
-        guard let first = targets.first else { return [] }
+    /// Result of probing one host's group: git per checkout, plus any remote
+    /// agents (nil hostKey = the local group, which has no remote agents).
+    private struct GroupResult {
+        var git: [(String, GitProbe)]
+        var hostKey: String?
+        var agents: [String: AgentSnapshot]
+    }
+
+    private static func probeGroup(_ targets: [Target]) async -> GroupResult {
+        guard let first = targets.first else { return GroupResult(git: [], hostKey: nil, agents: [:]) }
         let paths = targets.map { $0.path }
         let byPath: [String: GitProbe]
+        var agents: [String: AgentSnapshot] = [:]
+        var hostKey: String? = nil
         switch first.location {
         case .local:
             #if os(macOS)
@@ -147,9 +169,13 @@ final class ProjectStatusStore {
             byPath = [:]
             #endif
         case .remote(let config):
-            byPath = await GitStatusReader.probeRemote(config: config, paths: paths)
+            let r = await GitStatusReader.probeRemoteWithAgents(config: config, paths: paths)
+            byPath = r.git
+            agents = r.agents
+            hostKey = first.hostKey
         }
-        return targets.compactMap { t in byPath[t.path].map { (t.key, $0) } }
+        let git = targets.compactMap { t in byPath[t.path].map { (t.key, $0) } }
+        return GroupResult(git: git, hostKey: hostKey, agents: agents)
     }
 }
 
