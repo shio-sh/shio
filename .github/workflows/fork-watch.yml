@@ -1,0 +1,147 @@
+name: Fork watch — do we still need them?
+
+# A cheap weekly audit of our two forks (shio-sh/ghostty, shio-sh/libxev) that
+# answers one question: are these patches still worth carrying? For each fork it
+# uses git's PATCH-IDENTITY (`git cherry`) to detect when upstream has shipped an
+# equivalent of our patch (→ we can DROP the fork), and a dry rebase to detect
+# DRIFT (upstream changed our area → patch needs a manual rebase). If either
+# fires, it opens/updates a `fork-watch` tracking issue so we never carry a fork
+# longer than we have to — or get surprised by drift.
+#
+# Informational only: no build, no push, nothing in the app or canonical source
+# changes. (The heavy ghostty bump + triage PR lives in update-ghostty.yml.)
+#
+# libxev nuance: ghostty pins a SPECIFIC libxev commit (not libxev main), so we
+# audit our libxev patch against THAT pin — not the absolute latest libxev.
+#
+# SETUP: reuses the GHOSTTY_BOT_TOKEN secret (read on the forks, issues on shio).
+
+on:
+  schedule:
+    - cron: "0 8 * * 1" # Mondays 08:00 UTC — an hour before the ghostty-update job
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: fork-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Ghostty fork (full history)
+        uses: actions/checkout@v4
+        with:
+          repository: shio-sh/ghostty
+          path: ghostty
+          fetch-depth: 0
+          token: ${{ secrets.GHOSTTY_BOT_TOKEN }}
+
+      - name: Checkout libxev fork (full history)
+        uses: actions/checkout@v4
+        with:
+          repository: shio-sh/libxev
+          ref: shio-ios-kqueue
+          path: libxev
+          fetch-depth: 0
+          token: ${{ secrets.GHOSTTY_BOT_TOKEN }}
+
+      - name: Audit forks
+        id: audit
+        run: |
+          set -uo pipefail
+          BODY="$RUNNER_TEMP/issue-body.md"
+          REPORT="$RUNNER_TEMP/report.md"
+          : > "$REPORT"
+          ACTION=0
+
+          git config --global user.email "bot@shio.sh"
+          git config --global user.name  "shio-bot"
+
+          # audit_fork <label> <dir> <upstream-url> <compare-ref>
+          audit_fork () {
+            local label="$1" dir="$2" url="$3" target="$4"
+            ( cd "$dir"
+              git remote add upstream "$url" 2>/dev/null || true
+              git fetch --quiet upstream 2>/dev/null || true
+              echo "### $label" >> "$REPORT"
+              echo "- comparing against \`$target\`" >> "$REPORT"
+
+              # Absorption: git cherry marks '-' when an equivalent patch-id is
+              # already in <target>, '+' when it's still uniquely ours.
+              local cherry plus minus
+              cherry=$(git cherry -v "$target" HEAD 2>/dev/null || true)
+              plus=$(printf '%s\n'  "$cherry" | grep -c '^+' || true)
+              minus=$(printf '%s\n' "$cherry" | grep -c '^-' || true)
+              echo "- patches: **$plus still needed**, **$minus look ABSORBED upstream**" >> "$REPORT"
+              if [ "${minus:-0}" -gt 0 ]; then
+                echo "  - 🎉 **drop-the-fork candidate** — upstream already has an equivalent of:" >> "$REPORT"
+                printf '%s\n' "$cherry" | grep '^-' | sed 's/^-/    - /' >> "$REPORT"
+                echo "ACTION" >> "$RUNNER_TEMP/flag"
+              fi
+
+              # Drift: does our patch still rebase cleanly onto the target?
+              git checkout -q -b __watch HEAD 2>/dev/null
+              if git rebase -q "$target" >/dev/null 2>&1; then
+                echo "- rebase onto \`$target\`: ✅ clean" >> "$REPORT"
+              else
+                git rebase --abort >/dev/null 2>&1 || true
+                echo "- rebase onto \`$target\`: ⚠️ **CONFLICTS** — upstream changed our area; manual rebase needed" >> "$REPORT"
+                echo "ACTION" >> "$RUNNER_TEMP/flag"
+              fi
+              git checkout -q - 2>/dev/null || true
+              git branch -qD __watch 2>/dev/null || true
+              echo "" >> "$REPORT"
+            )
+          }
+
+          # ghostty — audit against upstream main.
+          audit_fork "ghostty (shio-sh/ghostty)" ghostty https://github.com/ghostty-org/ghostty.git upstream/main
+
+          # libxev — audit against the commit CURRENT ghostty pins, not libxev
+          # main (ghostty doesn't track libxev head). Pin lives in ghostty's
+          # build.zig.zon as `libxev-<40-hex-sha>.tar.gz`.
+          PIN=$(cd ghostty && git show upstream/main:build.zig.zon 2>/dev/null \
+                 | grep -oE 'libxev-[0-9a-f]{40}' | head -1 | cut -d- -f2)
+          if [ -n "${PIN:-}" ]; then
+            audit_fork "libxev (shio-sh/libxev)" libxev https://github.com/mitchellh/libxev.git "$PIN"
+            echo "_libxev audited against ghostty's pinned commit \`${PIN:0:9}\` (not libxev main)._" >> "$REPORT"
+          else
+            echo "### libxev" >> "$REPORT"
+            echo "- ⚠️ couldn't read ghostty's libxev pin — skipped." >> "$REPORT"
+          fi
+
+          [ -f "$RUNNER_TEMP/flag" ] && ACTION=1
+          echo "action=$ACTION" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "🤖 **Weekly fork audit** found something worth a look — either upstream **absorbed** one of our patches (we can drop the fork) or a patch **no longer rebases cleanly** (upstream changed our area)."
+            echo
+            cat "$REPORT"
+            echo
+            echo "_Re-run anytime via the **Fork watch** workflow. Informational — nothing was changed. The ghostty *bump* itself is handled by \`update-ghostty.yml\`._"
+          } > "$BODY"
+
+          echo "----- audit report -----"; cat "$REPORT"
+
+      - name: Open / update tracking issue (only when action is needed)
+        if: steps.audit.outputs.action == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GHOSTTY_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh label create fork-watch --repo shio-sh/shio --color 0E8A16 \
+            --description "Automated fork audit (drop-the-fork / drift)" 2>/dev/null || true
+          NUM=$(gh issue list --repo shio-sh/shio --label fork-watch --state open \
+                 --json number -q '.[0].number' 2>/dev/null || true)
+          if [ -n "${NUM:-}" ] && [ "$NUM" != "null" ]; then
+            gh issue comment "$NUM" --repo shio-sh/shio --body-file "$RUNNER_TEMP/issue-body.md"
+          else
+            gh issue create --repo shio-sh/shio --label fork-watch \
+              --title "Fork watch: a fork may be droppable or needs a rebase" \
+              --body-file "$RUNNER_TEMP/issue-body.md"
+          fi
