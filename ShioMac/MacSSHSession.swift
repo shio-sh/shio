@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// A live SSH terminal session on the Mac: bridges the proven SSHClient to a
 /// `.external` ghostty surface, and attaches the same `tmux shio-<host>`
@@ -79,7 +80,9 @@ final class MacSSHSession: Identifiable {
     func connect() async {
         state = .connecting
         do {
-            try await client.connect()
+            // May prompt for (and cache) a key passphrase; false = user cancelled,
+            // with a clean failure state already set.
+            guard try await establishConnection() else { return }
             try await client.requestShell()
             state = .connected
             // Attach the same tmux session name the phone computes — this is
@@ -94,6 +97,50 @@ final class MacSSHSession: Identifiable {
             let line = "\r\n\u{1b}[31m⚠  \(msg)\u{1b}[0m\r\n"
             surface.writeBytes(Data(line.utf8))
         }
+    }
+
+    /// Connect, transparently unlocking a passphrase-protected `~/.ssh` key when
+    /// that's the only identity available: prompt, validate, cache to Keychain,
+    /// retry. Returns false if the user dismisses the prompt (state already set
+    /// to a clean failure); throws for ordinary connection errors.
+    private func establishConnection() async throws -> Bool {
+        do {
+            try await client.connect()
+            return true
+        } catch SSHClient.SSHError.passphraseRequired(let names) {
+            guard let name = names.first else { throw SSHClient.SSHError.passphraseRequired(names) }
+            var incorrect = false
+            while true {
+                guard let passphrase = promptForPassphrase(keyName: name, retry: incorrect) else {
+                    let msg = "Unlock cancelled — \(name) is passphrase-protected."
+                    state = .failed(msg)
+                    surface.writeBytes(Data("\r\n\u{1b}[33m⚠  \(msg)\u{1b}[0m\r\n".utf8))
+                    return false
+                }
+                if SystemSSHKeys.unlock(keyNamed: name, passphrase: passphrase) {
+                    // resolveSystemKeys now finds the saved passphrase and loads the key.
+                    try await client.connect()
+                    return true
+                }
+                incorrect = true
+            }
+        }
+    }
+
+    /// Modal secure-entry prompt for an SSH key passphrase. nil = the user
+    /// cancelled. Runs on the main actor (this type is `@MainActor`).
+    private func promptForPassphrase(keyName: String, retry: Bool) -> String? {
+        let alert = NSAlert()
+        alert.messageText = retry ? "Incorrect passphrase — try again" : "Unlock SSH key"
+        alert.informativeText = "Enter the passphrase for ~/.ssh/\(keyName). It’s saved to your Keychain so you won’t be asked again."
+        alert.addButton(withTitle: "Unlock")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        field.placeholderString = "Passphrase"
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+        return field.stringValue
     }
 
     func stop() async {

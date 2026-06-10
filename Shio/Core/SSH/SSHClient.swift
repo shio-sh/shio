@@ -56,6 +56,7 @@ final class SSHClient: @unchecked Sendable {
         case keychainFailed(String)
         case sshKeyMissing
         case noUsableKey([String])
+        case passphraseRequired([String])
         case hostKeyChanged
 
         var errorDescription: String? {
@@ -73,6 +74,9 @@ final class SSHClient: @unchecked Sendable {
             case .noUsableKey(let skipped):
                 let detail = skipped.isEmpty ? "" : " (" + skipped.joined(separator: "; ") + ")"
                 return "No usable SSH key found in ~/.ssh\(detail). Add an ed25519 key, or set a password for this host."
+            case .passphraseRequired(let names):
+                let which = names.first.map { " for \($0)" } ?? ""
+                return "Your SSH key\(which) is passphrase-protected. Enter its passphrase to unlock it."
             case .hostKeyChanged:
                 return "This server's host key changed since you last connected. That can mean it was reinstalled — or that the connection is being intercepted. Refused for safety. Remove the host and re-add it if you trust the change."
             }
@@ -148,6 +152,12 @@ final class SSHClient: @unchecked Sendable {
     /// skipped. Throws only when nothing usable is found, with the reasons.
     private func resolveSystemKeys() throws {
         let loaded = SystemSSHKeys.load()
+        // If the user's only ~/.ssh identity is an encrypted key, ask them to
+        // unlock it rather than silently falling back to a Shio key the host
+        // won't trust. The caller (Mac session) prompts and retries.
+        if loaded.keys.isEmpty && !loaded.encryptedNeedingPassphrase.isEmpty {
+            throw SSHError.passphraseRequired(loaded.encryptedNeedingPassphrase)
+        }
         var keys = loaded.keys
         if let pk = try? KeyManager.existingKey() {
             keys.append(NIOSSHPrivateKey(ed25519Key: pk))
