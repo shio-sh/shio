@@ -13,6 +13,7 @@ struct SkillsLibraryView: View {
     @Query(sort: \Skill.createdAt, order: .forward) private var allSkills: [Skill]
     @State private var editing: Skill?
     @State private var addingNew = false
+    @State private var importNote: String?
 
     private var globals: [Skill] { allSkills.filter(\.isGlobal) }
 
@@ -37,6 +38,19 @@ struct SkillsLibraryView: View {
                     .padding(.bottom, 6)
                     if globals.isEmpty { emptyState }
                     else { ForEach(globals) { skill in skillRow(skill) } }
+                    #if os(macOS)
+                    HStack(spacing: 10) {
+                        ShioButton("Import from this Mac", .secondary, icon: "square.and.arrow.down", compact: true) {
+                            let n = SkillImporter.importLocal(into: context)
+                            importNote = n == 0 ? "No new skills found on this Mac." : "Imported \(n) skill\(n == 1 ? "" : "s")."
+                            SkillMaterializer.shared.scheduleGlobalSync()
+                        }
+                        if let importNote {
+                            Text(importNote).font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
+                        }
+                    }
+                    .padding(.top, 8).padding(.horizontal, 6)
+                    #endif
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
