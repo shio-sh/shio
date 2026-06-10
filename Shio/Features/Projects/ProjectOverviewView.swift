@@ -16,10 +16,16 @@ struct ProjectOverviewView: View {
     private let sessionStore = SessionStore.shared
     private let agents = AgentStateStore.shared
 
+    @Query(sort: \Skill.createdAt) private var allSkills: [Skill]
     @State private var showingAddRepo = false
     @State private var showingRename = false
     @State private var renameText = ""
     @State private var showingNotes = false
+
+    private var skillsCount: Int {
+        allSkills.filter { ($0.isGlobal && $0.enabled)
+            || $0.project?.persistentModelID == project.persistentModelID }.count
+    }
 
     var body: some View {
         ScrollView {
@@ -37,7 +43,12 @@ struct ProjectOverviewView: View {
                 ForEach(project.sortedRepos) { repo in repoRow(repo) }
 
                 sectionHeader("grounding")
-                moduleRow(icon: "wrench.and.screwdriver", name: "Skills", detail: "soon")
+                NavigationLink {
+                    SkillsLibraryView()
+                } label: {
+                    moduleRow(icon: "wrench.and.screwdriver", name: "Skills",
+                              detail: skillsCount == 0 ? "none" : "\(skillsCount) active", chevron: true)
+                }.buttonStyle(.plain)
                 Button { showingNotes = true } label: {
                     moduleRow(icon: "doc.text", name: "Memory & context",
                               detail: (project.notes?.isEmpty == false) ? "notes" : "empty", chevron: true)

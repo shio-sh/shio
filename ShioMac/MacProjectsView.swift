@@ -292,7 +292,15 @@ private struct MacProjectDashboard: View {
     let openTerminal: () -> Void
     let addRepo: () -> Void
     @Environment(\.modelContext) private var context
+    @Query(sort: \Skill.createdAt) private var allSkills: [Skill]
     @State private var renaming = false
+    @State private var addingSkill = false
+    @State private var editingSkill: Skill?
+
+    private var globalSkills: [Skill] { allSkills.filter { $0.isGlobal && $0.enabled } }
+    private var projectSkills: [Skill] {
+        allSkills.filter { $0.project?.persistentModelID == project.persistentModelID }
+    }
 
     var body: some View {
         ScrollView {
@@ -420,10 +428,31 @@ private struct MacProjectDashboard: View {
     private var skillsModule: some View {
         VStack(alignment: .leading, spacing: 4) {
             ShioSectionHeader("skills") {
-                Text("Settings").font(ShioKitFont.rowMeta).foregroundStyle(ShioTheme.textTertiary)
+                Button("+ add") { addingSkill = true }
+                    .buttonStyle(.plain).font(ShioKitFont.rowMeta).foregroundStyle(ShioTheme.textTertiary)
             }.padding(.bottom, 4)
-            moduleHint("A vendor-neutral skills library is coming — global + per-project.")
+            if globalSkills.isEmpty && projectSkills.isEmpty {
+                moduleHint("No skills yet — add one here, or build the global library in Settings.")
+            } else {
+                ForEach(globalSkills) { skill in skillRow(skill, scope: "global") }
+                ForEach(projectSkills) { skill in skillRow(skill, scope: "project") }
+            }
         }
+        .sheet(isPresented: $addingSkill) { SkillEditor(skill: nil, project: project) }
+        .sheet(item: $editingSkill) { skill in SkillEditor(skill: skill, project: skill.project) }
+    }
+
+    private func skillRow(_ skill: Skill, scope: String) -> some View {
+        Button { editingSkill = skill } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(ShioTheme.success)
+                Text(skill.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
+                Spacer()
+                ShioChip(text: scope, status: scope == "project" ? .accent : .neutral)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }.buttonStyle(.plain)
     }
 
     private var memoryModule: some View {

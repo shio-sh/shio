@@ -40,7 +40,7 @@ enum ShioModelContainer {
         let log = Logger(subsystem: "sh.shio.app", category: "modelcontainer")
         let cloudConfig = ModelConfiguration(cloudKitDatabase: .private("iCloud.sh.shio.app"))
         do {
-            let container = try ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, configurations: cloudConfig)
+            let container = try ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, Skill.self, configurations: cloudConfig)
             log.info("ModelContainer: CloudKit sync ACTIVE (iCloud.sh.shio.app)")
             return container
         } catch {
@@ -53,7 +53,7 @@ enum ShioModelContainer {
         // 2. Local persistent store (no sync). Keeps the app fully usable even
         //    if CloudKit is misconfigured — far better than in-memory.
         let localConfig = ModelConfiguration(cloudKitDatabase: .none)
-        if let container = try? ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, configurations: localConfig) {
+        if let container = try? ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, Skill.self, configurations: localConfig) {
             log.info("ModelContainer: local-only store (no CloudKit)")
             return container
         }
@@ -61,7 +61,7 @@ enum ShioModelContainer {
         // 3. Fall back to in-memory. The user's data won't persist, but
         //    they can still use the app, and Settings shows the error.
         let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        if let container = try? ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, configurations: inMemoryConfig) {
+        if let container = try? ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, Skill.self, configurations: inMemoryConfig) {
             loadFailureReason = "Couldn't open the on-disk store. Your machines won't be saved between launches. Delete and reinstall Shio to reset."
             return container
         }
