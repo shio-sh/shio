@@ -1,9 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// Home tab — the command center. Your projects across every machine, each card
-/// showing its git state and any agent that needs you (those float to the top).
-/// Tap a card to drop into its terminal.
+/// Home tab — the command center, supervision-first. Your projects across every
+/// machine as a calm scannable list; the one that needs you floats to the top
+/// with its agent's question inline. Tap a project → its dashboard (reordered for
+/// mobile: needs-you and agents up top). Built on the terminal-refined kit.
 struct ProjectsView: View {
 
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
@@ -40,22 +41,26 @@ struct ProjectsView: View {
                     emptyState
                 } else {
                     ScrollView {
-                        LazyVStack(spacing: ShioSpace.md) {
+                        LazyVStack(spacing: 0) {
                             ForEach(sortedProjects) { project in
-                                ProjectCard(
+                                ProjectListRow(
                                     project: project,
-                                    agent: agentActivity(for: project),
+                                    activity: agentActivity(for: project),
                                     agentName: agentSnapshot(for: project)?.agentName,
                                     agentDetail: agentSnapshot(for: project)?.detail,
-                                    git: gitProbe(for: project),
+                                    changes: totalChanges(project),
                                     repoCount: (project.repos ?? []).count,
-                                    open: { selectedProject = project },
-                                    remove: { remove(project) }
+                                    machines: machinesSummary(project),
+                                    open: { selectedProject = project }
                                 )
+                                .contextMenu {
+                                    Button(role: .destructive) { remove(project) } label: {
+                                        Label("Remove", systemImage: "trash")
+                                    }
+                                }
+                                Rectangle().fill(ShioTheme.line).frame(height: 1)
                             }
                         }
-                        .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
-                        .padding(.vertical, ShioSpace.md)
                     }
                     .refreshable {
                         refreshStatus()
@@ -63,24 +68,24 @@ struct ProjectsView: View {
                     }
                 }
             }
-            .background(ShioColor.Chrome.background)
+            .background(ShioTheme.background)
             .shioNavTitle("shio")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { isAddingProject = true } label: {
-                        Image(systemName: "plus").foregroundStyle(ShioColor.Text.primary)
+                        Image(systemName: "plus").foregroundStyle(ShioTheme.textPrimary)
                     }
                     .accessibilityLabel("Add project")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showingSettings = true } label: {
-                        Image(systemName: "person.crop.circle").foregroundStyle(ShioColor.Text.primary)
+                        Image(systemName: "person.crop.circle").foregroundStyle(ShioTheme.textPrimary)
                     }
                     .accessibilityLabel("Settings")
                 }
             }
             .navigationDestination(item: $selectedProject) { proj in
-                ProjectOverviewView(project: proj, openRepo: openRepo)
+                ProjectOverviewView(project: proj, openRepo: openRepo, openProject: { open(proj) })
             }
             .sheet(isPresented: $showingSettings) { NavigationStack { SettingsView() } }
             .sheet(isPresented: $isAddingProject) { AddProjectSheet() }
@@ -109,15 +114,24 @@ struct ProjectsView: View {
 
     // MARK: - Status + agent reads
 
-    /// Kick a git-status refresh for every visible checkout. On iOS every host is
-    /// remote (no local machine), so isLocalHost is always false.
     private func refreshStatus() {
         status.refresh(ProjectStatusStore.targets(for: projects, isLocalHost: { _ in false }))
     }
 
-    private func gitProbe(for project: Project) -> GitProbe? {
-        guard let c = project.activeCheckout else { return nil }
-        return status.status(forHost: c.host, path: c.path)?.probe
+    /// Total uncommitted changes across the project's repos — the list indicator.
+    private func totalChanges(_ project: Project) -> Int {
+        project.sortedRepos.reduce(0) { sum, repo in
+            let probe = repo.activeCheckout.flatMap { status.status(forHost: $0.host, path: $0.path)?.probe }
+            return sum + GitLineFormatter.make(probe).dirty
+        }
+    }
+
+    private func machinesSummary(_ project: Project) -> String {
+        let names = project.allCheckouts.compactMap { $0.host?.name }
+        var seen = Set<String>(); var unique: [String] = []
+        for n in names where !seen.contains(n) { seen.insert(n); unique.append(n) }
+        if unique.isEmpty, let legacy = project.host?.name { return legacy }
+        return unique.isEmpty ? "no machine" : unique.joined(separator: " · ")
     }
 
     /// Worst-case agent snapshot across this project's open sessions (waiting
@@ -138,160 +152,124 @@ struct ProjectsView: View {
         VStack(spacing: ShioSpace.lg) {
             Text("塩")
                 .font(ShioFont.kanji(size: 72))
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textTertiary)
             Text("No projects yet")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("Add a repo from a machine you've connected, and it lives here. Open it to drop straight into a terminal in that folder.")
                 .font(ShioFont.callout)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            LegacyButton("Add a project") { isAddingProject = true }
-                .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
+            ShioButton("Add a project", .primary, icon: "plus") { isAddingProject = true }
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ShioColor.Chrome.background)
+        .background(ShioTheme.background)
     }
 }
 
-// MARK: - Card
+// MARK: - List row
 
-private struct ProjectCard: View {
+/// One project in the command-center list — mark, name, an inline status line
+/// (the agent's question when it needs you), and trailing age + change count.
+private struct ProjectListRow: View {
     let project: Project
-    let agent: AgentActivity
+    let activity: AgentActivity
     let agentName: String?
     let agentDetail: String?
-    let git: GitProbe?
-    var repoCount: Int = 1
+    let changes: Int
+    let repoCount: Int
+    let machines: String
     let open: () -> Void
-    let remove: () -> Void
 
     var body: some View {
         Button(action: open) {
-            HStack(spacing: 0) {
-                // Needs-you accent — a quiet bar, not a glow.
-                Rectangle()
-                    .fill(agent == .waiting ? ShioColor.State.warning : Color.clear)
-                    .frame(width: 3)
-                VStack(alignment: .leading, spacing: ShioSpace.sm) {
-                    header
-                    machinesLine
-                    gitLine
-                    if let agentText { agentLine(agentText) }
+            HStack(alignment: .top, spacing: 12) {
+                mark
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(project.name)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(ShioTheme.textPrimary)
+                    statusLine
                 }
-                .padding(ShioSpace.md)
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 5) {
+                    let age = shioShortAge(project.lastOpenedAt)
+                    if !age.isEmpty {
+                        Text(age).font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
+                            .monospacedDigit()
+                    }
+                    if changes > 0 {
+                        HStack(spacing: 5) {
+                            ShioStatusDot(status: .warning, size: 7)
+                            Text("\(changes)").font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(ShioTheme.warning)
+                        }
+                    }
+                }
             }
-            .background(ShioColor.Chrome.surface)
-            .clipShape(RoundedRectangle(cornerRadius: ShioRadius.lg, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: ShioRadius.lg, style: .continuous)
-                    .strokeBorder(ShioColor.Chrome.border, lineWidth: 0.5)
-            )
+            .padding(.horizontal, 18)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .contextMenu {
-            Button(role: .destructive, action: remove) { Label("Remove", systemImage: "trash") }
-        }
     }
 
-    private var header: some View {
-        HStack(spacing: ShioSpace.sm) {
-            Image(systemName: "folder.fill")
-                .font(.system(size: 14))
-                .foregroundStyle(ShioColor.Text.secondary)
-            Text(project.name)
-                .font(ShioFont.bodyEmphasis)
-                .foregroundStyle(ShioColor.Text.primary)
-            if repoCount > 1 {
-                Text("\(repoCount) repos")
-                    .font(ShioFont.footnote)
-                    .foregroundStyle(ShioColor.Text.tertiary)
-            }
-            Spacer()
-            let age = shioShortAge(project.lastOpenedAt)
-            if !age.isEmpty {
-                Text(age)
-                    .font(ShioFont.footnote)
-                    .foregroundStyle(ShioColor.Text.tertiary)
-                    .monospacedDigit()
+    private var mark: some View {
+        Group {
+            switch activity {
+            case .waiting:
+                Text("●").font(.system(size: 12)).foregroundStyle(ShioTheme.warning)
+            case .running:
+                Text(String(project.name.first ?? "•").uppercased())
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(ShioTheme.accent)
+            default:
+                Text("◦").font(.system(size: 13)).foregroundStyle(ShioTheme.textTertiary)
             }
         }
+        .frame(width: 24, height: 24)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(activity == .waiting ? ShioTheme.warningBg
+                      : (activity == .running ? ShioTheme.accentBg : ShioTheme.hover))
+        )
+        .padding(.top, 1)
     }
 
-    private var machines: [String] {
-        let names = project.allCheckouts.compactMap { $0.host?.name }
-        var seen = Set<String>(); var unique: [String] = []
-        for n in names where !seen.contains(n) { seen.insert(n); unique.append(n) }
-        if unique.isEmpty, let legacy = project.host?.name { return [legacy] }
-        return unique
-    }
-
-    private var machinesLine: some View {
-        Text(machines.isEmpty ? "no machine" : machines.joined(separator: " · "))
-            .font(ShioFont.Mono.inline)
-            .foregroundStyle(ShioColor.Text.secondary)
-            .lineLimit(1)
-            .truncationMode(.middle)
-    }
-
-    @ViewBuilder
-    private var gitLine: some View {
-        let m = GitLineFormatter.make(git)
-        HStack(spacing: ShioSpace.sm) {
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.triangle.branch").font(.system(size: 11))
-                Text(m.branch).lineLimit(1).truncationMode(.middle)
+    @ViewBuilder private var statusLine: some View {
+        switch activity {
+        case .waiting:
+            HStack(spacing: 5) {
+                Text("⚑").font(.system(size: 12))
+                Text(detailText).lineLimit(1).truncationMode(.tail)
             }
-            .font(ShioFont.Mono.inline)
-            .foregroundStyle(branchColor(m.state))
-
-            if m.hasTracking {
-                if m.ahead > 0 { chip("↑\(m.ahead)", ShioColor.Text.secondary) }
-                if m.behind > 0 { chip("↓\(m.behind)", ShioColor.Text.secondary) }
-                if m.dirty > 0 {
-                    chip("●\(m.dirty)", ShioColor.State.warning)
-                } else {
-                    chip("clean", ShioColor.State.success)
-                }
+            .font(.system(size: 12))
+            .foregroundStyle(ShioTheme.warning)
+        case .running:
+            HStack(spacing: 6) {
+                ShioBrailleSpinner(status: .info, size: 11)
+                Text("\(agentName ?? "Agent") working\(repoSuffix)")
+                    .lineLimit(1).truncationMode(.tail)
             }
-            Spacer(minLength: 0)
+            .font(.system(size: 12))
+            .foregroundStyle(ShioTheme.info)
+        default:
+            Text(idleSummary)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
+                .lineLimit(1).truncationMode(.middle)
         }
     }
 
-    private func chip(_ text: String, _ color: Color) -> some View {
-        Text(text)
-            .font(ShioFont.footnote)
-            .monospacedDigit()
-            .foregroundStyle(color)
+    private var detailText: String {
+        if let d = agentDetail, !d.isEmpty { return "needs you · \"\(d)\"" }
+        return "needs you"
     }
-
-    private func branchColor(_ state: GitLineModel.State) -> Color {
-        switch state {
-        case .loading, .unreachable: return ShioColor.Text.tertiary
-        default: return ShioColor.Text.secondary
-        }
-    }
-
-    private var agentText: String? {
-        switch agent {
-        case .waiting:  return agentDetail ?? "needs you"
-        case .running:  return "\(agentName ?? "Agent") · working…"
-        case .finished: return "\(agentName ?? "Agent") · finished"
-        case .none:     return nil
-        }
-    }
-
-    @ViewBuilder
-    private func agentLine(_ text: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: agent == .waiting ? "bell.badge.fill"
-                  : (agent == .finished ? "checkmark.circle" : "circle.fill"))
-                .font(.system(size: agent == .running ? 7 : 11))
-            Text(text).lineLimit(1)
-        }
-        .font(ShioFont.footnote)
-        .foregroundStyle(agent == .waiting ? ShioColor.State.warning
-                         : (agent == .finished ? ShioColor.State.success : ShioColor.Text.tertiary))
+    private var repoSuffix: String { repoCount > 1 ? " · \(repoCount) repos" : "" }
+    private var idleSummary: String {
+        if repoCount > 1 { return "\(repoCount) repos · \(machines)" }
+        return machines
     }
 }
