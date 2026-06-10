@@ -33,6 +33,13 @@ final class Project {
     @Relationship(deleteRule: .nullify, inverse: \Repo.project)
     var repos: [Repo]?
 
+    /// Project-scoped skills (the per-project layer). Inverse of `Skill.project`
+    /// — CloudKit requires every relationship have an inverse, so this MUST be
+    /// declared here. `.nullify`: removing a project leaves its skills as globals
+    /// rather than cascade-deleting. Optional to-many (CloudKit).
+    @Relationship(deleteRule: .nullify, inverse: \Skill.project)
+    var skills: [Skill]?
+
     // MARK: - Legacy fields (kept for additive migration; see note)
 
     /// LEGACY (M1) — identity now lives on `Repo`. Kept so old clients sync.

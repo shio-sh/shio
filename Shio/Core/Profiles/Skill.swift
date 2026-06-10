@@ -20,8 +20,9 @@ final class Skill {
     var enabled: Bool = true
     var createdAt: Date = Date.now
 
-    /// nil = global/universal; set = scoped to this one project.
-    @Relationship(deleteRule: .nullify) var project: Project?
+    /// nil = global/universal; set = scoped to this one project. The inverse
+    /// (`Project.skills`) is declared on Project — CloudKit requires it.
+    var project: Project?
 
     init(name: String, content: String = "", enabled: Bool = true, project: Project? = nil) {
         self.id = UUID()
