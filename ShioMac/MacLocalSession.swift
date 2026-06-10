@@ -64,7 +64,9 @@ final class MacLocalProjectSession: Identifiable {
     let surface: GhosttyMacSurface
 
     convenience init(project: Project) {
-        self.init(name: project.name, path: project.path, cloneURL: project.cloneURL)
+        self.init(name: project.name,
+                  path: project.activeCheckout?.path ?? project.path,
+                  cloneURL: project.cloneURL)
     }
 
     init(name: String, path: String, cloneURL: String?) {

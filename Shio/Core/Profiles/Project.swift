@@ -68,6 +68,26 @@ final class Project {
 }
 
 extension Project {
+    /// Create a project together with its first checkout, in one step — the
+    /// project-first add path. Sets `identityKey`, inserts both into the context,
+    /// and (during the migration window) keeps the legacy `path`/`host` populated
+    /// so older clients still sync. New projects get a checkout immediately, so
+    /// `activeCheckout` works the moment they're created (not just after the next
+    /// launch's `ProjectMigration`).
+    @discardableResult
+    static func create(name: String, path: String, host: Host?, cloneURL: String? = nil,
+                       in context: ModelContext) -> Project {
+        let project = Project(name: name, path: path, host: host)
+        project.cloneURL = cloneURL
+        project.identityKey = cloneURL.flatMap { ProjectMigration.normalize(cloneURL: $0) } ?? UUID().uuidString
+        context.insert(project)
+
+        let checkout = ProjectCheckout(path: path, project: project, host: host)
+        checkout.lastOpenedAt = .now
+        context.insert(checkout)
+        return project
+    }
+
     /// The checkout the user most recently worked in, else the first available.
     /// The default target when opening a project that lives on several machines.
     var activeCheckout: ProjectCheckout? {

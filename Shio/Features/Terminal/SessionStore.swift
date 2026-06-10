@@ -28,12 +28,16 @@ final class SessionStore {
         /// The project (repo) this session belongs to, or nil for a
         /// host-level raw shell opened from the Hosts tab.
         let projectID: PersistentIdentifier?
+        /// The specific machine checkout this session runs on. Distinguishes the
+        /// same project open on two machines; nil for a host-level shell.
+        let checkoutID: PersistentIdentifier?
         let displayName: String
         let viewModel: SessionViewModel
 
-        init(hostID: PersistentIdentifier, projectID: PersistentIdentifier? = nil, displayName: String, viewModel: SessionViewModel) {
+        init(hostID: PersistentIdentifier, projectID: PersistentIdentifier? = nil, checkoutID: PersistentIdentifier? = nil, displayName: String, viewModel: SessionViewModel) {
             self.hostID = hostID
             self.projectID = projectID
+            self.checkoutID = checkoutID
             self.displayName = displayName
             self.viewModel = viewModel
         }
@@ -69,22 +73,36 @@ final class SessionStore {
         return createNewSession(on: host)
     }
 
-    /// Sessions belonging to a particular project, in creation order.
+    /// Sessions belonging to a particular project (across all its checkouts),
+    /// in creation order. Drives the project-wide agent badge.
     func sessions(forProject projectID: PersistentIdentifier) -> [Session] {
         sessions.filter { $0.projectID == projectID }
     }
 
-    /// Open the first existing session for this project, or create one: a
-    /// tmux session named `shio-<project>` opened in the repo directory.
-    /// Returns nil if the project has no host yet.
+    /// Sessions on one specific machine checkout — the bucket that scopes tmux
+    /// session indices, so the same project open on two machines stays distinct.
+    func sessions(forCheckout checkoutID: PersistentIdentifier) -> [Session] {
+        sessions.filter { $0.checkoutID == checkoutID }
+    }
+
+    /// Open the first existing session for this project (on its active checkout),
+    /// or create one. Returns nil if the project has no usable checkout yet.
     @discardableResult
     func openOrCreate(project: Project) -> Session? {
-        guard let host = project.host else { return nil }
-        if let existing = sessions.first(where: { $0.projectID == project.persistentModelID }) {
+        guard let checkout = project.activeCheckout else { return nil }
+        return openOrCreate(project: project, checkout: checkout)
+    }
+
+    /// Open or create a session for a specific checkout of a project — the path
+    /// the machine switcher uses to reach a project on a chosen machine.
+    @discardableResult
+    func openOrCreate(project: Project, checkout: ProjectCheckout) -> Session? {
+        guard let host = checkout.host else { return nil }
+        if let existing = sessions.first(where: { $0.checkoutID == checkout.persistentModelID }) {
             activeSession = existing
             return existing
         }
-        return createNewSession(on: host, project: project)
+        return createNewSession(on: host, project: project, checkout: checkout)
     }
 
     /// Always create a new session on this host. The tmux session name
@@ -97,7 +115,7 @@ final class SessionStore {
     /// independently. Reusing index 0 is intentional — the single-session
     /// user's existing tmux session survives.
     @discardableResult
-    func createNewSession(on host: Host, project: Project? = nil) -> Session {
+    func createNewSession(on host: Host, project: Project? = nil, checkout: ProjectCheckout? = nil) -> Session {
         // Contextual notification opt-in: away-push is *for* sessions, so this
         // is the moment to ask — not at first launch. The system prompts only
         // once; subsequent calls are no-ops.
@@ -112,9 +130,11 @@ final class SessionStore {
         )
         WidgetCenter.shared.reloadAllTimelines()
 
+        // Index bucket is scoped to the specific checkout (host + path), so the
+        // same project open on two machines keeps independent tmux indices.
         let bucket: [Session]
-        if let project {
-            bucket = sessions(forProject: project.persistentModelID)
+        if let checkout {
+            bucket = sessions(forCheckout: checkout.persistentModelID)
         } else {
             bucket = sessions.filter { $0.hostID == host.persistentModelID && $0.projectID == nil }
         }
@@ -129,10 +149,13 @@ final class SessionStore {
         if let project {
             let scrubbed = TmuxResume.scrubName(project.name)
             tmuxName = nextIndex == 0 ? "shio-\(scrubbed)" : "shio-\(scrubbed)-\(nextIndex)"
-            startDir = project.path
+            // Read the working dir from the active checkout; fall back to the
+            // legacy project.path for safety during the migration window.
+            startDir = checkout?.path ?? project.path
             cloneURL = project.cloneURL
             baseName = project.name
             project.lastOpenedAt = .now
+            checkout?.lastOpenedAt = .now
         } else {
             tmuxName = nil      // SessionViewModel derives `shio-<host>`
             startDir = nil
@@ -142,7 +165,7 @@ final class SessionStore {
 
         let vm = SessionViewModel(
             configuration: host.makeClientConfiguration(),
-            persistenceMode: project?.persistenceModeOverride ?? host.persistenceMode,
+            persistenceMode: checkout?.persistenceModeOverride ?? project?.persistenceModeOverride ?? host.persistenceMode,
             sessionIndex: nextIndex,
             tmuxSessionName: tmuxName,
             startDirectory: startDir,
@@ -152,6 +175,7 @@ final class SessionStore {
         let session = Session(
             hostID: host.persistentModelID,
             projectID: project?.persistentModelID,
+            checkoutID: checkout?.persistentModelID,
             displayName: displayName,
             viewModel: vm
         )

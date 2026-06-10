@@ -136,11 +136,8 @@ struct AddProjectSheet: View {
         guard let host = selectedHost else { return }
         let leaf = (trimmedPath as NSString).lastPathComponent
         let name = leaf.isEmpty ? trimmedPath : leaf
-        let project = Project(name: name, path: trimmedPath, host: host)
-        if source == .clone, !trimmedURL.isEmpty {
-            project.cloneURL = trimmedURL
-        }
-        context.insert(project)
+        let cloneURL = (source == .clone && !trimmedURL.isEmpty) ? trimmedURL : nil
+        Project.create(name: name, path: trimmedPath, host: host, cloneURL: cloneURL, in: context)
         try? context.save()
         dismiss()
     }

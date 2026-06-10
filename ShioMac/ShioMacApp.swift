@@ -243,12 +243,21 @@ final class MacTerminalModel {
     /// for projects that live on a machine. Used by the Projects list and the
     /// Add-Project sheet alike.
     func open(project: Project) {
+        open(project: project, checkout: project.activeCheckout)
+    }
+
+    /// Open a project on a specific machine checkout (the machine switcher's path).
+    /// nil checkout falls back to the legacy fields during the migration window.
+    func open(project: Project, checkout: ProjectCheckout?) {
+        let host = checkout?.host ?? project.host
+        let path = checkout?.path ?? project.path
+        checkout?.lastOpenedAt = .now
         // This Mac (its own host) or a legacy host-less project → local
         // invisible-tmux. A project on another machine → SSH.
-        if let host = project.host, !MacSelfHost.isThisMac(host) {
+        if let host, !MacSelfHost.isThisMac(host) {
             let resume = TmuxResume.resumeCommand(
                 named: "shio-\(TmuxResume.scrubName(project.name))",
-                startDir: project.path,
+                startDir: path,
                 cloneURL: project.cloneURL
             )
             let session = MacSSHSession(host: host.hostname, port: host.port,
@@ -256,7 +265,8 @@ final class MacTerminalModel {
                                         resumeCommand: resume)
             openSSH(session, title: project.name)
         } else {
-            addTab(.project(MacLocalProjectSession(project: project)), title: project.name)
+            addTab(.project(MacLocalProjectSession(name: project.name, path: path, cloneURL: project.cloneURL)),
+                   title: project.name)
         }
     }
 

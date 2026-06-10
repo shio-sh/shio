@@ -176,7 +176,7 @@ struct CommandPalette: View {
         // Open a project
         for project in projects {
             c.append(.init(title: "Open Project: \(project.name)",
-                           subtitle: project.host?.name ?? "This Mac",
+                           subtitle: project.activeCheckout?.host?.name ?? project.host?.name ?? "This Mac",
                            symbol: "folder.fill") {
                 project.lastOpenedAt = .now
                 try? context.save()

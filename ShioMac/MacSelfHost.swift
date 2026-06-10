@@ -72,7 +72,8 @@ enum MacSelfHost {
         // then delete them. The deletes sync, so other devices stop showing the
         // Mac more than once.
         for dup in mine where dup !== host {
-            for project in dup.projects ?? [] { project.host = host }
+            for project in dup.projects ?? [] { project.host = host }      // legacy inverse
+            for checkout in dup.checkouts ?? [] { checkout.host = host }    // project-first inverse
             context.delete(dup)
         }
 

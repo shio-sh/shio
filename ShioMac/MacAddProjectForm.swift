@@ -148,15 +148,14 @@ struct MacAddProjectForm: View {
         switch source {
         case .folder:
             let finalName = name.isEmpty ? (cleanLocation as NSString).lastPathComponent : name
-            project = Project(name: finalName, path: cleanLocation, host: host)
+            project = Project.create(name: finalName, path: cleanLocation, host: host, in: context)
         case .git:
             let repo = name.isEmpty ? repoName(from: gitURL) : name
             let fullPath = (cleanLocation as NSString).appendingPathComponent(repo)
-            project = Project(name: repo, path: fullPath, host: host)
-            project.cloneURL = gitURL.trimmingCharacters(in: .whitespaces)
+            project = Project.create(name: repo, path: fullPath, host: host,
+                                     cloneURL: gitURL.trimmingCharacters(in: .whitespaces), in: context)
         }
 
-        context.insert(project)
         project.lastOpenedAt = .now
         try? context.save()
         model.open(project: project)
