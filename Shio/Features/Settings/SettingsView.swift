@@ -22,14 +22,19 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: ShioSpace.xs) {
                             Label("Storage issue", systemImage: "exclamationmark.triangle.fill")
                                 .font(ShioFont.bodyEmphasis)
-                                .foregroundStyle(ShioColor.State.warning)
+                                .foregroundStyle(ShioTheme.warning)
                             Text(reason)
                                 .font(ShioFont.callout)
-                                .foregroundStyle(ShioColor.Text.secondary)
+                                .foregroundStyle(ShioTheme.textSecondary)
                         }
                     }
                 }
                 Section {
+                    NavigationLink {
+                        SkillsLibraryView()
+                    } label: {
+                        Label("Skills", systemImage: "wrench.and.screwdriver.fill")
+                    }
                     NavigationLink {
                         PublicKeyView(mode: .settings)
                             .navigationTitle("SSH Key")
@@ -72,7 +77,7 @@ struct SettingsView: View {
                     }
                     Text("Shio re-authenticates if you leave the app for more than 10 seconds. SSH sessions stay connected while locked.")
                         .font(ShioFont.footnote)
-                        .foregroundStyle(ShioColor.Text.tertiary)
+                        .foregroundStyle(ShioTheme.textTertiary)
                 }
 
                 Section("Advanced") {
@@ -94,7 +99,7 @@ struct SettingsView: View {
                     if proModeEnabled {
                         Text("Pro Mode unlocks raw SSH config — custom ports, ProxyJump, manual key management. Shio can't protect you from misconfigurations here.")
                             .font(ShioFont.footnote)
-                            .foregroundStyle(ShioColor.Text.tertiary)
+                            .foregroundStyle(ShioTheme.textTertiary)
                     }
                 }
 
@@ -118,7 +123,7 @@ struct SettingsView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(ShioColor.Chrome.background)
+            .background(ShioTheme.background)
             .navigationTitle("Settings")
             .alert("Pro Mode", isPresented: $showingProModeDisclosure) {
                 Button("OK") { showingProModeDisclosure = false }
@@ -168,23 +173,23 @@ private struct AboutView: View {
         VStack(spacing: ShioSpace.md) {
             Text("塩")
                 .font(ShioFont.kanji(size: 96))
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("shio")
                 .font(ShioFont.wordmark(size: 32))
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("Your Mac, in your pocket.")
                 .font(ShioFont.callout)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
             Spacer()
             Text("v1.0")
                 .font(ShioFont.footnote)
-                .foregroundStyle(ShioColor.Text.tertiary)
+                .foregroundStyle(ShioTheme.textTertiary)
         }
         .padding(.top, ShioSpace.layout)
         .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
         .padding(.bottom, ShioSpace.xxxl)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ShioColor.Chrome.background)
+        .background(ShioTheme.background)
         .navigationBarTitleDisplayMode(.inline)
     }
 }

@@ -250,6 +250,8 @@ targets:
       - path: Shio/Core/Pairing/PairingPayload.swift
       # Reused SFTP browse engine (UIKit-free; owns its own SSH+SFTP).
       - path: Shio/Features/Files/FilesViewModel.swift
+      # Shared Skills library shell (UIKit-free; ShioTheme + kit only).
+      - path: Shio/Features/Skills/SkillsLibraryView.swift
     dependencies:
       # libghostty's macOS slice uses Carbon's Text Input Source (TIS) APIs
       # for keyboard-layout handling; link it explicitly.

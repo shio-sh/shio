@@ -32,6 +32,7 @@ struct MacSettingsView: View {
     @AppStorage(MacSettings.cursorStyleKey) private var cursorStyle: String = "block"
     @AppStorage(MacSettings.themeKey) private var theme: String = ""
     @AppStorage(MacSettings.shellKey) private var shell: String = ""
+    @State private var showingSkills = false
 
     var body: some View {
         Form {
@@ -48,12 +49,28 @@ struct MacSettingsView: View {
                 TextField("Default shell", text: $shell, prompt: Text(ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"))
                     .font(.system(.body, design: .monospaced))
             }
+            Section("Skills") {
+                Button("Open Skills library…") { showingSkills = true }
+                Text("Your universal, vendor-neutral agent rules — global ∪ per-project.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
             Section {
                 Text("Changes apply to new terminals. (Per-key remapping is coming — for now use the Terminal and Tabs menus to see shortcuts.)")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 320)
+        .frame(width: 460, height: 380)
+        .sheet(isPresented: $showingSkills) {
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button("Done") { showingSkills = false }.keyboardShortcut(.defaultAction)
+                }
+                .padding(12)
+                SkillsLibraryView()
+            }
+            .frame(width: 560, height: 460)
+        }
     }
 }
