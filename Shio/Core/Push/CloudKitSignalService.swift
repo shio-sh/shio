@@ -26,8 +26,15 @@ final class CloudKitSignalService {
 
     static let containerID = "iCloud.sh.shio.app"
     static let recordType = "Signal"
+    /// The reverse channel (#33): the phone writes an `Action` when you
+    /// approve/deny from the lock screen; the Mac polls + injects the keystroke.
+    static let actionRecordType = "Action"
     private let subscriptionID = "shio-signal-subscription"
-    private let didSubscribeKey = "shio.cloudkit.subscribed"
+    // Bumped to .v2 so existing installs re-register the subscription with the
+    // approve/deny notification category (#33).
+    private let didSubscribeKey = "shio.cloudkit.subscribed.v2"
+    /// Notification category that carries the lock-screen Approve / Deny actions.
+    static let needsYouCategory = "AGENT_NEEDS_YOU"
 
     private var container: CKContainer { CKContainer(identifier: Self.containerID) }
     private var database: CKDatabase { container.privateCloudDatabase }
@@ -55,6 +62,8 @@ final class CloudKitSignalService {
         info.alertBody = "A session needs you. Tap to jump back in."
         info.soundName = "default"
         info.shouldSendContentAvailable = false
+        // Drives the lock-screen Approve / Deny buttons (#33).
+        info.category = Self.needsYouCategory
         // Carry routing fields in the push payload so a tap can deep-link
         // without a follow-up fetch.
         info.desiredKeys = ["hostId", "sessionId", "title", "body"]
@@ -104,6 +113,42 @@ final class CloudKitSignalService {
         record["title"] = title
         record["body"] = body
         _ = try? await database.save(record)
+    }
+
+    // MARK: Approve-from-anywhere (#33)
+
+    /// The phone writes an `Action` — "answer this blocked agent with <key>".
+    /// Travels through the user's own iCloud; the Mac watcher injects it. Only a
+    /// tmux session id and a keystroke ("y"/"n") are on the wire. Best-effort.
+    func sendAction(sessionId: String, key: String) async {
+        guard await iCloudAvailable() else { return }
+        let record = CKRecord(recordType: Self.actionRecordType)
+        record["sessionId"] = sessionId
+        record["key"] = key
+        _ = try? await database.save(record)
+    }
+
+    /// Mac side: fetch any pending `Action` records, return them, and delete them
+    /// so each approval is consumed exactly once. Best-effort (empty on any
+    /// failure / no iCloud / schema not deployed).
+    func fetchAndClearActions() async -> [(sessionId: String, key: String)] {
+        guard await iCloudAvailable() else { return [] }
+        let query = CKQuery(recordType: Self.actionRecordType, predicate: NSPredicate(value: true))
+        do {
+            let (matches, _) = try await database.records(matching: query)
+            var actions: [(sessionId: String, key: String)] = []
+            var ids: [CKRecord.ID] = []
+            for (id, result) in matches {
+                if case .success(let rec) = result,
+                   let s = rec["sessionId"] as? String, let k = rec["key"] as? String {
+                    actions.append((s, k)); ids.append(id)
+                }
+            }
+            if !ids.isEmpty { _ = try? await database.modifyRecords(saving: [], deleting: ids) }
+            return actions
+        } catch {
+            return []
+        }
     }
 
     /// Write a test Signal record. The subscription fires and Apple pushes a

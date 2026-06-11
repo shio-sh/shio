@@ -125,7 +125,13 @@ struct ProjectOverviewView: View {
 
     /// A supervised agent for this project — from an open in-app session, or
     /// detected on a machine during the status fetch. Dedup keeps one per label.
-    struct AgentItem: Identifiable { let id: String; let title: String; let snap: AgentSnapshot }
+    struct AgentItem: Identifiable {
+        let id: String; let title: String; let snap: AgentSnapshot
+        /// The Mac tmux session to answer (`shio-<repo>`), when derivable — lets
+        /// the card approve/deny over iCloud. nil for the phone's own open
+        /// sessions (just open the terminal).
+        var sessionTmux: String? = nil
+    }
 
     private var agentItems: [AgentItem] {
         var items: [AgentItem] = []
@@ -140,13 +146,22 @@ struct ProjectOverviewView: View {
             for c in (repo.checkouts ?? []) {
                 guard let h = c.host, let snap = status.remoteAgent(host: h, repoName: repo.name) else { continue }
                 let title = "\(snap.agentName ?? "Agent") · \(repo.name)"
-                if seen.insert(title).inserted { items.append(.init(id: "remote-\(repo.name)", title: title, snap: snap)) }
+                if seen.insert(title).inserted {
+                    items.append(.init(id: "remote-\(repo.name)", title: title, snap: snap,
+                                       sessionTmux: "shio-\(TmuxResume.scrubName(repo.name))"))
+                }
             }
         }
         return items
     }
     private var needsYou: [AgentItem] { agentItems.filter { $0.snap.activity == .waiting } }
     private var working:  [AgentItem] { agentItems.filter { $0.snap.activity == .running } }
+
+    /// Answer a blocked agent over iCloud (#33) — the Mac watcher injects the
+    /// keystroke. The card clears itself on the next status refresh.
+    private func answer(_ sessionTmux: String, _ key: String) {
+        Task { await CloudKitSignalService.shared.sendAction(sessionId: sessionTmux, key: key) }
+    }
 
     // MARK: - Glance
 
@@ -203,7 +218,15 @@ struct ProjectOverviewView: View {
                 Text("\"\(d)\"").font(.system(size: 13)).foregroundStyle(ShioTheme.warning)
                     .padding(.top, 6).padding(.bottom, 11)
             } else { Color.clear.frame(height: 11) }
-            ShioButton("Open terminal to answer", .secondary, icon: "terminal") { openProject() }
+            if let tmux = item.sessionTmux {
+                HStack(spacing: 8) {
+                    ShioButton("Approve", .primary, icon: "checkmark") { answer(tmux, "y") }
+                    ShioButton("Deny", .secondary, icon: "xmark") { answer(tmux, "n") }
+                    ShioButton("Open", .ghost, icon: "terminal") { openProject() }
+                }
+            } else {
+                ShioButton("Open terminal to answer", .secondary, icon: "terminal") { openProject() }
+            }
         }
         .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)

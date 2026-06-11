@@ -50,7 +50,23 @@ final class MacProjectAgentMonitor {
             let result = await MacProjectAgentMonitor.scan(tmux: tmux)
             self.fireAwaySignals(for: result)
             self.byTmux = result
+            await self.injectPendingActions(tmux: tmux)
         }
+    }
+
+    /// Pull any approve/deny `Action`s the phone wrote (#33) and inject the
+    /// keystroke into the matching tmux session. Only polls iCloud while an
+    /// agent is actually blocked, so it's quiet the rest of the time.
+    private func injectPendingActions(tmux: String) async {
+        guard !signaledWaiting.isEmpty else { return }
+        let actions = await CloudKitSignalService.shared.fetchAndClearActions()
+        guard !actions.isEmpty else { return }
+        await Task.detached(priority: .utility) {
+            for action in actions {
+                _ = MacProjectAgentMonitor.run(
+                    tmux, ["send-keys", "-t", action.sessionId, action.key, "Enter"])
+            }
+        }.value
     }
 
     /// On a session newly transitioning to `.waiting`, push the phone via the

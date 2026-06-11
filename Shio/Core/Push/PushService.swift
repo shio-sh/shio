@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import UIKit
 import UserNotifications
+import CloudKit
 
 /// The phone side of away-push. Registers for APNs, captures the device token,
 /// and routes incoming "a session needs you" triggers to the right host. The
@@ -15,7 +16,7 @@ import UserNotifications
 /// the network step is skipped.
 @Observable
 @MainActor
-final class PushService {
+final class PushService: NSObject, UNUserNotificationCenterDelegate {
     static let shared = PushService()
 
     private let appGroup = "group.sh.shio.app"
@@ -25,7 +26,8 @@ final class PushService {
 
     private(set) var deviceToken: String?
 
-    private init() {
+    private override init() {
+        super.init()
         deviceToken = defaults?.string(forKey: deviceTokenKey)
     }
 
@@ -37,7 +39,63 @@ final class PushService {
         let center = UNUserNotificationCenter.current()
         let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
         guard granted else { return }
+        configureNotificationActions()
         UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    // MARK: Lock-screen Approve / Deny (#33)
+
+    /// Register the Approve / Deny actions on the "agent needs you" category and
+    /// become the notification delegate. Tapping a button writes an `Action`
+    /// (requires unlock — approving a blocked agent is sensitive).
+    func configureNotificationActions() {
+        let approve = UNNotificationAction(identifier: "APPROVE", title: "Approve",
+                                           options: [.authenticationRequired])
+        let deny = UNNotificationAction(identifier: "DENY", title: "Deny",
+                                        options: [.destructive, .authenticationRequired])
+        let category = UNNotificationCategory(identifier: CloudKitSignalService.needsYouCategory,
+                                              actions: [approve, deny], intentIdentifiers: [], options: [])
+        let center = UNUserNotificationCenter.current()
+        center.setNotificationCategories([category])
+        center.delegate = self
+    }
+
+    /// Show the banner even while Shio is foregrounded, so you can act on it.
+    /// (nonisolated — the notification objects aren't Sendable.)
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            willPresent notification: UNNotification) async
+    -> UNNotificationPresentationOptions { [.banner, .sound] }
+
+    /// Handle a tapped notification — Approve/Deny write the keystroke back
+    /// through iCloud; a plain tap routes to the host like before. Sendable bits
+    /// (strings) are extracted before any actor hop.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                            didReceive response: UNNotificationResponse) async {
+        let action = response.actionIdentifier
+        let userInfo = response.notification.request.content.userInfo
+        let sid = Self.parse(userInfo, field: "sessionId")
+        let host = Self.parse(userInfo, field: "hostId")
+        switch action {
+        case "APPROVE":
+            if let sid { await CloudKitSignalService.shared.sendAction(sessionId: sid, key: "y") }
+        case "DENY":
+            if let sid { await CloudKitSignalService.shared.sendAction(sessionId: sid, key: "n") }
+        default:
+            if let host {
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .shioConnectToHost, object: nil,
+                                                    userInfo: ["hostId": host])
+                }
+            }
+        }
+    }
+
+    /// Pull a field out of the CloudKit push payload (the Signal carried it).
+    nonisolated private static func parse(_ userInfo: [AnyHashable: Any], field: String) -> String? {
+        if let s = userInfo[field] as? String, !s.isEmpty { return s }
+        if let note = CKNotification(fromRemoteNotificationDictionary: userInfo) as? CKQueryNotification,
+           let s = note.recordFields?[field] as? String, !s.isEmpty { return s }
+        return nil
     }
 
     // MARK: AppDelegate callbacks
