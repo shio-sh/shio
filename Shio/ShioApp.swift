@@ -16,16 +16,15 @@ struct ShioApp: App {
                     // Project-first migration: backfill a ProjectCheckout for each
                     // legacy single-host project. Idempotent + safe every launch.
                     ProjectMigration.run(in: ShioModelContainer.shared.mainContext)
-                    // Do NOT ask for notifications at launch — a first-run
-                    // permission prompt is hostile, and the SSH key survives
-                    // reinstalls so `hasKey()` isn't a reliable "onboarded"
-                    // signal. We ask contextually, when the user starts a
-                    // session (away-push is *for* sessions). The CloudKit
-                    // away-push subscription is silent (no prompt) and only
-                    // matters once a key + the iCloud container exist.
-                    if KeyManager.hasKey() {
-                        await CloudKitSignalService.shared.ensureSubscription()
-                    }
+                    // The PERMISSION prompt stays contextual (hostile at first
+                    // run), but registering for remote notifications and the
+                    // CloudKit away-push subscription are both SILENT — and must
+                    // happen on every launch or the push has nowhere to land.
+                    // (Previously gated on hasKey(), which silently broke away-
+                    // push for anyone who hadn't generated a key yet — e.g. when
+                    // testing the notification before connecting.)
+                    await PushService.shared.registerIfAuthorized()
+                    await CloudKitSignalService.shared.ensureSubscription()
                 }
                 .onOpenURL { url in
                     handleDeepLink(url)

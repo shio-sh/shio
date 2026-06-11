@@ -43,6 +43,18 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
         UIApplication.shared.registerForRemoteNotifications()
     }
 
+    /// On launch: if notifications are already granted, register for remote
+    /// notifications (CloudKit/away pushes can't deliver without this) and
+    /// install the Approve/Deny actions. Silent — never prompts. (The first-run
+    /// permission prompt stays contextual, via requestAuthorizationAndRegister.)
+    func registerIfAuthorized() async {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional else { return }
+        configureNotificationActions()
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
     // MARK: Lock-screen Approve / Deny (#33)
 
     /// Register the Approve / Deny actions on the "agent needs you" category and
