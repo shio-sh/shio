@@ -315,6 +315,7 @@ private struct MacProjectDashboard: View {
     @State private var renaming = false
     @State private var addingSkill = false
     @State private var editingSkill: Skill?
+    @State private var commitTarget: RepoRowVM?
 
     private var globalSkills: [Skill] { allSkills.filter { $0.isGlobal && $0.enabled } }
     private var projectSkills: [Skill] {
@@ -343,6 +344,17 @@ private struct MacProjectDashboard: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 18)
             .frame(maxWidth: 1100, alignment: .leading)
+        }
+        .sheet(item: $commitTarget) { row in
+            let c = row.repo.activeCheckout
+            let host = c?.host
+            let isLocal = host.map(MacSelfHost.isThisMac) ?? true
+            let config: SSHClient.Configuration? = (host != nil && !isLocal)
+                ? SSHClient.Configuration(host: host!.hostname, port: host!.port, username: host!.username,
+                                          authentication: .systemKeys, initialCols: 80, initialRows: 24)
+                : nil
+            CommitSheet(repoName: row.name, dirtyCount: GitLineFormatter.make(row.git).dirty,
+                        path: c?.path ?? "", config: config)
         }
     }
 
@@ -428,7 +440,9 @@ private struct MacProjectDashboard: View {
             if repos.isEmpty {
                 moduleHint("No repos yet — add one to this project.")
             } else {
-                ForEach(repos) { row in RepoRowView(row: row, open: { openRepo(row.repo) }) }
+                ForEach(repos) { row in
+                    RepoRowView(row: row, open: { openRepo(row.repo) }, onCommit: { commitTarget = row })
+                }
             }
         }
     }
@@ -517,6 +531,7 @@ private struct MacProjectDashboard: View {
 private struct RepoRowView: View {
     let row: RepoRowVM
     let open: () -> Void
+    var onCommit: (() -> Void)? = nil
     @State private var hovering = false
 
     var body: some View {
@@ -542,6 +557,11 @@ private struct RepoRowView: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .contextMenu {
+            if GitLineFormatter.make(row.git).dirty > 0, let onCommit {
+                Button("Commit & push…", systemImage: "arrow.up", action: onCommit)
+            }
+        }
     }
 
     @ViewBuilder private var gitLine: some View {

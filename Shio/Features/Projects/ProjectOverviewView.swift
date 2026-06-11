@@ -21,6 +21,9 @@ struct ProjectOverviewView: View {
     @State private var showingRename = false
     @State private var renameText = ""
     @State private var showingNotes = false
+    @State private var commitCtx: CommitContext?
+
+    struct CommitContext: Identifiable { let id = UUID(); let repo: Repo }
 
     private var skillsCount: Int {
         allSkills.filter { ($0.isGlobal && $0.enabled)
@@ -92,6 +95,17 @@ struct ProjectOverviewView: View {
         }
         .sheet(isPresented: $showingAddRepo) { AddProjectSheet(targetProject: project) }
         .sheet(isPresented: $showingNotes) { notesSheet }
+        .sheet(item: $commitCtx) { ctx in
+            let c = ctx.repo.activeCheckout
+            let probe = c.flatMap { status.status(forHost: $0.host, path: $0.path)?.probe }
+            let config: SSHClient.Configuration? = c?.host.map { h in
+                SSHClient.Configuration(host: h.hostname, port: h.port, username: h.username,
+                                        authentication: .systemKeys, initialCols: 80, initialRows: 24)
+            }
+            CommitSheet(repoName: ctx.repo.name, dirtyCount: GitLineFormatter.make(probe).dirty,
+                        path: c?.path ?? "", config: config)
+                .presentationDetents([.medium])
+        }
         .alert("Rename project", isPresented: $showingRename) {
             TextField("Name", text: $renameText)
             Button("Save") {
@@ -237,6 +251,12 @@ struct ProjectOverviewView: View {
         }
         .buttonStyle(.plain)
         .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1) }
+        .contextMenu {
+            let dirty = repo.activeCheckout.flatMap { status.status(forHost: $0.host, path: $0.path)?.probe }
+            if GitLineFormatter.make(dirty).dirty > 0 {
+                Button("Commit & push…", systemImage: "arrow.up") { commitCtx = CommitContext(repo: repo) }
+            }
+        }
     }
 
     @ViewBuilder private func gitLine(_ repo: Repo) -> some View {
