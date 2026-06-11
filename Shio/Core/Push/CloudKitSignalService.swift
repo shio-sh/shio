@@ -133,7 +133,12 @@ final class CloudKitSignalService {
     /// failure / no iCloud / schema not deployed).
     func fetchAndClearActions() async -> [(sessionId: String, key: String)] {
         guard await iCloudAvailable() else { return [] }
-        let query = CKQuery(recordType: Self.actionRecordType, predicate: NSPredicate(value: true))
+        // Filter on the queryable `sessionId` field rather than a true predicate,
+        // which would need the system `recordName` index marked Queryable (the
+        // Console won't always let you edit that). Every Action has a non-empty
+        // sessionId, so `> ""` matches them all.
+        let query = CKQuery(recordType: Self.actionRecordType,
+                            predicate: NSPredicate(format: "sessionId > %@", ""))
         do {
             let (matches, _) = try await database.records(matching: query)
             var actions: [(sessionId: String, key: String)] = []
