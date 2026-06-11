@@ -441,7 +441,14 @@ private struct MacProjectDashboard: View {
                 moduleHint("No repos yet — add one to this project.")
             } else {
                 ForEach(repos) { row in
-                    RepoRowView(row: row, open: { openRepo(row.repo) }, onCommit: { commitTarget = row })
+                    RepoRowView(row: row, open: { openRepo(row.repo) }, onCommit: { commitTarget = row },
+                                openOn: { checkout in
+                                    // Mark the chosen machine most-recent → it becomes the
+                                    // active checkout → open() picks it up. No model change.
+                                    checkout.lastOpenedAt = .now
+                                    try? context.save()
+                                    openRepo(row.repo)
+                                })
                 }
             }
         }
@@ -532,7 +539,12 @@ private struct RepoRowView: View {
     let row: RepoRowVM
     let open: () -> Void
     var onCommit: (() -> Void)? = nil
+    var openOn: ((ProjectCheckout) -> Void)? = nil
     @State private var hovering = false
+
+    private func machineLabel(_ c: ProjectCheckout) -> String {
+        (c.host.map(MacSelfHost.isThisMac) ?? true) ? "This Mac" : (c.host?.name ?? "Unknown")
+    }
 
     var body: some View {
         Button(action: open) {
@@ -558,6 +570,14 @@ private struct RepoRowView: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .contextMenu {
+            let checkouts = row.repo.checkouts ?? []
+            if checkouts.count > 1, let openOn {
+                Menu("Open on") {
+                    ForEach(checkouts, id: \.persistentModelID) { c in
+                        Button(machineLabel(c)) { openOn(c) }
+                    }
+                }
+            }
             if GitLineFormatter.make(row.git).dirty > 0, let onCommit {
                 Button("Commit & push…", systemImage: "arrow.up", action: onCommit)
             }

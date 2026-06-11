@@ -252,6 +252,16 @@ struct ProjectOverviewView: View {
         .buttonStyle(.plain)
         .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1) }
         .contextMenu {
+            let checkouts = repo.checkouts ?? []
+            if checkouts.count > 1 {
+                Menu("Open on") {
+                    ForEach(checkouts, id: \.persistentModelID) { c in
+                        Button(c.host?.name ?? "Unknown") {
+                            c.lastOpenedAt = .now; try? context.save(); openRepo(repo)
+                        }
+                    }
+                }
+            }
             let dirty = repo.activeCheckout.flatMap { status.status(forHost: $0.host, path: $0.path)?.probe }
             if GitLineFormatter.make(dirty).dirty > 0 {
                 Button("Commit & push…", systemImage: "arrow.up") { commitCtx = CommitContext(repo: repo) }
