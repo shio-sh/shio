@@ -32,6 +32,8 @@ struct MacSettingsView: View {
     @AppStorage(MacSettings.cursorStyleKey) private var cursorStyle: String = "block"
     @AppStorage(MacSettings.themeKey) private var theme: String = ""
     @AppStorage(MacSettings.shellKey) private var shell: String = ""
+    @AppStorage(TmuxResume.takeoverKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
+    private var takeover: Bool = false
     @State private var showingSkills = false
 
     var body: some View {
@@ -48,6 +50,11 @@ struct MacSettingsView: View {
                 TextField("Theme", text: $theme, prompt: Text("ghostty theme name (blank = default)"))
                 TextField("Default shell", text: $shell, prompt: Text(ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"))
                     .font(.system(.body, design: .monospaced))
+            }
+            Section("Remote control") {
+                Toggle("Take over on connect", isOn: $takeover)
+                Text("Mirror (default): every device sees the live session and shares control. Take over: connecting detaches the others so you have sole control.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
             Section("Skills") {
                 Button("Open Skills library…") { showingSkills = true }

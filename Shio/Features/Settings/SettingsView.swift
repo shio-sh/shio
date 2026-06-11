@@ -10,6 +10,9 @@ struct SettingsView: View {
     @AppStorage(AppLock.defaultsKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
     private var appLockEnabled: Bool = false
 
+    @AppStorage(TmuxResume.takeoverKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
+    private var takeoverMode: Bool = false
+
     @State private var showingProModeDisclosure = false
     @State private var testPushResult: String?
     @State private var sendingTestPush = false
@@ -78,6 +81,18 @@ struct SettingsView: View {
                     Text("Shio re-authenticates if you leave the app for more than 10 seconds. SSH sessions stay connected while locked.")
                         .font(ShioFont.footnote)
                         .foregroundStyle(ShioTheme.textTertiary)
+                }
+
+                Section {
+                    Toggle(isOn: $takeoverMode) {
+                        Label("Take over on connect", systemImage: "rectangle.on.rectangle.angled")
+                    }
+                    .tint(.green)
+                    Text("Mirror (default): every device sees the live session and shares control. Take over: connecting from a device detaches the others so you have sole control.")
+                        .font(ShioFont.footnote)
+                        .foregroundStyle(ShioTheme.textTertiary)
+                } header: {
+                    Text("Remote control")
                 }
 
                 Section("Advanced") {

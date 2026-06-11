@@ -33,7 +33,7 @@ enum TmuxResume {
         // `-A` = attach if session exists, create if not.
         // `\;` = tmux command separator. `set mouse on` enables mouse
         //        reporting for this session only.
-        return "tmux new-session -A -s \(safe)\(attachOptions)\n"
+        return "tmux new-session -A -s \(safe)\(sessionOptions)\n"
     }
 
     /// Detect (heuristically) whether the remote responded that tmux is
@@ -76,7 +76,7 @@ enum TmuxResume {
         if let startDir, !startDir.isEmpty {
             cmd += " -c \(singleQuoted(startDir))"
         }
-        cmd += "\(attachOptions)\n"
+        cmd += "\(sessionOptions)\n"
         return cmd
     }
 
@@ -99,6 +99,21 @@ enum TmuxResume {
     /// so it never touches the user's other tmux sessions on the same server.
     static let attachOptions =
         " \\; set mouse on \\; setw -g window-size latest \\; set -sg escape-time 0 \\; set status off"
+
+    /// Remote control modes. **Mirror** (default) is just tmux's native
+    /// behavior: every device that attaches the same `shio-<name>` session sees
+    /// it live and shares control. **Takeover** appends `detach-client -a`, which
+    /// boots every *other* client so this device has sole control. The choice is
+    /// a single App-Group setting so it applies across iPhone/iPad/Mac.
+    static let takeoverKey = "shio.remote.takeover"
+    static var takeoverEnabled: Bool {
+        UserDefaults(suiteName: ShioModelContainer.appGroup)?.bool(forKey: takeoverKey) ?? false
+    }
+
+    /// `attachOptions` plus the takeover clause when that mode is on.
+    static var sessionOptions: String {
+        takeoverEnabled ? attachOptions + " \\; detach-client -a" : attachOptions
+    }
 
     private static func singleQuoted(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
