@@ -9,7 +9,7 @@ import AppKit
 @MainActor
 final class MacAppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
-    private var settingObserver: NSObjectProtocol?
+    private var settingObserver: (any NSObjectProtocol)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Run the monitor at APP scope (not tied to a window) so it keeps
