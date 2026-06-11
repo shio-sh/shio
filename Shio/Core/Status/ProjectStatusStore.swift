@@ -92,6 +92,56 @@ final class ProjectStatusStore {
         remoteAgents["\(host.persistentModelID)"]?["shio-\(TmuxResume.scrubName(repoName))"]
     }
 
+    /// Open PRs per checkout (via the machine's `gh`), keyed like `statuses`.
+    private(set) var prs: [String: [PullRequest]] = [:]
+    private var prTask: Task<Void, Never>?
+
+    func prList(forHost host: Host?, path: String) -> [PullRequest] {
+        prs[StatusKey.make(host: host, path: path)] ?? []
+    }
+
+    /// Fetch open PRs for the given checkouts (rides each machine's `gh`).
+    /// Separate from the git refresh — `gh` is slower, so it never blocks the
+    /// status fan-out. Cheap and advisory; failures just yield no PRs.
+    func refreshPRs(_ targets: [Target]) {
+        prTask?.cancel()
+        guard !targets.isEmpty else { return }
+        prTask = Task { [weak self] in await self?.runPRs(targets) }
+    }
+
+    private func runPRs(_ targets: [Target]) async {
+        await withTaskGroup(of: (String, [PullRequest]).self) { group in
+            let cap = 4
+            var pending = targets
+            var running = 0
+            func addNext() {
+                guard let t = pending.popLast() else { return }
+                group.addTask { (t.key, await Self.fetchPRs(t)) }
+                running += 1
+            }
+            for _ in 0..<min(cap, targets.count) { addNext() }
+            while running > 0 {
+                guard let (key, list) = await group.next() else { break }
+                running -= 1
+                if !Task.isCancelled { prs[key] = list }
+                addNext()
+            }
+        }
+    }
+
+    private static func fetchPRs(_ t: Target) async -> [PullRequest] {
+        switch t.location {
+        case .local:
+            #if os(macOS)
+            return await GitHubReader.prsLocal(path: t.path)
+            #else
+            return []
+            #endif
+        case .remote(let config):
+            return await GitHubReader.prsRemote(config: config, path: t.path)
+        }
+    }
+
     /// Refresh the given checkouts. Cancels any in-flight refresh.
     func refresh(_ targets: [Target]) {
         inFlight?.cancel()

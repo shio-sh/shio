@@ -101,7 +101,9 @@ struct ProjectOverviewView: View {
             Button("Cancel", role: .cancel) {}
         }
         .onAppear {
-            status.refresh(ProjectStatusStore.targets(for: [project], isLocalHost: { _ in false }))
+            let targets = ProjectStatusStore.targets(for: [project], isLocalHost: { _ in false })
+            status.refresh(targets)
+            status.refreshPRs(targets)
         }
     }
 
@@ -240,6 +242,9 @@ struct ProjectOverviewView: View {
     @ViewBuilder private func gitLine(_ repo: Repo) -> some View {
         let probe = repo.activeCheckout.flatMap { status.status(forHost: $0.host, path: $0.path)?.probe }
         let m = GitLineFormatter.make(probe)
+        let pr = repo.activeCheckout.flatMap { c in
+            status.prList(forHost: c.host, path: c.path).first(where: { $0.state == "OPEN" })
+        }
         HStack(spacing: 9) {
             HStack(spacing: 5) {
                 Text("⎇").foregroundStyle(ShioTheme.textTertiary)
@@ -255,6 +260,9 @@ struct ProjectOverviewView: View {
                 } else {
                     Text("✓").foregroundStyle(ShioTheme.success)
                 }
+            }
+            if let pr {
+                Text("PR #\(pr.number)").foregroundStyle(pr.isDraft ? ShioTheme.textTertiary : ShioTheme.info)
             }
         }
         .font(.system(size: 12, design: .monospaced)).monospacedDigit()

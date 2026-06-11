@@ -123,7 +123,9 @@ struct ProjectsView: View {
     // MARK: - Status + agent reads
 
     private func refreshStatus() {
-        status.refresh(ProjectStatusStore.targets(for: projects, isLocalHost: { _ in false }))
+        let targets = ProjectStatusStore.targets(for: projects, isLocalHost: { _ in false })
+        status.refresh(targets)
+        status.refreshPRs(targets)
     }
 
     /// Total uncommitted changes across the project's repos — the list indicator.

@@ -198,7 +198,9 @@ struct MacProjectsView: View {
     }
 
     private func refreshStatus() {
-        status.refresh(ProjectStatusStore.targets(for: projects, isLocalHost: MacSelfHost.isThisMac))
+        let targets = ProjectStatusStore.targets(for: projects, isLocalHost: MacSelfHost.isThisMac)
+        status.refresh(targets)
+        status.refreshPRs(targets)
     }
 
     private func repoRows(_ project: Project) -> [RepoRowVM] {
@@ -207,8 +209,14 @@ struct MacProjectsView: View {
                       machines: machinesText(repo), git: gitProbe(repo),
                       agent: localAgentActivity(repo),
                       agentName: agentSnapshot(repo)?.agentName,
-                      agentDetail: agentSnapshot(repo)?.detail)
+                      agentDetail: agentSnapshot(repo)?.detail,
+                      prs: prList(repo))
         }
+    }
+
+    private func prList(_ repo: Repo) -> [PullRequest] {
+        guard let c = repo.activeCheckout else { return [] }
+        return status.prList(forHost: c.host, path: c.path)
     }
 
     private func gitProbe(_ repo: Repo) -> GitProbe? {
@@ -263,8 +271,9 @@ struct MacProjectsView: View {
         let changes = rows.reduce(0) { $0 + (GitLineFormatter.make($1.git).dirty) }
         let working = rows.filter { $0.agent == .running }.count
         let needs   = rows.filter { $0.agent == .waiting }.count
+        let prCount = rows.reduce(0) { $0 + $1.prs.filter { $0.state == "OPEN" }.count }
         return ProjectGlance(changes: changes, working: working, needsYou: needs,
-                             repoCount: rows.count, age: shioShortAge(project.lastOpenedAt))
+                             prs: prCount, repoCount: rows.count, age: shioShortAge(project.lastOpenedAt))
     }
 }
 
@@ -278,6 +287,7 @@ struct RepoRowVM: Identifiable {
     let agent: AgentActivity
     var agentName: String? = nil
     var agentDetail: String? = nil
+    var prs: [PullRequest] = []
 }
 
 /// The aggregate one-liner shown under the project title.
@@ -285,6 +295,7 @@ struct ProjectGlance {
     var changes: Int
     var working: Int
     var needsYou: Int
+    var prs: Int
     var repoCount: Int
     var age: String
 }
@@ -387,6 +398,10 @@ private struct MacProjectDashboard: View {
                 Text("all quiet").font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
             }
             Spacer()
+            if glance.prs > 0 {
+                Text("\(glance.prs) open PR\(glance.prs == 1 ? "" : "s")")
+                    .font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
+            }
         }
         .font(.system(size: 12.5))
         .padding(.vertical, 10)
@@ -509,6 +524,9 @@ private struct RepoRowView: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 10) {
                     Text(row.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
+                    if let pr = row.prs.first(where: { $0.state == "OPEN" }) {
+                        ShioChip(text: "PR #\(pr.number)", status: pr.isDraft ? .neutral : .info)
+                    }
                     Spacer()
                     if hovering {
                         Text("open ›").font(.system(size: 12)).foregroundStyle(ShioTheme.textSecondary)
