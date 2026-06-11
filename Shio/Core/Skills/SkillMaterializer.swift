@@ -25,6 +25,18 @@ final class SkillMaterializer {
     /// the main actor without touching the (non-Sendable) SwiftData model.
     struct Item: Sendable { let dir: String; let body: String; let enabled: Bool }
 
+    /// Master switch — when off, Shio never writes skills into your coding
+    /// agents' folders (so it never triggers macOS's "data from other apps"
+    /// prompt). Default on. Settable from Settings.
+    nonisolated static let syncEnabledKey = "shio.skills.syncToAgents"
+    nonisolated static var syncEnabled: Bool {
+        UserDefaults.standard.object(forKey: syncEnabledKey) as? Bool ?? true
+    }
+
+    /// Whether there's any enabled global skill that would be written to the
+    /// cross-app folders — used to decide whether to show the explainer.
+    func hasGlobalsToMaterialize() -> Bool { globalItems().contains(where: \.enabled) }
+
     /// Tools we fan a global skill out to (relative to `$HOME`). The canonical
     /// store is `.agents/skills`; these are symlinked to it when installed.
     private nonisolated static let fanoutTools: [(config: String, skills: String)] = [
@@ -65,6 +77,7 @@ final class SkillMaterializer {
     /// local agent dir — globals reach remotes when a project opens).
     func scheduleGlobalSync() {
         #if os(macOS)
+        guard Self.syncEnabled else { return }
         let items = globalItems()
         Task.detached(priority: .utility) { Self.syncGlobalsLocal(items) }
         #endif
@@ -85,6 +98,7 @@ final class SkillMaterializer {
     /// vendor-neutral) and this project's own (into the checkout's
     /// `.claude/skills`) — local or over SSH depending on where the checkout is.
     func materialize(project: Project, isLocalHost: (Host) -> Bool) {
+        guard Self.syncEnabled else { return }
         guard let checkout = project.activeRepo?.activeCheckout ?? project.allCheckouts.first,
               !checkout.path.isEmpty else { return }
         let all = (try? ShioModelContainer.shared.mainContext.fetch(FetchDescriptor<Skill>())) ?? []

@@ -36,6 +36,7 @@ struct MacSettingsView: View {
     @AppStorage(TmuxResume.takeoverKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
     private var takeover: Bool = false
     @AppStorage(MacSettings.menubarWatcherKey) private var menubarWatcher: Bool = false
+    @AppStorage(SkillMaterializer.syncEnabledKey) private var skillSync: Bool = true
     @State private var showingSkills = false
 
     var body: some View {
@@ -64,6 +65,9 @@ struct MacSettingsView: View {
             Section("Skills") {
                 Button("Open Skills library…") { showingSkills = true }
                 Text("Your universal, vendor-neutral agent rules — global ∪ per-project.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Toggle("Sync skills to your coding agents", isOn: $skillSync)
+                Text("Writes your skills into the folders Claude Code (~/.claude), Cursor, and Codex read, so they're picked up automatically. macOS asks permission the first time (\"data from other apps\"). Off = Shio never touches those folders.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section {

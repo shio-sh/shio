@@ -30,6 +30,9 @@ struct MacShell: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("shio.skills.crossAppExplained") private var skillsExplained = false
+    @AppStorage(SkillMaterializer.syncEnabledKey) private var skillSyncEnabled = true
+    @State private var showSkillsExplainer = false
 
     var body: some View {
         NavigationSplitView {
@@ -50,6 +53,15 @@ struct MacShell: View {
         .sheet(isPresented: $model.showingAddHost) {
             MacAddHostForm(model: model)
         }
+        // Explain BEFORE the first cross-app write why macOS is about to ask to
+        // "access data from other apps" — Shio is syncing your skills into the
+        // agents' own folders. (The system prompt itself isn't customizable.)
+        .alert("Sync your skills to your coding agents?", isPresented: $showSkillsExplainer) {
+            Button("Sync skills") { skillsExplained = true; SkillMaterializer.shared.scheduleGlobalSync() }
+            Button("Don't sync", role: .cancel) { skillsExplained = true; skillSyncEnabled = false }
+        } message: {
+            Text("Shio writes your skills into the folders your coding agents read — Claude Code (~/.claude), Cursor, and Codex — so they follow your rules automatically. macOS will then ask permission to access those apps' folders; that's expected. You can change this anytime in Settings → Skills.")
+        }
         .overlay {
             if model.showingCommandPalette {
                 CommandPaletteContainer(model: model)
@@ -62,8 +74,7 @@ struct MacShell: View {
             // Project-first migration: backfill a ProjectCheckout per legacy
             // single-host project. Idempotent + safe to run every launch.
             ProjectMigration.run(in: context)
-            // Mirror enabled global skills into this Mac's ~/.claude/skills.
-            SkillMaterializer.shared.scheduleGlobalSync()
+            maybeSyncSkills()
         }
         // Watch local tmux sessions so a project row lights up when its agent
         // needs you — even though ghostty owns the local PTY.
@@ -90,6 +101,15 @@ struct MacShell: View {
         case .hosts:    MacMachinesView(model: model)
         case .files:    MacFilesPane(model: model)
         }
+    }
+
+    /// Sync global skills into the agents' folders — but only when enabled and
+    /// there's something to write, and explain it the first time (so the macOS
+    /// "data from other apps" prompt isn't a surprise).
+    private func maybeSyncSkills() {
+        guard skillSyncEnabled, SkillMaterializer.shared.hasGlobalsToMaterialize() else { return }
+        if skillsExplained { SkillMaterializer.shared.scheduleGlobalSync() }
+        else { showSkillsExplainer = true }
     }
 
     private func placeholder(_ title: String, _ icon: String, _ subtitle: String) -> some View {
