@@ -200,12 +200,12 @@ struct PublicKeyView: View {
     /// for display. Runs the (potentially blocking) Keychain operations on
     /// a background task so SwiftUI's main thread stays responsive.
     private func ensureKeyAndLoad() async {
-        await apply(await Self.lines(regenerate: false))
+        apply(await Self.lines(regenerate: false))
     }
 
     private func regenerate() async {
         let result = await Self.lines(regenerate: true)
-        await apply(result)
+        apply(result)
         if case .success = result { ShioHaptic.success() } else { ShioHaptic.error() }
     }
 
