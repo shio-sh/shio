@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var showingProModeDisclosure = false
     @State private var testPushResult: String?
     @State private var sendingTestPush = false
+    @State private var creatingAction = false
 
     var body: some View {
         NavigationStack {
@@ -151,10 +152,21 @@ struct SettingsView: View {
                             }
                         }
                         .disabled(sendingTestPush)
+
+                        Button {
+                            Task { await createActionSchema() }
+                        } label: {
+                            HStack {
+                                Label("Create approve channel", systemImage: "checkmark.message")
+                                Spacer()
+                                if creatingAction { ProgressView() }
+                            }
+                        }
+                        .disabled(creatingAction)
                     } header: {
                         Text("Notifications")
                     } footer: {
-                        Text("Writes a CloudKit signal and pushes it back to this device — to verify away-push is delivering. Requires the iCloud container to be set up.")
+                        Text("\"Send test notification\" verifies away-push delivers. \"Create approve channel\" writes one Action record so the CloudKit \"Action\" record type appears in Development — then make it Queryable and deploy it to Production (that's what powers lock-screen approve).")
                     }
                 }
             }
@@ -172,6 +184,15 @@ struct SettingsView: View {
                 Text(testPushResult ?? "")
             }
         }
+    }
+
+    /// Write one Action record so CloudKit materializes the `Action` record type
+    /// in Development — the one-time step that makes it deployable to Production.
+    private func createActionSchema() async {
+        creatingAction = true
+        defer { creatingAction = false }
+        await CloudKitSignalService.shared.sendAction(sessionId: "shio-schema-probe", key: "y")
+        testPushResult = "Wrote a test Action. In CloudKit Console → Development → Record Types, the “Action” type should now appear. Make it Queryable, then Deploy Schema Changes to Production."
     }
 
     private func sendTestPush() async {
