@@ -8,6 +8,7 @@ enum MacSettings {
     static let cursorStyleKey = "shio.mac.cursorStyle"   // block | bar | underline
     static let themeKey = "shio.mac.theme"               // ghostty theme name ("" = default)
     static let shellKey = "shio.mac.defaultShell"
+    static let menubarWatcherKey = "shio.mac.menubarWatcher"
 
     static var fontSize: Double {
         let v = UserDefaults.standard.double(forKey: fontSizeKey)
@@ -34,6 +35,7 @@ struct MacSettingsView: View {
     @AppStorage(MacSettings.shellKey) private var shell: String = ""
     @AppStorage(TmuxResume.takeoverKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
     private var takeover: Bool = false
+    @AppStorage(MacSettings.menubarWatcherKey) private var menubarWatcher: Bool = false
     @State private var showingSkills = false
 
     var body: some View {
@@ -54,6 +56,9 @@ struct MacSettingsView: View {
             Section("Remote control") {
                 Toggle("Take over on connect", isOn: $takeover)
                 Text("Mirror (default): every device sees the live session and shares control. Take over: connecting detaches the others so you have sole control.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Toggle("Keep watching in the menu bar", isOn: $menubarWatcher)
+                Text("Stay in the menu bar when the window is closed, so Shio still pushes your phone when an agent needs you. Off = Shio quits with its last window.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section("Skills") {

@@ -11,6 +11,9 @@ import SwiftUI
 @main
 struct ShioMacApp: App {
     @State private var model = MacTerminalModel()
+    // RC3 away-watcher: keeps the agent monitor alive (and the away-signal
+    // firing) when the window is closed, if the menu-bar watcher is enabled.
+    @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         WindowGroup {
