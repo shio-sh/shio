@@ -26,16 +26,16 @@ struct IconPickerView: View {
                                         cornerRadius: 60 * 0.2237,
                                         style: .continuous
                                     )
-                                    .stroke(ShioColor.Chrome.divider, lineWidth: 0.5)
+                                    .stroke(ShioTheme.line, lineWidth: 0.5)
                                 )
                             VStack(alignment: .leading, spacing: ShioSpace.xxs) {
                                 Text(icon.displayName)
                                     .font(ShioFont.body)
-                                    .foregroundStyle(ShioColor.Text.primary)
+                                    .foregroundStyle(ShioTheme.textPrimary)
                                 if icon == .dark {
                                     Text("Default")
                                         .font(ShioFont.footnote)
-                                        .foregroundStyle(ShioColor.Text.tertiary)
+                                        .foregroundStyle(ShioTheme.textTertiary)
                                 }
                             }
                             Spacer()
@@ -52,11 +52,11 @@ struct IconPickerView: View {
             } footer: {
                 Text("iOS will ask you to confirm the change. The new icon takes effect on your home screen immediately.")
                     .font(ShioFont.footnote)
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
         }
         .scrollContentBackground(.hidden)
-        .background(ShioColor.Chrome.background)
+        .background(ShioTheme.background)
         .navigationTitle("App Icon")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

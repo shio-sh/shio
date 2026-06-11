@@ -32,10 +32,10 @@ struct DiagnosticsView: View {
                 }
                 if isRunning {
                     HStack(spacing: ShioSpace.sm) {
-                        ProgressView().tint(ShioColor.Text.secondary)
+                        ProgressView().tint(ShioTheme.textSecondary)
                         Text("Checking…")
                             .font(ShioFont.callout)
-                            .foregroundStyle(ShioColor.Text.secondary)
+                            .foregroundStyle(ShioTheme.textSecondary)
                     }
                     .padding(.top, ShioSpace.sm)
                 }
@@ -43,7 +43,7 @@ struct DiagnosticsView: View {
             .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
             .padding(.vertical, ShioSpace.xl)
         }
-        .background(ShioColor.Chrome.background)
+        .background(ShioTheme.background)
         .navigationTitle("Diagnose")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -64,10 +64,10 @@ struct DiagnosticsView: View {
         VStack(alignment: .leading, spacing: ShioSpace.sm) {
             Text("What we can check")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("Shio can verify some things directly and infer others from how connections fail. Each row tells you what we know and what to do next.")
                 .font(ShioFont.callout)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
         }
     }
 
@@ -98,7 +98,7 @@ private struct DiagnosticRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(check.title)
                         .font(ShioFont.bodyEmphasis)
-                        .foregroundStyle(ShioColor.Text.primary)
+                        .foregroundStyle(ShioTheme.textPrimary)
                     if let reason = statusReason {
                         Text(reason)
                             .font(ShioFont.callout)
@@ -112,7 +112,7 @@ private struct DiagnosticRow: View {
                     } label: {
                         Image(systemName: expanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(ShioColor.Text.tertiary)
+                            .foregroundStyle(ShioTheme.textTertiary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -122,7 +122,7 @@ private struct DiagnosticRow: View {
             }
         }
         .padding(ShioSpace.md)
-        .background(ShioColor.Chrome.surface)
+        .background(ShioTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: ShioRadius.md, style: .continuous))
     }
 
@@ -131,16 +131,16 @@ private struct DiagnosticRow: View {
             switch result?.status {
             case .passed:
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(ShioColor.State.success)
+                    .foregroundStyle(ShioTheme.success)
             case .failed:
                 Image(systemName: "exclamationmark.circle.fill")
-                    .foregroundStyle(ShioColor.State.danger)
+                    .foregroundStyle(ShioTheme.danger)
             case .skipped:
                 Image(systemName: "minus.circle")
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             case .running, .idle, .none:
                 Image(systemName: "circle.dotted")
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
         }
     }
@@ -157,9 +157,9 @@ private struct DiagnosticRow: View {
 
     private var secondaryColor: Color {
         switch result?.status {
-        case .failed:  return ShioColor.Text.primary
-        case .skipped: return ShioColor.Text.tertiary
-        default:       return ShioColor.Text.secondary
+        case .failed:  return ShioTheme.textPrimary
+        case .skipped: return ShioTheme.textTertiary
+        default:       return ShioTheme.textSecondary
         }
     }
 
@@ -175,7 +175,7 @@ private struct DiagnosticRow: View {
             if let detail = result?.detail, !detail.isEmpty {
                 Text(detail)
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let remediation = result?.remediation, remediation != .none {
@@ -200,15 +200,15 @@ private struct DiagnosticRow: View {
         case .openMacSharingSettings(let text):
             Text(text)
                 .font(ShioFont.Mono.fingerprint)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
                 .padding(ShioSpace.sm)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(ShioColor.Chrome.background)
+                .background(ShioTheme.background)
                 .clipShape(RoundedRectangle(cornerRadius: ShioRadius.sm, style: .continuous))
         case .useIPInstead:
             Text("Open https://login.tailscale.com/admin/machines on any device to find your Mac's 100.x.y.z IP, then add it as a machine in Shio.")
                 .font(ShioFont.footnote)
-                .foregroundStyle(ShioColor.Text.tertiary)
+                .foregroundStyle(ShioTheme.textTertiary)
         case .none:
             EmptyView()
         }

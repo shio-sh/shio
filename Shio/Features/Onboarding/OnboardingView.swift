@@ -55,7 +55,7 @@ struct OnboardingView: View {
                 }))
             } else {
                 ZStack {
-                    ShioColor.Chrome.background.ignoresSafeArea()
+                    ShioTheme.background.ignoresSafeArea()
                     GeometryReader { geo in
                         ScrollView {
                             VStack(spacing: ShioSpace.xl) {
@@ -105,10 +105,10 @@ struct OnboardingView: View {
         VStack(spacing: ShioSpace.md) {
             Text("塩")
                 .font(ShioFont.kanji(size: 84))
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("shio")
                 .font(ShioFont.wordmark(size: 28))
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
         }
     }
 
@@ -227,11 +227,11 @@ struct OnboardingView: View {
         VStack(spacing: ShioSpace.lg) {
             Text(LocalizedStringKey(title))
                 .font(ShioFont.title1)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
                 .multilineTextAlignment(.center)
             Text(LocalizedStringKey(body))
                 .font(ShioFont.body)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, ShioSpace.md)
 
@@ -279,13 +279,13 @@ struct OnboardingView: View {
         VStack(spacing: ShioSpace.lg) {
             Text(LocalizedStringKey(title))
                 .font(ShioFont.title1)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
                 .multilineTextAlignment(.center)
             HStack(spacing: ShioSpace.sm) {
-                ProgressView().tint(ShioColor.Text.secondary)
+                ProgressView().tint(ShioTheme.textSecondary)
                 Text("Checking…")
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
             }
         }
     }
@@ -294,14 +294,14 @@ struct OnboardingView: View {
         VStack(spacing: ShioSpace.lg) {
             Text(LocalizedStringKey(title))
                 .font(ShioFont.title1)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
                 .multilineTextAlignment(.center)
             HStack(spacing: ShioSpace.sm) {
                 Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(ShioColor.State.success)
+                    .foregroundStyle(ShioTheme.success)
                 Text(LocalizedStringKey(body))
                     .font(ShioFont.body)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
             }
         }
     }

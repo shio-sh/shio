@@ -29,7 +29,7 @@ struct PairingView: View {
     var body: some View {
         NavigationStack {
             content
-                .background(ShioColor.Chrome.background)
+                .background(ShioTheme.background)
                 .navigationTitle("Pair a machine")
                 .navigationBarTitleDisplayMode(.inline)
                 // Prompt for Local Network access up front — before the camera
@@ -95,17 +95,17 @@ struct PairingView: View {
         VStack(alignment: .leading, spacing: ShioSpace.md) {
             Text("Paste the pairing code")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("Run the Shio companion on your machine and paste the pairing payload it prints.")
                 .font(ShioFont.callout)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
             TextEditor(text: $manualText)
                 .font(ShioFont.Mono.inline)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 140)
                 .padding(ShioSpace.sm)
-                .background(ShioColor.Chrome.surface, in: RoundedRectangle(cornerRadius: 10))
+                .background(ShioTheme.surface, in: RoundedRectangle(cornerRadius: 10))
             LegacyButton("Pair") {
                 handle(manualText)
             }
@@ -124,14 +124,14 @@ struct PairingView: View {
             } else {
                 Image(systemName: symbol)
                     .font(.system(size: 44))
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
             }
             Text(title)
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text(detail)
                 .font(ShioFont.callout)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -145,21 +145,21 @@ struct PairingView: View {
                 .foregroundStyle(.green)
             Text("Paired with \(name)")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
                 .multilineTextAlignment(.center)
             if let keyLine {
                 // No live companion endpoint — the user authorizes manually.
                 VStack(alignment: .leading, spacing: ShioSpace.sm) {
                     Text("Add this device's key on the machine to finish:")
                         .font(ShioFont.callout)
-                        .foregroundStyle(ShioColor.Text.secondary)
+                        .foregroundStyle(ShioTheme.textSecondary)
                     Text(keyLine)
                         .font(ShioFont.Mono.fingerprint)
-                        .foregroundStyle(ShioColor.Text.primary)
+                        .foregroundStyle(ShioTheme.textPrimary)
                         .textSelection(.enabled)
                         .padding(ShioSpace.sm)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(ShioColor.Chrome.surface, in: RoundedRectangle(cornerRadius: 8))
+                        .background(ShioTheme.surface, in: RoundedRectangle(cornerRadius: 8))
                 }
             }
             LegacyButton("Done") { dismiss() }
@@ -175,10 +175,10 @@ struct PairingView: View {
                 .foregroundStyle(.orange)
             Text("Couldn't pair")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text(message)
                 .font(ShioFont.callout)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .multilineTextAlignment(.center)
             LegacyButton("Try again") {
                 phase = PairingScanner.isSupported ? .scanning : .manualEntry

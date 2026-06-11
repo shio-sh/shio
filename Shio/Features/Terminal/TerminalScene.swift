@@ -47,7 +47,7 @@ struct TerminalScene: View {
                 switch viewModel.state {
                 case .connecting:
                     ProgressView()
-                        .tint(ShioColor.Text.primary)
+                        .tint(ShioTheme.textPrimary)
                         .scaleEffect(1.4)
                 case .reconnecting:
                     reconnectingOverlay
@@ -139,7 +139,7 @@ struct TerminalScene: View {
             } label: {
                 Image(systemName: "chevron.down")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(ShioColor.Text.primary)
+                    .foregroundStyle(ShioTheme.textPrimary)
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
@@ -153,7 +153,7 @@ struct TerminalScene: View {
                     .frame(width: 6, height: 6)
                 Text(store.activeSession?.displayName ?? "")
                     .font(.system(.footnote, design: .monospaced))
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -214,7 +214,7 @@ struct TerminalScene: View {
         } label: {
             Image(systemName: store.sessions.count > 1 ? "rectangle.stack.fill" : "ellipsis.circle")
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
         }
@@ -222,12 +222,12 @@ struct TerminalScene: View {
     }
 
     private var statusColor: Color {
-        guard let vm = viewModel else { return ShioColor.Text.tertiary }
+        guard let vm = viewModel else { return ShioTheme.textTertiary }
         switch vm.state {
         case .connected:    return .green
         case .connecting:   return .yellow
         case .reconnecting: return .yellow
-        case .idle:         return ShioColor.Text.tertiary
+        case .idle:         return ShioTheme.textTertiary
         case .disconnected: return .red
         }
     }
@@ -260,16 +260,16 @@ struct TerminalScene: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
                     .padding(.leading, 2)
             }
             .accessibilityLabel("Dismiss link")
         }
-        .foregroundStyle(ShioColor.Text.primary)
+        .foregroundStyle(ShioTheme.textPrimary)
         .padding(.horizontal, ShioSpace.md)
         .padding(.vertical, ShioSpace.sm)
         .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(ShioColor.Text.tertiary.opacity(0.25)))
+        .overlay(Capsule().strokeBorder(ShioTheme.textTertiary.opacity(0.25)))
         .contentShape(Capsule())
         .onTapGesture {
             Haptics.tap()
@@ -313,7 +313,7 @@ struct TerminalScene: View {
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .frame(width: 40, height: 36)
                 .background(.ultraThinMaterial)
                 .contentShape(Rectangle())
@@ -326,10 +326,10 @@ struct TerminalScene: View {
         HStack(spacing: ShioSpace.xs) {
             ProgressView()
                 .controlSize(.small)
-                .tint(ShioColor.Text.secondary)
+                .tint(ShioTheme.textSecondary)
             Text("Reconnecting…")
                 .font(ShioFont.footnote)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
         }
         .padding(.horizontal, ShioSpace.md)
         .padding(.vertical, ShioSpace.sm)
@@ -343,11 +343,11 @@ struct TerminalScene: View {
         VStack(alignment: .leading, spacing: ShioSpace.md) {
             Text("Disconnected")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             if let reason {
                 Text(reason)
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -364,7 +364,7 @@ struct TerminalScene: View {
         }
         .padding(ShioSpace.xl)
         .frame(maxWidth: 480)
-        .background(ShioColor.Chrome.surface)
+        .background(ShioTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: ShioRadius.lg, style: .continuous))
         .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
         .padding(ShioSpace.xl)

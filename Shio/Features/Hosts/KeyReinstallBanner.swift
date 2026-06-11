@@ -26,14 +26,14 @@ struct KeyReinstallBanner: View {
             HStack(spacing: ShioSpace.xs) {
                 Image(systemName: "key.fill")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(ShioColor.State.warning)
+                    .foregroundStyle(ShioTheme.warning)
                 Text("Your SSH key changed")
                     .font(ShioFont.bodyEmphasis)
-                    .foregroundStyle(ShioColor.Text.primary)
+                    .foregroundStyle(ShioTheme.textPrimary)
             }
             Text("Each Mac in your list needs the new public key pasted into `~/.ssh/authorized_keys`. Open Settings → SSH Key to copy it.")
                 .font(ShioFont.callout)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
             HStack {
                 Spacer()
                 Button("Got it") {
@@ -41,14 +41,14 @@ struct KeyReinstallBanner: View {
                     bumpToken = UUID()
                 }
                 .font(ShioFont.bodyEmphasis)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             }
         }
         .padding(ShioSpace.md)
-        .background(ShioColor.State.warning.opacity(0.12))
+        .background(ShioTheme.warning.opacity(0.12))
         .overlay(
             RoundedRectangle(cornerRadius: ShioRadius.md, style: .continuous)
-                .strokeBorder(ShioColor.State.warning.opacity(0.3), lineWidth: 1)
+                .strokeBorder(ShioTheme.warning.opacity(0.3), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: ShioRadius.md, style: .continuous))
         .padding(.horizontal, ShioSpace.lg)

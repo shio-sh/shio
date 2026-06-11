@@ -15,10 +15,10 @@ struct PrivacyScreenView: View {
             VStack(spacing: ShioSpace.md) {
                 Text("塩")
                     .font(.custom("DotGothic16-Regular", size: 64))
-                    .foregroundStyle(ShioColor.Text.primary)
+                    .foregroundStyle(ShioTheme.textPrimary)
                 Text("shio")
                     .font(.custom("DepartureMono-Regular", size: 24))
-                    .foregroundStyle(ShioColor.Text.primary)
+                    .foregroundStyle(ShioTheme.textPrimary)
             }
         }
     }

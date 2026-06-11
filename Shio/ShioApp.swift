@@ -10,7 +10,7 @@ struct ShioApp: App {
         WindowGroup {
             RootView()
                 .preferredColorScheme(nil)  // follow system
-                .tint(ShioColor.Text.primary)
+                .tint(ShioTheme.textPrimary)
                 .task {
                     Haptics.prepare()
                     // Project-first migration: backfill a ProjectCheckout for each

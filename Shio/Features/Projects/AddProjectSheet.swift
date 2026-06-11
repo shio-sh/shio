@@ -43,7 +43,7 @@ struct AddProjectSheet: View {
                     Section {
                         Text("Add a machine in the Machines tab first, then come back to add a project on it.")
                             .font(ShioFont.callout)
-                            .foregroundStyle(ShioColor.Text.secondary)
+                            .foregroundStyle(ShioTheme.textSecondary)
                     }
                 } else {
                     Section("Machine") {
@@ -99,11 +99,11 @@ struct AddProjectSheet: View {
                             } label: {
                                 HStack {
                                     Text("Folder")
-                                        .foregroundStyle(ShioColor.Text.primary)
+                                        .foregroundStyle(ShioTheme.textPrimary)
                                     Spacer()
                                     Text(trimmedPath.isEmpty ? "Choose…" : trimmedPath)
                                         .font(trimmedPath.isEmpty ? ShioFont.body : ShioFont.Mono.inline)
-                                        .foregroundStyle(trimmedPath.isEmpty ? ShioColor.Text.tertiary : ShioColor.Text.secondary)
+                                        .foregroundStyle(trimmedPath.isEmpty ? ShioTheme.textTertiary : ShioTheme.textSecondary)
                                         .lineLimit(1)
                                         .truncationMode(.head)
                                 }

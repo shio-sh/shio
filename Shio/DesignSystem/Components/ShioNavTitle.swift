@@ -13,16 +13,16 @@ extension View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack(spacing: 0) {
                     Text("~/")
-                        .foregroundStyle(ShioColor.Text.tertiary)
+                        .foregroundStyle(ShioTheme.textTertiary)
                     Text(name.lowercased())
-                        .foregroundStyle(ShioColor.Text.primary)
+                        .foregroundStyle(ShioTheme.textPrimary)
                     Spacer(minLength: 0)
                 }
                 .font(ShioFont.wordmark(size: size))
                 .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
                 .padding(.top, ShioSpace.xs)
                 .padding(.bottom, ShioSpace.sm)
-                .background(ShioColor.Chrome.background)
+                .background(ShioTheme.background)
                 .accessibilityAddTraits(.isHeader)
             }
     }

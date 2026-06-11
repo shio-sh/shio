@@ -21,17 +21,17 @@ struct AppLockOverlay: View {
 
                 Text("塩")
                     .font(.custom("DotGothic16-Regular", size: 96))
-                    .foregroundStyle(ShioColor.Text.primary)
+                    .foregroundStyle(ShioTheme.textPrimary)
                 Text("shio")
                     .font(.custom("DepartureMono-Regular", size: 32))
-                    .foregroundStyle(ShioColor.Text.primary)
+                    .foregroundStyle(ShioTheme.textPrimary)
 
                 Spacer()
 
                 if let error = biometricError {
                     Text(error)
                         .font(ShioFont.callout)
-                        .foregroundStyle(ShioColor.Text.secondary)
+                        .foregroundStyle(ShioTheme.textSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, ShioSpace.xl)
                 }

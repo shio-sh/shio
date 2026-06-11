@@ -47,7 +47,7 @@ struct IPadRootView: View {
                                 .font(ShioFont.body)
                             Text("\(host.username)@\(host.hostname)")
                                 .font(ShioFont.Mono.fingerprint)
-                                .foregroundStyle(ShioColor.Text.secondary)
+                                .foregroundStyle(ShioTheme.textSecondary)
                                 .lineLimit(1)
                         }
                     } icon: {
@@ -100,12 +100,12 @@ struct IPadRootView: View {
         VStack(spacing: ShioSpace.lg) {
             Text("塩")
                 .font(ShioFont.kanji(size: 84))
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("Pick a Mac to begin.")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(ShioColor.Chrome.background)
+        .background(ShioTheme.background)
     }
 }

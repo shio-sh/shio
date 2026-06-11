@@ -37,13 +37,13 @@ struct AddHostSheet: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .background(ShioColor.Chrome.background)
+            .background(ShioTheme.background)
             .navigationTitle("Add a machine")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
-                        .foregroundStyle(ShioColor.Text.primary)
+                        .foregroundStyle(ShioTheme.textPrimary)
                 }
             }
         }
@@ -72,7 +72,7 @@ private struct TailscaleAddView: View {
                     ? "Enter your Mac's tailnet IP (it starts with 100.)."
                     : "Enter your Mac's Tailscale name (it ends in .ts.net).")
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
 
                 Button {
                     withAnimation(ShioMotion.standard) { helpExpanded.toggle() }
@@ -83,7 +83,7 @@ private struct TailscaleAddView: View {
                         Image(systemName: helpExpanded ? "chevron.up" : "chevron.down")
                             .font(.system(size: 11, weight: .semibold))
                     }
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
                 }
                 .buttonStyle(.plain)
 
@@ -95,11 +95,11 @@ private struct TailscaleAddView: View {
                             Text("On your Mac, click the Tailscale icon in the menu bar. Your Mac is the first entry — its name ends in `.ts.net`. Tap to copy.")
                             Text("Don't see Tailscale in the menu bar? Open it from Applications first.")
                                 .font(ShioFont.footnote)
-                                .foregroundStyle(ShioColor.Text.tertiary)
+                                .foregroundStyle(ShioTheme.textTertiary)
                         }
                     }
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
                     .padding(.top, ShioSpace.xs)
                 }
             }
@@ -138,7 +138,7 @@ private struct TailscaleAddView: View {
             } footer: {
                 Text("Username is the account on the machine you're connecting to. On macOS, run `whoami` in Terminal — usually lowercase, no spaces. On Linux servers, the same. Not your Apple ID, not your full name.")
                     .font(ShioFont.footnote)
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
             Section {
                 LegacyButton("Save") {
@@ -210,7 +210,7 @@ private struct DirectSSHAddView: View {
             Section {
                 Text("Pro Mode. Shio doesn't enforce guardrails here — make sure your config is right.")
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
             Section("Machine") {
                 TextField("Display name", text: $displayName)

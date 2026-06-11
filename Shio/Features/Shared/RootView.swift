@@ -48,7 +48,7 @@ struct RootView: View {
                     FilesView()
                 }
             }
-            .tint(ShioColor.Text.primary)
+            .tint(ShioTheme.textPrimary)
             .transition(.opacity)
         }
     }

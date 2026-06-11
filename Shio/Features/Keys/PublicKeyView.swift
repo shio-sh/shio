@@ -53,7 +53,7 @@ struct PublicKeyView: View {
             .padding(.horizontal, ShioPadding.screenHorizontalIPhone)
             .padding(.vertical, ShioSpace.xl)
         }
-        .background(ShioColor.Chrome.background)
+        .background(ShioTheme.background)
         .task { await ensureKeyAndLoad() }
         .alert("Regenerate SSH key?", isPresented: $confirmingRegenerate) {
             Button("Cancel", role: .cancel) {}
@@ -69,10 +69,10 @@ struct PublicKeyView: View {
         VStack(alignment: .leading, spacing: ShioSpace.sm) {
             Text("Your SSH key")
                 .font(ShioFont.title1)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("To let Shio sign in to a Mac, that Mac needs to know your public key. Paste the one below into the Mac's `~/.ssh/authorized_keys` file.")
                 .font(ShioFont.body)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
         }
     }
 
@@ -83,10 +83,10 @@ struct PublicKeyView: View {
         VStack(alignment: .leading, spacing: ShioSpace.sm) {
             Text("First, enable Remote Login on your Mac")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("On your Mac, open **System Settings → General → Sharing**. Turn on **Remote Login**. Under \"Allow access for\", make sure your user account is included.")
                 .font(ShioFont.body)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
 
             Button {
                 withAnimation(ShioMotion.standard) { remoteLoginWhyExpanded.toggle() }
@@ -97,14 +97,14 @@ struct PublicKeyView: View {
                     Image(systemName: remoteLoginWhyExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 11, weight: .semibold))
                 }
-                .foregroundStyle(ShioColor.Text.tertiary)
+                .foregroundStyle(ShioTheme.textTertiary)
             }
             .buttonStyle(.plain)
 
             if remoteLoginWhyExpanded {
                 Text("Remote Login is what starts the SSH server on your Mac. Without it, your Mac refuses Shio's connection — even with the right key.")
                     .font(ShioFont.callout)
-                    .foregroundStyle(ShioColor.Text.secondary)
+                    .foregroundStyle(ShioTheme.textSecondary)
                     .padding(.top, ShioSpace.xs)
             }
         }
@@ -114,15 +114,15 @@ struct PublicKeyView: View {
         VStack(alignment: .leading, spacing: ShioSpace.sm) {
             Text("Public key")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
 
             Text(publicKeyLine)
                 .font(ShioFont.Mono.fingerprint)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .textSelection(.enabled)
                 .padding(ShioSpace.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(ShioColor.Chrome.surface)
+                .background(ShioTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: ShioRadius.md, style: .continuous))
 
             LegacyButton(copyState == .copied ? "Copied" : "Copy public key", style: .secondary) {
@@ -136,18 +136,18 @@ struct PublicKeyView: View {
         VStack(alignment: .leading, spacing: ShioSpace.sm) {
             Text("Then install the key")
                 .font(ShioFont.title2)
-                .foregroundStyle(ShioColor.Text.primary)
+                .foregroundStyle(ShioTheme.textPrimary)
             Text("On your Mac, open Terminal and paste this line. It appends the key safely, creating `~/.ssh` if it doesn't exist.")
                 .font(ShioFont.body)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
 
             Text(installCommand)
                 .font(ShioFont.Mono.fingerprint)
-                .foregroundStyle(ShioColor.Text.secondary)
+                .foregroundStyle(ShioTheme.textSecondary)
                 .textSelection(.enabled)
                 .padding(ShioSpace.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(ShioColor.Chrome.surface)
+                .background(ShioTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: ShioRadius.md, style: .continuous))
 
             LegacyButton("Copy install command", style: .secondary) {
@@ -166,7 +166,7 @@ struct PublicKeyView: View {
                 }
                 Text("You can find this key again in Settings if you set up another Mac later.")
                     .font(ShioFont.footnote)
-                    .foregroundStyle(ShioColor.Text.tertiary)
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
             .padding(.top, ShioSpace.md)
         }
@@ -179,7 +179,7 @@ struct PublicKeyView: View {
             }
             Text("Only do this if your key has been compromised, or you want to start over. You'll need to paste the new key on every Mac you use.")
                 .font(ShioFont.footnote)
-                .foregroundStyle(ShioColor.Text.tertiary)
+                .foregroundStyle(ShioTheme.textTertiary)
         }
         .padding(.top, ShioSpace.md)
     }
@@ -187,10 +187,10 @@ struct PublicKeyView: View {
     private func errorBanner(_ message: String) -> some View {
         Text(message)
             .font(ShioFont.callout)
-            .foregroundStyle(ShioColor.State.danger)
+            .foregroundStyle(ShioTheme.danger)
             .padding(ShioSpace.md)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(ShioColor.State.danger.opacity(0.1))
+            .background(ShioTheme.danger.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: ShioRadius.md, style: .continuous))
     }
 
