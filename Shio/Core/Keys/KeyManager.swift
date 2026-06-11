@@ -107,6 +107,99 @@ enum KeyManager {
         return fresh
     }
 
+    // MARK: - Secure Enclave key (opt-in hardware key, #36)
+
+    /// Whether Shio should offer the Secure-Enclave P-256 key for auth. Opt-in
+    /// (Settings); the Ed25519 key remains the default and untouched. Enabling
+    /// this changes the public key, so the host must re-authorize it.
+    static var useEnclaveKey: Bool {
+        get { UserDefaults.standard.bool(forKey: "shio.key.useEnclave") }
+        set { UserDefaults.standard.set(newValue, forKey: "shio.key.useEnclave") }
+    }
+
+    /// Whether this device actually has a Secure Enclave (false on the iOS
+    /// Simulator and on Macs without one).
+    static func enclaveAvailable() -> Bool { SecureEnclave.isAvailable }
+
+    static func hasEnclaveKey() -> Bool { (try? existingEnclaveKey()) != nil }
+
+    /// Load the stored Secure-Enclave key (reconstructed from its opaque,
+    /// device-bound `dataRepresentation`). Never generates.
+    static func existingEnclaveKey() throws -> SecureEnclave.P256.Signing.PrivateKey? {
+        guard let blob = try loadEnclaveBlob() else { return nil }
+        do { return try SecureEnclave.P256.Signing.PrivateKey(dataRepresentation: blob) }
+        catch { throw KeyError.keyDataCorrupted }
+    }
+
+    static func enclavePublicKey() throws -> P256.Signing.PublicKey? {
+        try existingEnclaveKey()?.publicKey
+    }
+
+    /// Generate + store a Secure-Enclave key if none exists. The private key is
+    /// non-extractable — only the Enclave can ever sign with it. Default access
+    /// control (no per-use biometric) so SSH reconnects stay frictionless.
+    @discardableResult
+    static func generateEnclaveIfNeeded() throws -> SecureEnclave.P256.Signing.PrivateKey {
+        if let existing = try existingEnclaveKey() { return existing }
+        let fresh = try SecureEnclave.P256.Signing.PrivateKey()
+        try storeEnclaveBlob(fresh.dataRepresentation)
+        return fresh
+    }
+
+    @discardableResult
+    static func regenerateEnclave() throws -> SecureEnclave.P256.Signing.PrivateKey {
+        try? deleteEnclaveBlob()
+        let fresh = try SecureEnclave.P256.Signing.PrivateKey()
+        try storeEnclaveBlob(fresh.dataRepresentation)
+        markReinstallNeeded()
+        return fresh
+    }
+
+    private static let enclaveService = "sh.shio.app.ssh.enclave"
+
+    private static func enclaveQuery() -> [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword,
+         kSecAttrService as String: enclaveService,
+         kSecAttrAccount as String: account]
+    }
+
+    private static func loadEnclaveBlob() throws -> Data? {
+        var query = enclaveQuery()
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        switch status {
+        case errSecSuccess: return item as? Data
+        case errSecItemNotFound: return nil
+        case errSecInteractionNotAllowed, errSecAuthFailed, errSecUserCanceled:
+            throw KeyError.keychainUnavailable(status)
+        default: throw KeyError.keychainLoadFailed(status)
+        }
+    }
+
+    private static func storeEnclaveBlob(_ data: Data) throws {
+        try? deleteEnclaveBlob()
+        var attrs = enclaveQuery()
+        attrs[kSecValueData as String] = data
+        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        attrs[kSecAttrSynchronizable as String] = false
+        let status = SecItemAdd(attrs as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            if status == errSecInteractionNotAllowed || status == errSecAuthFailed {
+                throw KeyError.keychainUnavailable(status)
+            }
+            throw KeyError.keychainStoreFailed(status)
+        }
+    }
+
+    private static func deleteEnclaveBlob() throws {
+        let status = SecItemDelete(enclaveQuery() as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeyError.keychainDeleteFailed(status)
+        }
+    }
+
     // MARK: - Reinstall-needed signal
 
     private static let reinstallFlagKey = "shio.key.needsReinstallOnMacs"

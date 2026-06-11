@@ -200,45 +200,43 @@ struct PublicKeyView: View {
     /// for display. Runs the (potentially blocking) Keychain operations on
     /// a background task so SwiftUI's main thread stays responsive.
     private func ensureKeyAndLoad() async {
-        let result: Result<Curve25519.Signing.PublicKey, any Error> = await Task.detached(priority: .userInitiated) {
-            do {
-                let privateKey = try KeyManager.generateIfNeeded()
-                return .success(privateKey.publicKey)
-            } catch {
-                return .failure(error)
-            }
-        }.value
-
-        switch result {
-        case .success(let pk):
-            publicKeyLine = OpenSSHFormatter.authorizedKeysLine(publicKey: pk)
-            installCommand = OpenSSHFormatter.installCommand(publicKey: pk)
-            loadError = nil
-        case .failure(let error):
-            loadError = error.localizedDescription
-        }
+        await apply(await Self.lines(regenerate: false))
     }
 
     private func regenerate() async {
-        let result: Result<Curve25519.Signing.PublicKey, any Error> = await Task.detached(priority: .userInitiated) {
+        let result = await Self.lines(regenerate: true)
+        await apply(result)
+        if case .success = result { ShioHaptic.success() } else { ShioHaptic.error() }
+    }
+
+    @MainActor private func apply(_ result: Result<(line: String, install: String), any Error>) {
+        switch result {
+        case .success(let pair): publicKeyLine = pair.line; installCommand = pair.install; loadError = nil
+        case .failure(let error): loadError = error.localizedDescription
+        }
+    }
+
+    /// Load (or regenerate) the **active** key's public half — the opt-in
+    /// Secure Enclave P-256 key when enabled, else the Ed25519 key — and format
+    /// both the authorized_keys line and the install command for it.
+    private static func lines(regenerate: Bool) async -> Result<(line: String, install: String), any Error> {
+        await Task.detached(priority: .userInitiated) {
             do {
-                let pk = try KeyManager.regenerate()
-                return .success(pk.publicKey)
+                if KeyManager.useEnclaveKey && KeyManager.enclaveAvailable() {
+                    let pk = try (regenerate ? KeyManager.regenerateEnclave()
+                                             : KeyManager.generateEnclaveIfNeeded()).publicKey
+                    return .success((OpenSSHFormatter.authorizedKeysLine(p256PublicKey: pk),
+                                     OpenSSHFormatter.installCommand(p256PublicKey: pk)))
+                } else {
+                    let pk = try (regenerate ? KeyManager.regenerate()
+                                             : KeyManager.generateIfNeeded()).publicKey
+                    return .success((OpenSSHFormatter.authorizedKeysLine(publicKey: pk),
+                                     OpenSSHFormatter.installCommand(publicKey: pk)))
+                }
             } catch {
                 return .failure(error)
             }
         }.value
-
-        switch result {
-        case .success(let pk):
-            publicKeyLine = OpenSSHFormatter.authorizedKeysLine(publicKey: pk)
-            installCommand = OpenSSHFormatter.installCommand(publicKey: pk)
-            loadError = nil
-            ShioHaptic.success()
-        case .failure(let error):
-            loadError = error.localizedDescription
-            ShioHaptic.error()
-        }
     }
 
     private func animateCopiedState() {

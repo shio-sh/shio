@@ -13,6 +13,8 @@ struct SettingsView: View {
     @AppStorage(TmuxResume.takeoverKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
     private var takeoverMode: Bool = false
 
+    @AppStorage("shio.key.useEnclave") private var useEnclaveKey: Bool = false
+
     @State private var showingProModeDisclosure = false
     @State private var testPushResult: String?
     @State private var sendingTestPush = false
@@ -93,6 +95,25 @@ struct SettingsView: View {
                         .foregroundStyle(ShioTheme.textTertiary)
                 } header: {
                     Text("Remote control")
+                }
+
+                if KeyManager.enclaveAvailable() {
+                    Section {
+                        Toggle(isOn: $useEnclaveKey) {
+                            Label("Hardware key (Secure Enclave)", systemImage: "lock.shield")
+                        }
+                        .tint(.green)
+                        .onChange(of: useEnclaveKey) { _, on in
+                            guard on else { return }
+                            Task.detached { try? KeyManager.generateEnclaveIfNeeded() }
+                            KeyManager.markReinstallNeeded()
+                        }
+                        Text("Store this device's SSH key in the Secure Enclave — the private key never leaves the chip and can't be copied off the device. After turning this on, re-install the public key on your Macs from SSH Key above. Off = the standard key.")
+                            .font(ShioFont.footnote)
+                            .foregroundStyle(ShioTheme.textTertiary)
+                    } header: {
+                        Text("SSH key")
+                    }
                 }
 
                 Section("Advanced") {

@@ -133,10 +133,17 @@ final class SSHClient: @unchecked Sendable {
     /// background Task in SessionViewModel.start), not on NIO's event loop.
     private func resolveShioKey() throws {
         do {
-            guard let pk = try KeyManager.existingKey() else {
-                throw SSHError.sshKeyMissing
+            var keys: [NIOSSHPrivateKey] = []
+            // Opt-in Secure Enclave key first (preferred), Ed25519 as fallback
+            // so a host authorized for either still connects (#36).
+            if KeyManager.useEnclaveKey, let se = try KeyManager.existingEnclaveKey() {
+                keys.append(NIOSSHPrivateKey(secureEnclaveP256Key: se))
             }
-            resolvedKeys = [NIOSSHPrivateKey(ed25519Key: pk)]
+            if let pk = try KeyManager.existingKey() {
+                keys.append(NIOSSHPrivateKey(ed25519Key: pk))
+            }
+            guard !keys.isEmpty else { throw SSHError.sshKeyMissing }
+            resolvedKeys = keys
         } catch let e as KeyManager.KeyError {
             if e.isAvailabilityIssue {
                 throw SSHError.keychainUnavailable(e.localizedDescription)
@@ -159,6 +166,9 @@ final class SSHClient: @unchecked Sendable {
             throw SSHError.passphraseRequired(loaded.encryptedNeedingPassphrase)
         }
         var keys = loaded.keys
+        if KeyManager.useEnclaveKey, let se = try? KeyManager.existingEnclaveKey() {
+            keys.append(NIOSSHPrivateKey(secureEnclaveP256Key: se))
+        }
         if let pk = try? KeyManager.existingKey() {
             keys.append(NIOSSHPrivateKey(ed25519Key: pk))
         }

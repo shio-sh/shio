@@ -57,6 +57,40 @@ enum OpenSSHFormatter {
         blob.append(keyBytes)
         return blob
     }
+
+    // MARK: - ECDSA P-256 (Secure Enclave key)
+
+    /// `authorized_keys` line for a Secure-Enclave-backed P-256 key:
+    ///
+    ///     ecdsa-sha2-nistp256 <base64-blob> <comment>
+    static func authorizedKeysLine(
+        p256PublicKey: P256.Signing.PublicKey,
+        comment: String = defaultComment
+    ) -> String {
+        "ecdsa-sha2-nistp256 \(wireFormat(p256PublicKey: p256PublicKey).base64EncodedString()) \(comment)"
+    }
+
+    static func installCommand(p256PublicKey: P256.Signing.PublicKey) -> String {
+        let line = authorizedKeysLine(p256PublicKey: p256PublicKey)
+        return "mkdir -p ~/.ssh && echo '\(line)' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
+    }
+
+    /// SSH wire format for an ECDSA P-256 public key (RFC 5656 §3.1):
+    ///
+    ///     string  "ecdsa-sha2-nistp256"
+    ///     string  "nistp256"
+    ///     string  Q   (uncompressed point: 0x04 || X || Y — `x963Representation`)
+    static func wireFormat(p256PublicKey: P256.Signing.PublicKey) -> Data {
+        let algName = Data("ecdsa-sha2-nistp256".utf8)
+        let curve = Data("nistp256".utf8)
+        let q = p256PublicKey.x963Representation   // 65 bytes, 0x04-prefixed
+
+        var blob = Data()
+        blob.appendBigEndianUInt32(UInt32(algName.count)); blob.append(algName)
+        blob.appendBigEndianUInt32(UInt32(curve.count));   blob.append(curve)
+        blob.appendBigEndianUInt32(UInt32(q.count));        blob.append(q)
+        return blob
+    }
 }
 
 private extension Data {
