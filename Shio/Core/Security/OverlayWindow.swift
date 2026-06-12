@@ -21,8 +21,18 @@ final class OverlayWindow {
     /// re-authenticated yet. Survives background/foreground cycles
     /// until the biometric prompt succeeds.
     private var pendingLock: Bool = false
+    /// When the app last resigned active — drives the re-auth grace window.
+    private var resignedAt: Date?
+    /// Settings promises "re-authenticates if you leave the app for more
+    /// than 10 seconds"; brief hops (app switcher, a share sheet) within
+    /// this window don't demand Face ID again.
+    private let graceSeconds: TimeInterval = 10
 
     private init() {
+        // A cold launch starts locked when the lock is enabled — otherwise
+        // force-quit + relaunch walks straight past Face ID.
+        pendingLock = appLockEnabled
+
         let nc = NotificationCenter.default
         nc.addObserver(
             forName: UIApplication.willResignActiveNotification,
@@ -68,20 +78,30 @@ final class OverlayWindow {
         w.isHidden = true   // hidden by default; touches go to main window
         self.window = w
         self.hosting = host
+
+        // Activation may already have happened by the time the first frame
+        // installs us — apply the cold-launch lock now rather than waiting
+        // for a lifecycle event that already fired.
+        if pendingLock { show(.locked) }
     }
 
     // MARK: - Lifecycle handlers
 
     private func handleWillResignActive() {
-        print("[shio] OverlayWindow willResignActive (lockEnabled=\(appLockEnabled))")
         if appLockEnabled {
             pendingLock = true
+            resignedAt = Date()
         }
         show(.privacy)
     }
 
     private func handleDidBecomeActive() {
-        print("[shio] OverlayWindow didBecomeActive (pendingLock=\(pendingLock))")
+        // Returning within the grace window skips re-auth, as Settings
+        // promises. A cold launch has no resignedAt, so it always locks.
+        if pendingLock, let away = resignedAt,
+           Date().timeIntervalSince(away) < graceSeconds {
+            pendingLock = false
+        }
         if pendingLock {
             show(.locked)
         } else {
