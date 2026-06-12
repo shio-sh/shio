@@ -52,7 +52,12 @@ enum MacSelfHost {
         // Mac shows up multiple times in Machines until we collapse them.
         let mine = all.filter {
             $0.deviceID == id
-                || ($0.deviceID == nil && $0.name.caseInsensitiveCompare(computerName) == .orderedSame)
+                || ($0.deviceID == nil
+                    && $0.name.caseInsensitiveCompare(computerName) == .orderedSame
+                    // A *different* Mac that happens to share this computer
+                    // name (two "MacBook Pro"s) must not get claimed — require
+                    // the login user to match too.
+                    && $0.username == NSUserName())
         }
 
         let host: Host

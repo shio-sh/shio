@@ -48,7 +48,7 @@ struct AddProjectSheet: View {
                 } else {
                     Section("Machine") {
                         Picker("Host", selection: $selectedHost) {
-                            ForEach(hosts) { host in
+                            ForEach(hosts.dedupedByIdentity) { host in
                                 Text(host.name).tag(host as Host?)
                             }
                         }
@@ -129,7 +129,7 @@ struct AddProjectSheet: View {
                 }
             }
             .onAppear {
-                if selectedHost == nil { selectedHost = hosts.first }
+                if selectedHost == nil { selectedHost = hosts.dedupedByIdentity.first }
             }
         }
     }

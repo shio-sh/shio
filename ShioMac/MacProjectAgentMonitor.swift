@@ -27,6 +27,9 @@ final class MacProjectAgentMonitor {
     /// Begin polling (idempotent). No-op if tmux isn't installed.
     func start() {
         guard timer == nil, tmux != nil else { return }
+        // Once per run: clear out yesterday's Signal records so the user's
+        // private database doesn't grow one record per needs-you forever.
+        Task { await CloudKitSignalService.shared.sweepOldSignals() }
         poll()
         timer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in
             // Timer callbacks are nonisolated; hop to the main actor explicitly.

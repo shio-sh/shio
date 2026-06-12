@@ -112,6 +112,29 @@ final class Host {
     }
 }
 
+extension Array where Element == Host {
+    /// Collapse CloudKit-duplicate machine records — pairing and the Mac's
+    /// self-host can briefly coexist with identical params — by
+    /// (name, hostname, user), preferring the record that carries a deviceID.
+    /// The Mac merges these at the source; this keeps lists correct in the
+    /// window before that delete syncs in.
+    var dedupedByIdentity: [Host] {
+        func key(_ h: Host) -> String {
+            "\(h.name.lowercased())|\(h.hostname.lowercased())|\(h.username.lowercased())"
+        }
+        var keep: [String: Host] = [:]
+        for h in self {
+            if let existing = keep[key(h)] {
+                if existing.deviceID == nil && h.deviceID != nil { keep[key(h)] = h }
+            } else {
+                keep[key(h)] = h
+            }
+        }
+        let kept = Set(keep.values.map(ObjectIdentifier.init))
+        return filter { kept.contains(ObjectIdentifier($0)) }
+    }
+}
+
 extension Host {
     /// Build an `SSHClient.Configuration` from this profile.
     ///

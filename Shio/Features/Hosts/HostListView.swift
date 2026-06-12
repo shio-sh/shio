@@ -14,21 +14,7 @@ struct HostListView: View {
     /// identical params — so collapse by (name, hostname, user), keeping the
     /// record that carries a deviceID. (The Mac also merges these at the source;
     /// this keeps the list correct immediately, before that delete syncs in.)
-    private var dedupedHosts: [Host] {
-        func key(_ h: Host) -> String {
-            "\(h.name.lowercased())|\(h.hostname.lowercased())|\(h.username.lowercased())"
-        }
-        var keep: [String: Host] = [:]
-        for h in hosts {
-            if let existing = keep[key(h)] {
-                if existing.deviceID == nil && h.deviceID != nil { keep[key(h)] = h }
-            } else {
-                keep[key(h)] = h
-            }
-        }
-        let kept = Set(keep.values.map(ObjectIdentifier.init))
-        return hosts.filter { kept.contains(ObjectIdentifier($0)) }
-    }
+    private var dedupedHosts: [Host] { hosts.dedupedByIdentity }
 
     @State private var isAddingHost = false
     @State private var isPairing = false

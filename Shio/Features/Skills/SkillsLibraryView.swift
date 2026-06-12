@@ -129,6 +129,7 @@ struct SkillEditor: View {
     @State private var name = ""
     @State private var desc = ""
     @State private var content = ""
+    @State private var nameError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -140,6 +141,11 @@ struct SkillEditor: View {
                 .padding(8)
                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(ShioTheme.surface))
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ShioTheme.line, lineWidth: 1))
+            if let nameError {
+                Text(nameError)
+                    .font(.system(size: 12))
+                    .foregroundStyle(ShioTheme.danger)
+            }
             TextField("description — when should the agent use this?", text: $desc)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
@@ -181,6 +187,15 @@ struct SkillEditor: View {
     private func save() {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { return }
+        // Two different skills mapping to one dir would clobber and delete
+        // each other's SKILL.md on every machine — refuse up front.
+        if let dir = Skill.dirName(for: n),
+           let clash = (try? context.fetch(FetchDescriptor<Skill>()))?
+               .first(where: { $0.persistentModelID != skill?.persistentModelID && $0.dirName == dir }) {
+            nameError = "“\(clash.name)” already uses the folder “\(dir)” — pick a more distinct name."
+            return
+        }
+        nameError = nil
         if let skill {
             let oldDir = skill.dirName
             skill.name = n; skill.skillDescription = desc; skill.content = content

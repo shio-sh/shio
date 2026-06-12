@@ -171,6 +171,26 @@ final class CloudKitSignalService {
         }
     }
 
+    /// Best-effort housekeeping: delete Signal records older than a day. The
+    /// banner has long been delivered (or never will be) — without this the
+    /// user's private database accumulates one record per needs-you forever.
+    /// The Mac watcher calls it once per app run.
+    func sweepOldSignals(olderThan age: TimeInterval = 24 * 3600) async {
+        guard await iCloudAvailable() else { return }
+        let query = CKQuery(recordType: Self.recordType,
+                            predicate: NSPredicate(format: "sessionId > %@", ""))
+        guard let (matches, _) = try? await database.records(matching: query) else { return }
+        let cutoff = Date().addingTimeInterval(-age)
+        let stale = matches.compactMap { id, result -> CKRecord.ID? in
+            guard case .success(let rec) = result,
+                  (rec.creationDate ?? .distantFuture) < cutoff else { return nil }
+            return id
+        }
+        if !stale.isEmpty {
+            _ = try? await database.modifyRecords(saving: [], deleting: stale)
+        }
+    }
+
     /// Write a test Signal record. The subscription fires and Apple pushes a
     /// Shio-branded alert back to this (and any same-account) device — the way
     /// to verify delivery + branding on a real device before the Mac companion

@@ -479,6 +479,9 @@ final class SessionViewModel {
                     connectionState: "disconnected"
                 )
                 try? await Task.sleep(nanoseconds: 25_000_000_000)
+                // The session may have reconnected during the grace window
+                // (manual Retry, network back) — don't kill its live activity.
+                guard case .disconnected = self.state else { return }
                 await LiveActivityController.shared.end(
                     sessionID: activeID,
                     finalState: "disconnected"

@@ -632,7 +632,11 @@ private final class SSHHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate
         validationCompletePromise: EventLoopPromise<Void>
     ) {
         guard let fp = hostKeyFingerprint(hostKey) else {
-            validationCompletePromise.succeed(())   // can't fingerprint → accept, don't break
+            // Fail-open by design (an NIOSSH internals change must not brick
+            // every connection) — but say so loudly: this silently disables
+            // TOFU pinning for the host.
+            print("[shio] WARNING: host key for \(hostPort) could not be fingerprinted — accepting WITHOUT pinning (NIOSSH internals changed?)")
+            validationCompletePromise.succeed(())
             return
         }
         if let pinned = ShioKnownHosts.fingerprint(for: hostPort) {

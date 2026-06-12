@@ -12,8 +12,8 @@ struct FilesView: View {
 
     private var sortedHosts: [Host] {
         switch sort {
-        case .name:   return hosts   // query is already name-sorted
-        case .recent: return hosts.sorted { $0.createdAt > $1.createdAt }
+        case .name:   return hosts.dedupedByIdentity   // query is already name-sorted
+        case .recent: return hosts.dedupedByIdentity.sorted { $0.createdAt > $1.createdAt }
         }
     }
 

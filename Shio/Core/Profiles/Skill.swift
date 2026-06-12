@@ -46,11 +46,18 @@ final class Skill {
     /// Filesystem-safe directory name for this skill (the SKILL.md lives in
     /// `<base>/<dirName>/SKILL.md`). The frontmatter keeps the original `name`.
     var dirName: String {
+        Self.dirName(for: name) ?? "skill-\(id.uuidString.prefix(8))"
+    }
+
+    /// The dir a given display name would map to (nil when nothing survives
+    /// scrubbing). Exposed so the editor can check for collisions *before*
+    /// saving — two skills sharing a dir clobber and delete each other's file.
+    static func dirName(for name: String) -> String? {
         let lowered = name.lowercased()
         let mapped = lowered.map { ch -> Character in
             ch.isLetter || ch.isNumber ? ch : "-"
         }
         let collapsed = String(mapped).split(separator: "-").joined(separator: "-")
-        return collapsed.isEmpty ? "skill-\(id.uuidString.prefix(8))" : collapsed
+        return collapsed.isEmpty ? nil : collapsed
     }
 }
