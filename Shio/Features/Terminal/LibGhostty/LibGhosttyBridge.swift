@@ -1,6 +1,11 @@
 import Foundation
 import GhosttyKit
 import os.log
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 
 /// Minimal Swift bridge over libghostty's C ABI.
 ///
@@ -11,10 +16,28 @@ import os.log
 final class LibGhosttyBridge: @unchecked Sendable {
     static let shared = LibGhosttyBridge()
 
-    /// The terminal background color. Both the libghostty surface and
-    /// the SwiftUI bleed background read from this single source of truth
-    /// so the two layers can never visually drift apart.
-    static let terminalBackgroundHex: UInt32 = 0x282C34
+    /// Terminal canvas per appearance — the SAME tokens the app chrome uses
+    /// (light = the bone canvas, dark = ink-800), so surface and chrome are
+    /// seamless in both modes. Resolved ONCE at libghostty init: the config
+    /// is process-global, so an appearance flip mid-run applies on the next
+    /// launch. The SwiftUI bleed reads `terminalBackgroundHex` (what the
+    /// surfaces actually got), so the two layers can never drift apart.
+    static let terminalBackgroundDarkHex: UInt32 = 0x0E0E10
+    static let terminalBackgroundLightHex: UInt32 = 0xF4EEDF
+    static let terminalForegroundDarkHex: UInt32 = 0xF2F2F4
+    static let terminalForegroundLightHex: UInt32 = 0x0E0E10
+    nonisolated(unsafe) private(set) static var terminalBackgroundHex: UInt32 = 0x0E0E10
+
+    /// The system appearance at init time. Surfaces are created on main.
+    private static func systemPrefersDark() -> Bool {
+        #if canImport(UIKit)
+        return UITraitCollection.current.userInterfaceStyle != .light
+        #else
+        return MainActor.assumeIsolated {
+            NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) != .aqua
+        }
+        #endif
+    }
 
     private let logger = Logger(subsystem: "sh.shio.app", category: "libghostty")
 
@@ -68,15 +91,15 @@ final class LibGhosttyBridge: @unchecked Sendable {
             return
         }
 
-        // Match libghostty's default terminal background so Shio's bleed
-        // (drawn under the status bar / home indicator with the same hex)
-        // looks seamless against the surface canvas. Defined as a single
-        // source of truth so the SwiftUI ZStack background and the libghostty
-        // surface can never drift apart.
-        let bgHex = String(format: "%06X", LibGhosttyBridge.terminalBackgroundHex)
+        // Resolve the terminal canvas from the system appearance (see the
+        // token comment above) and record it as the bleed's source of truth.
+        let dark = Self.systemPrefersDark()
+        let bg = dark ? Self.terminalBackgroundDarkHex : Self.terminalBackgroundLightHex
+        let fg = dark ? Self.terminalForegroundDarkHex : Self.terminalForegroundLightHex
+        Self.terminalBackgroundHex = bg
         var configString = """
-        background = #\(bgHex)
-        foreground = #FFFFFF
+        background = #\(String(format: "%06X", bg))
+        foreground = #\(String(format: "%06X", fg))
         """
         #if os(macOS)
         // Give the cell grid a gutter so text isn't jammed against the

@@ -9,6 +9,7 @@ import AppKit
 @MainActor
 final class MacAppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private var statusHeader: NSMenuItem?
     private var settingObserver: (any NSObjectProtocol)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -45,12 +46,16 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     private func installStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.title = "塩"
-        item.button?.toolTip = "Shio — watching for agents that need you"
+        item.button?.toolTip = "Shio — pings your iPhone when an agent needs you"
 
         let menu = NSMenu()
-        let header = NSMenuItem(title: "Shio is watching", action: nil, keyEquivalent: "")
+        menu.delegate = self
+        // Calm status, refreshed each time the menu opens — what your agents
+        // are doing, not what Shio is doing to you.
+        let header = NSMenuItem(title: "All quiet", action: nil, keyEquivalent: "")
         header.isEnabled = false
         menu.addItem(header)
+        statusHeader = header
         menu.addItem(.separator())
         let open = NSMenuItem(title: "Open Shio", action: #selector(openShio), keyEquivalent: "")
         open.target = self
@@ -74,4 +79,16 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quitShio() { NSApp.terminate(nil) }
+}
+
+extension MacAppDelegate: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) {
+        let snaps = MacProjectAgentMonitor.shared.byTmux.values
+        let waiting = snaps.filter { $0.activity == .waiting }.count
+        let running = snaps.filter { $0.activity == .running }.count
+        statusHeader?.title =
+            waiting > 0 ? "\(waiting) agent\(waiting == 1 ? "" : "s") need\(waiting == 1 ? "s" : "") you"
+            : running > 0 ? "\(running) agent\(running == 1 ? "" : "s") running"
+            : "All quiet"
+    }
 }

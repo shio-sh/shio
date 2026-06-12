@@ -73,7 +73,6 @@ struct SettingsView: View {
                     Toggle(isOn: $appLockEnabled) {
                         Label(appLockToggleTitle, systemImage: appLockToggleIcon)
                     }
-                    .tint(ShioTheme.accent)
                     .onChange(of: appLockEnabled) { _, newValue in
                         guard newValue else { return }
                         Task {
@@ -94,7 +93,6 @@ struct SettingsView: View {
                     Toggle(isOn: $takeoverMode) {
                         Label("Take over on connect", systemImage: "rectangle.on.rectangle.angled")
                     }
-                    .tint(ShioTheme.accent)
                     Text("Mirror (default): every device sees the live session and shares control. Take over: connecting from a device detaches the others so you have sole control.")
                         .font(ShioFont.footnote)
                         .foregroundStyle(ShioTheme.textTertiary)
@@ -106,7 +104,6 @@ struct SettingsView: View {
                     Toggle(isOn: $skillSync) {
                         Label("Sync skills to your agents", systemImage: "wrench.and.screwdriver")
                     }
-                    .tint(ShioTheme.accent)
                     Text("Writes your skills into the folders the agents on your machines read (~/.claude, ~/.cursor, ~/.codex) when you open a project. Off = Shio never touches those folders.")
                         .font(ShioFont.footnote)
                         .foregroundStyle(ShioTheme.textTertiary)
@@ -119,8 +116,7 @@ struct SettingsView: View {
                         Toggle(isOn: $useEnclaveKey) {
                             Label("Hardware key (Secure Enclave)", systemImage: "lock.shield")
                         }
-                        .tint(ShioTheme.accent)
-                        .onChange(of: useEnclaveKey) { _, on in
+                            .onChange(of: useEnclaveKey) { _, on in
                             guard on else { return }
                             Task.detached { try? KeyManager.generateEnclaveIfNeeded() }
                             KeyManager.markReinstallNeeded()
@@ -137,7 +133,6 @@ struct SettingsView: View {
                     Toggle(isOn: $proModeEnabled) {
                         Label("Pro Mode", systemImage: "wrench.adjustable.fill")
                     }
-                    .tint(ShioTheme.accent)
                     .onChange(of: proModeEnabled) { _, newValue in
                         if newValue {
                             // Only show disclosure once.
