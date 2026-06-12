@@ -50,8 +50,8 @@ struct MacShell: View {
             // collapsed, it floats beside the lights on their centerline.
             if model.sidebarCollapsed {
                 MacRailToggleButton(model: model)
-                    .padding(.leading, 100)
-                    .padding(.top, 12)
+                    .padding(.leading, 84)
+                    .padding(.top, 2)   // centered on the compact lights row
             }
 
             if model.showingProjectMenu, !model.sidebarCollapsed {
@@ -61,21 +61,15 @@ struct MacShell: View {
                     .onTapGesture { model.showingProjectMenu = false }
                 MacProjectMenu(model: model)
                     .padding(.leading, 10)
-                    .padding(.top, 90)
+                    .padding(.top, 86)
             }
         }
         .ignoresSafeArea(edges: .top)
-        // Slack-style titlebar: an invisible toolbar item makes the window
-        // carry a (transparent) unified toolbar, which moves the traffic
-        // lights to the relaxed position. Declared through SwiftUI so IT owns
-        // the NSToolbar — assigning our own crashed its toolbar bridge
-        // (KVO removeObserver on a toolbar it never registered on).
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Color.clear.frame(width: 1, height: 1)
-            }
-        }
-        .toolbarBackground(.hidden, for: .windowToolbar)
+        // NO window toolbar, ever. The Slack-position lights were tried twice:
+        // assigning an NSToolbar crashes SwiftUI's toolbar bridge, and a
+        // SwiftUI toolbar renders Liquid Glass artifacts AND hit-tests across
+        // the whole top strip, eating the canvas headers' clicks. The compact
+        // system lights position is the price of a fully ours top edge.
         .sheet(isPresented: $model.showingAddHost) {
             MacAddHostForm(model: model)
         }

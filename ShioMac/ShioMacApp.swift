@@ -22,11 +22,9 @@ struct ShioMacApp: App {
         }
         .defaultSize(width: 1000, height: 640)
         // The rail runs to the very top of the window — traffic lights live
-        // inside it. No titlebar band exists, so no second chrome color can.
-        // The unified toolbar style (carried by MacShell's invisible toolbar
-        // item) gives the lights their relaxed Slack-style position.
+        // inside it. No titlebar band exists, so no second chrome color can
+        // (and no toolbar may ever exist — it eats the headers' clicks).
         .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             // Copy/Paste come from SwiftUI's default Edit menu — those route
             // copy:/paste: to the focused GhosttyMacSurface via the responder

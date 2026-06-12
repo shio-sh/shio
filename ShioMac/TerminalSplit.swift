@@ -137,12 +137,14 @@ struct SplitContainer: View {
     }
 }
 
-/// Hosts one pane's surface, with a focus ring when the tab is split. The
-/// surface tracks focus itself (mouseDown → first responder → onFocus), so we
-/// just reflect it; no tap gesture (that would steal clicks from selection).
+/// Hosts one pane's surface, with a focus ring when the tab is split and a
+/// hover ✕ to close just this pane (⌘W closes the focused one). The surface
+/// tracks focus itself (mouseDown → first responder → onFocus), so we just
+/// reflect it; no tap gesture (that would steal clicks from selection).
 private struct PaneHost: View {
     let pane: TerminalPane
     @Bindable var tab: WorkspaceTab
+    @State private var hovering = false
 
     var body: some View {
         GhosttySurfaceHost(surface: pane.surface)
@@ -155,6 +157,30 @@ private struct PaneHost: View {
                         .allowsHitTesting(false)
                 }
             }
+            .overlay(alignment: .topTrailing) {
+                // The way OUT of a split — visible on hover, per pane.
+                if !tab.isSinglePane && hovering {
+                    Button { tab.close(paneID: pane.id) } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(ShioTheme.textSecondary)
+                            .frame(width: 20, height: 20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(ShioTheme.surface)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .strokeBorder(ShioTheme.line2, lineWidth: 1)
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close this pane (⌘W when focused)")
+                    .padding(6)
+                }
+            }
+            .onHover { hovering = $0 }
             .onAppear {
                 // Click-to-focus: the surface tells the tab when it's focused.
                 pane.surface.onFocus = { [weak tab] in tab?.focusedPaneID = pane.id }

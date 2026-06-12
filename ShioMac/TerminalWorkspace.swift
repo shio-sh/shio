@@ -39,14 +39,23 @@ final class WorkspaceTab: Identifiable {
     /// false if the tab is a single pane (the caller closes the whole tab).
     @discardableResult
     func closeFocusedPane() -> Bool {
-        guard let (parentBranch, isFirst) = root.parent(ofPane: focusedPaneID),
+        close(paneID: focusedPaneID)
+    }
+
+    /// Close a specific pane (the hover ✕ on a split), collapsing its parent
+    /// into the sibling. Returns false for a single-pane tab.
+    @discardableResult
+    func close(paneID: UUID) -> Bool {
+        guard let (parentBranch, isFirst) = root.parent(ofPane: paneID),
               case .branch(_, let a, let b) = parentBranch.kind else { return false }
         let closed = isFirst ? a.leafPane : b.leafPane
         let sibling = isFirst ? b : a
         parentBranch.kind = sibling.kind
         parentBranch.ratio = sibling.ratio
         if let closed { Task { await closed.stop() } }
-        focusedPaneID = parentBranch.firstLeafPane?.id ?? focusedPaneID
+        if focusedPaneID == paneID || root.node(withPane: focusedPaneID) == nil {
+            focusedPaneID = parentBranch.firstLeafPane?.id ?? focusedPaneID
+        }
         return true
     }
 

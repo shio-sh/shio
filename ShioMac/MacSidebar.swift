@@ -11,7 +11,7 @@ enum MacChrome {
     static let headerHeight: CGFloat = 48
     /// Leading clearance a canvas header needs when the rail is collapsed —
     /// the traffic lights + the floating sidebar toggle live in that strip.
-    static let lightsClearance: CGFloat = 142
+    static let lightsClearance: CGFloat = 126
 }
 
 private struct ShioHeaderInsetKey: EnvironmentKey {

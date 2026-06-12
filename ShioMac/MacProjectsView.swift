@@ -24,7 +24,8 @@ struct MacDashboardCanvas: View {
                         repos: rows,
                         glance: glance,
                         openRepo: { model.open(repo: $0) },
-                        addRepo: { model.addRepoToProject = project }
+                        addRepo: { model.addRepoToProject = project },
+                        openMachines: { model.canvas = .machines }
                     )
                     .id(project.persistentModelID)
                 }
@@ -65,9 +66,11 @@ struct MacDashboardCanvas: View {
                 if renaming { try? context.save() }
                 renaming.toggle()
             }
+            .fixedSize()
             ShioButton("New repo", .primary, compact: true) {
                 model.addRepoToProject = project
             }
+            .fixedSize()
             MacHeaderIconButton(systemImage: "sidebar.trailing", help: "Inspector (⌘I)",
                                 on: model.inspectorOpen) {
                 model.inspectorOpen.toggle()
@@ -118,6 +121,7 @@ private struct MacProjectDashboard: View {
     let glance: ProjectGlance
     let openRepo: (Repo) -> Void
     let addRepo: () -> Void
+    let openMachines: () -> Void
     @Environment(\.modelContext) private var context
     @Query(sort: \Skill.createdAt) private var allSkills: [Skill]
     @State private var addingSkill = false
@@ -292,16 +296,7 @@ private struct MacProjectDashboard: View {
     private var machinesCard: some View {
         BentoCard(title: "machines with this project") {
             ForEach(ProjectRows.machines(for: project)) { m in
-                HStack(spacing: 10) {
-                    ShioStatusDot(status: m.reachable ? .success : .neutral, filled: m.reachable)
-                    Text(m.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
-                    Spacer()
-                    Text(m.detail)
-                        .font(.system(size: 11.5, design: .monospaced))
-                        .foregroundStyle(ShioTheme.textTertiary)
-                        .lineLimit(1).truncationMode(.middle)
-                }
-                .padding(.horizontal, 8).padding(.vertical, 8)
+                MachineCardRow(summary: m, open: openMachines)
             }
         }
     }
@@ -329,6 +324,35 @@ private struct MacProjectDashboard: View {
             Text(meta).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
         }
         .padding(.horizontal, 8).padding(.vertical, 8)
+    }
+}
+
+/// One machine in the machines card — clicking it lands on the Machines
+/// canvas (the card looked tappable; now it is).
+private struct MachineCardRow: View {
+    let summary: ProjectRows.MachineSummary
+    let open: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: open) {
+            HStack(spacing: 10) {
+                ShioStatusDot(status: summary.reachable ? .success : .neutral, filled: summary.reachable)
+                Text(summary.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
+                Spacer()
+                Text(hovering ? "open ›" : summary.detail)
+                    .font(.system(size: 11.5, design: .monospaced))
+                    .foregroundStyle(hovering ? ShioTheme.textSecondary : ShioTheme.textTertiary)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(hovering ? ShioTheme.hover : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 

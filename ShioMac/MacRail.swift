@@ -14,7 +14,7 @@ struct MacRail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Clearance for the traffic lights band above the switcher row.
-            Color.clear.frame(height: 50)
+            Color.clear.frame(height: 46)
 
             // ONE trailing axis: the toggle's glyph, the section-header +s and
             // the row meta all right-align 20pt off the rail edge, whatever

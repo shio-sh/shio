@@ -73,7 +73,7 @@ struct MacFilesPane: View {
         switch selection {
         case .thisMac:
             LocalDirectoryView(url: FileManager.default.homeDirectoryForCurrentUser,
-                               title: "This Mac", model: model)
+                               title: "This Mac", model: model, isRoot: true)
         case .host(let id):
             if let host = machines.first(where: { $0.persistentModelID == id }) {
                 RemoteFilesBrowser(host: host, model: model).id(id)
@@ -203,6 +203,8 @@ private struct LocalDirectoryView: View {
     let url: URL
     let title: String
     @Bindable var model: MacTerminalModel
+    /// The machine-level root has no back; pushed folders do.
+    var isRoot: Bool = false
 
     @State private var entries: [LocalEntry] = []
     @State private var loadError: String?
@@ -216,18 +218,19 @@ private struct LocalDirectoryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // In-canvas path bar — NEVER window-toolbar items (they render
+            // glass artifacts and eat the headers' clicks).
+            FilesPathBar(title: title, path: url.path, showsBack: !isRoot) {
+                FilesBarButton(systemImage: showHidden ? "eye" : "eye.slash",
+                               help: "Show hidden files",
+                               on: showHidden) { showHidden.toggle() }
+            }
             if model.showingSearch {
                 SectionSearchField(model: model, placeholder: "Filter \(title)")
             }
             content
         }
-        .navigationTitle(title)
-        .toolbar {
-            ToolbarItem {
-                Toggle(isOn: $showHidden) { Image(systemName: "eye") }
-                    .help("Show hidden files")
-            }
-        }
+        .background(ShioTheme.background)
         .onAppear(perform: load)
         .onChange(of: showHidden) { _, _ in load() }
     }
@@ -249,23 +252,31 @@ private struct LocalDirectoryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             List(filtered) { entry in
-                if entry.isDirectory {
-                    NavigationLink {
-                        LocalDirectoryView(url: entry.url, title: entry.name, model: model)
-                    } label: { LocalFileRow(entry: entry) }
-                    .contextMenu { revealButton(entry.url) }
-                } else {
-                    Button { NSWorkspace.shared.open(entry.url) } label: {
-                        LocalFileRow(entry: entry)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                Group {
+                    if entry.isDirectory {
+                        NavigationLink {
+                            LocalDirectoryView(url: entry.url, title: entry.name, model: model)
+                        } label: { LocalFileRow(entry: entry) }
+                    } else {
+                        Button { NSWorkspace.shared.open(entry.url) } label: {
+                            LocalFileRow(entry: entry)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    .contextMenu { revealButton(entry.url) }
                 }
+                .contextMenu { revealButton(entry.url) }
+                .listRowBackground(ShioTheme.background)
+                .listRowSeparatorTint(ShioTheme.line)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(ShioTheme.background)
             .overlay {
-                if filtered.isEmpty { Text("No matches").foregroundStyle(.secondary) }
+                if filtered.isEmpty {
+                    Text("No matches").font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
+                }
             }
         }
     }
@@ -318,18 +329,90 @@ private struct LocalFileRow: View {
     let entry: LocalEntry
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: entry.isDirectory ? "folder.fill" : "doc")
-                .font(.system(size: 16))
-                .foregroundStyle(entry.isDirectory ? .primary : .secondary)
-                .frame(width: 22)
-            Text(entry.name).font(.body).lineLimit(1).truncationMode(.middle)
+            Image(systemName: entry.isDirectory ? "folder" : "doc")
+                .font(.system(size: 12))
+                .foregroundStyle(entry.isDirectory ? ShioTheme.textSecondary : ShioTheme.textTertiary)
+                .frame(width: 18)
+            Text(entry.name)
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(ShioTheme.textPrimary)
+                .lineLimit(1).truncationMode(.middle)
             Spacer()
             if let size = entry.size {
                 Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
-                    .font(.caption).foregroundStyle(.tertiary)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
         }
-        .padding(.vertical, 1)
+        .padding(.vertical, 3)
+    }
+}
+
+/// The browser's quiet sub-bar: optional back, title + mono path, trailing
+/// controls. Lives inside the canvas — never the window titlebar.
+struct FilesPathBar<Trailing: View>: View {
+    var title: String
+    var path: String? = nil
+    @ViewBuilder var trailing: () -> Trailing
+    @Environment(\.dismiss) private var dismiss
+    /// NavigationStack-pushed levels get a back chevron (macOS draws none).
+    var showsBack: Bool = false
+
+    init(title: String, path: String? = nil, showsBack: Bool = false,
+         @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
+        self.title = title
+        self.path = path
+        self.showsBack = showsBack
+        self.trailing = trailing
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            if showsBack {
+                FilesBarButton(systemImage: "chevron.left", help: "Back") { dismiss() }
+            }
+            Text(title)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(ShioTheme.textPrimary)
+                .lineLimit(1)
+            if let path {
+                Text(path)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 34)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(ShioTheme.line).frame(height: 1)
+        }
+    }
+}
+
+struct FilesBarButton: View {
+    let systemImage: String
+    var help: String = ""
+    var on: Bool = false
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(on ? ShioTheme.accent
+                                 : (hovering ? ShioTheme.textPrimary : ShioTheme.textTertiary))
+                .frame(width: 24, height: 24)
+                .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(hovering ? ShioTheme.hover : .clear))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(help)
     }
 }
 
@@ -356,19 +439,18 @@ private struct RemoteFilesBrowser: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            FilesPathBar(title: host.name, path: vm.path) {
+                FilesBarButton(systemImage: "chevron.up", help: "Up a directory") {
+                    Task { await vm.goUp() }
+                }
+                .disabled(vm.path == "/" || vm.state != .browsing)
+            }
             if model.showingSearch {
                 SectionSearchField(model: model, placeholder: "Filter \(host.name)")
             }
             content
         }
-        .navigationTitle(host.name)
-        .toolbar {
-            ToolbarItem {
-                Button { Task { await vm.goUp() } } label: { Image(systemName: "chevron.up") }
-                    .help("Up a directory")
-                    .disabled(vm.path == "/" || vm.state != .browsing)
-            }
-        }
+        .background(ShioTheme.background)
         .task { if vm.entries.isEmpty { await vm.start() } }
         .onDisappear { Task { await vm.stop() } }
     }
@@ -389,17 +471,28 @@ private struct RemoteFilesBrowser: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity).padding()
         case .browsing:
             List(filtered) { file in
-                if file.isDirectory {
-                    Button { Task { await vm.open(file) } } label: {
-                        SFTPRow(file: file).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                    }.buttonStyle(.plain)
-                } else {
-                    Button { Task { await openRemoteFile(file) } } label: {
-                        SFTPRow(file: file).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                    }.buttonStyle(.plain).disabled(busy)
+                Group {
+                    if file.isDirectory {
+                        Button { Task { await vm.open(file) } } label: {
+                            SFTPRow(file: file).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                        }.buttonStyle(.plain)
+                    } else {
+                        Button { Task { await openRemoteFile(file) } } label: {
+                            SFTPRow(file: file).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+                        }.buttonStyle(.plain).disabled(busy)
+                    }
+                }
+                .listRowBackground(ShioTheme.background)
+                .listRowSeparatorTint(ShioTheme.line)
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(ShioTheme.background)
+            .overlay {
+                if filtered.isEmpty {
+                    Text("Empty folder").font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
                 }
             }
-            .overlay { if filtered.isEmpty { Text("Empty folder").foregroundStyle(.secondary) } }
         }
     }
 
@@ -418,17 +511,21 @@ private struct SFTPRow: View {
     let file: SFTPFile
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: file.isDirectory ? "folder.fill" : "doc")
-                .font(.system(size: 16))
-                .foregroundStyle(file.isDirectory ? .primary : .secondary)
-                .frame(width: 22)
-            Text(file.name).font(.body).lineLimit(1).truncationMode(.middle)
+            Image(systemName: file.isDirectory ? "folder" : "doc")
+                .font(.system(size: 12))
+                .foregroundStyle(file.isDirectory ? ShioTheme.textSecondary : ShioTheme.textTertiary)
+                .frame(width: 18)
+            Text(file.name)
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(ShioTheme.textPrimary)
+                .lineLimit(1).truncationMode(.middle)
             Spacer()
             if !file.isDirectory, let size = file.attributes.size {
                 Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
-                    .font(.caption).foregroundStyle(.tertiary)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
             }
         }
-        .padding(.vertical, 1)
+        .padding(.vertical, 3)
     }
 }

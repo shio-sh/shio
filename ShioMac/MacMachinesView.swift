@@ -36,7 +36,9 @@ struct MacMachinesView: View {
             MacCanvasHeader(title: "Machines", sub: subline) {
             } trailing: {
                 ShioButton("Pair iPhone", .secondary, compact: true) { model.showingPairing = true }
+                    .fixedSize()
                 ShioButton("Add machine", .primary, compact: true) { model.showingAddHost = true }
+                    .fixedSize()
                 MacHeaderIconButton(systemImage: "sidebar.trailing", help: "Inspector (⌘I)",
                                     on: model.inspectorOpen) {
                     model.inspectorOpen.toggle()
@@ -132,18 +134,31 @@ struct MacMachinesView: View {
                                openTitle: String, open: @escaping () -> Void, host: Host?) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 10) {
-                    Text(name).font(.system(size: 17, weight: .semibold)).foregroundStyle(ShioTheme.textPrimary)
-                    ShioStatusDot(status: reachable ? .success : .neutral)
-                    Text(reachable ? "reachable" : "asleep")
-                        .font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary)
-                    Spacer()
-                    ShioButton(openTitle, .primary, icon: "terminal", compact: true, action: open)
-                    if let host {
-                        ShioButton("Import skills", .ghost, icon: "square.and.arrow.down", compact: true) {
-                            importSkills(from: host)
+                // Name row + actions row — never one squeezed line. fixedSize
+                // keeps buttons from letter-wrapping when the canvas is narrow.
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        Text(name)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(ShioTheme.textPrimary)
+                            .lineLimit(1)
+                        ShioStatusDot(status: reachable ? .success : .neutral)
+                        Text(reachable ? "reachable" : "asleep")
+                            .font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary)
+                            .fixedSize()
+                        Spacer(minLength: 0)
+                    }
+                    HStack(spacing: 8) {
+                        ShioButton(openTitle, .primary, icon: "terminal", compact: true, action: open)
+                            .fixedSize()
+                        if let host {
+                            ShioButton("Import skills", .ghost, icon: "square.and.arrow.down", compact: true) {
+                                importSkills(from: host)
+                            }
+                            .fixedSize()
+                            ShioButton("Remove", .secondary, compact: true) { remove(host) }
+                                .fixedSize()
                         }
-                        ShioButton("Remove", .secondary, compact: true) { remove(host) }
                     }
                 }
                 if let importNote {
