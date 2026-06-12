@@ -36,19 +36,28 @@ struct MacShell: View {
 
     var body: some View {
         // ONE sidebar: Shio's own (MacSidebarColumn, rendered inside each
-        // section view) carries the sections nav AND the section's rows.
-        // The title bar holds only the collapse toggle.
+        // section view) carries the traffic lights, the sections nav, and the
+        // section's rows. The window has no titlebar; when the rail is
+        // collapsed, a quiet ▸ floats under the lights to bring it back.
         detail
-            .toolbar {
-                ToolbarItem(placement: .navigation) {
+            .overlay(alignment: .topLeading) {
+                if model.sidebarCollapsed {
                     Button {
                         withAnimation(.easeOut(duration: 0.18)) {
-                            model.sidebarCollapsed.toggle()
+                            model.sidebarCollapsed = false
                         }
                     } label: {
-                        Image(systemName: "sidebar.leading")
+                        Text("▸")
+                            .font(.system(size: 13, design: .monospaced))
+                            .foregroundStyle(ShioTheme.textTertiary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(ShioTheme.hover, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
-                    .help("Hide or show the sidebar (⌃⌘S)")
+                    .buttonStyle(.plain)
+                    .help("Show the sidebar (⌃⌘S)")
+                    .padding(.leading, 84)   // clear of the traffic lights
+                    .padding(.top, 12)
                 }
             }
         .sheet(isPresented: $model.showingAddHost) {

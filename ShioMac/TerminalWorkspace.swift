@@ -114,12 +114,10 @@ struct TerminalWorkspaceView: View {
         .onAppear { model.ensureTerminalTab() }
     }
 
+    // No tab strip: the rail owns tabs (his call, 2026-06-12). Splits stay
+    // ⌘D / ⇧⌘D inside the canvas.
     private var workspace: some View {
-        VStack(spacing: 0) {
-            if model.tabs.count > 1 {
-                TabStrip(model: model)
-                Divider()
-            }
+        Group {
             // The selected tab's split tree. Surfaces survive tab switches
             // because the tabs (not the views) own them.
             if let tab = model.selectedTab {
@@ -138,26 +136,48 @@ struct TerminalWorkspaceView: View {
     }
 
     private func tabRow(_ tab: WorkspaceTab) -> some View {
+        TabRailRow(model: model, tab: tab)
+    }
+}
+
+/// One tab in the rail: select on click, ✕ reveals on hover (the strip is
+/// gone — this row is the tab's only home).
+private struct TabRailRow: View {
+    @Bindable var model: MacTerminalModel
+    let tab: WorkspaceTab
+    @State private var hovering = false
+
+    var body: some View {
         let isSel = model.selectedTabID == tab.id
-        return Button { model.selectedTabID = tab.id } label: {
+        Button { model.selectedTabID = tab.id } label: {
             HStack(spacing: 9) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: 11))
-                    .frame(width: 18)
+                Text(isSel ? "%" : "·")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 12)
                     .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textTertiary)
                 Text(tab.title)
-                    .font(.system(size: 13))
+                    .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textPrimary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
+                if hovering {
+                    Button { model.closeTab(tab.id) } label: {
+                        Text("✕")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(ShioTheme.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close tab (⌘W)")
+                }
             }
             .padding(.horizontal, 9).padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isSel ? ShioTheme.accentBg : .clear))
+                .fill(isSel ? ShioTheme.accentBg : (hovering ? ShioTheme.hover : .clear)))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 
@@ -226,84 +246,4 @@ private struct EmptyTerminalState: View {
     }
 }
 
-// MARK: - Tab strip
 
-private struct TabStrip: View {
-    @Bindable var model: MacTerminalModel
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
-                ForEach(model.tabs) { tab in
-                    TabChip(
-                        tab: tab,
-                        isSelected: tab.id == model.selectedTabID,
-                        select: { model.selectedTabID = tab.id },
-                        close: { model.closeTab(tab.id) }
-                    )
-                    Divider().frame(height: 16)
-                }
-                Button { model.newLocalTab() } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(width: 30, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .help("New tab (⌘T)")
-                Spacer(minLength: 0)
-            }
-        }
-        .frame(height: 30)
-        // Solid, opaque chrome — NOT `.bar`. The `.bar` material triggers
-        // macOS's unified titlebar, which extends the strip's tint up through
-        // the window title to the very top of the window (the "color goes to the
-        // top" glitch). An explicit window-background keeps the strip contained.
-        .background(ShioTheme.background)
-    }
-}
-
-private struct TabChip: View {
-    let tab: WorkspaceTab
-    let isSelected: Bool
-    let select: () -> Void
-    let close: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: tab.icon)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            Text(tab.title)
-                .font(.system(size: 12))
-                .lineLimit(1)
-                .truncationMode(.middle)
-            // Reserve the close-button slot so the title never shifts, and reveal
-            // the × on hover only — tying it to selection makes it hop from tab to
-            // tab as you click around, which reads as a glitch.
-            Button(action: close) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .frame(width: 12)
-            .opacity(hovering ? 1 : 0)
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 24)
-        .frame(maxWidth: 180)
-        // A contained, inset pill — clearly within the strip, so the selected
-        // state can never read as a full-height column.
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected ? Color.primary.opacity(0.10)
-                      : (hovering ? Color.primary.opacity(0.05) : Color.clear))
-        )
-        .padding(.horizontal, 2)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: select)
-        .onHover { hovering = $0 }
-    }
-}

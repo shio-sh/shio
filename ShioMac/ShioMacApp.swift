@@ -21,6 +21,9 @@ struct ShioMacApp: App {
                 .modelContainer(ShioModelContainer.shared)
         }
         .defaultSize(width: 1000, height: 640)
+        // The rail runs to the very top of the window — traffic lights live
+        // inside it. No titlebar band exists, so no second chrome color can.
+        .windowStyle(.hiddenTitleBar)
         .commands {
             // Copy/Paste come from SwiftUI's default Edit menu — those route
             // copy:/paste: to the focused GhosttyMacSurface via the responder
@@ -127,6 +130,12 @@ final class MacTerminalModel {
     /// selected one when `section == .terminal`.
     var tabs: [WorkspaceTab] = []
     var selectedTabID: UUID?
+
+    /// Whether any locally watched agent is blocked — drives the ⚑ on the
+    /// projects keyword in the sidebar.
+    var anyAgentNeedsYou: Bool {
+        MacProjectAgentMonitor.shared.byTmux.values.contains { $0.activity == .waiting }
+    }
 
     /// THE sidebar's collapse state (persisted). Toggled from the title bar
     /// and ⌃⌘S; every section's MacSidebarColumn respects it.

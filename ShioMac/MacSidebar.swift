@@ -26,6 +26,10 @@ struct MacSidebarColumn<Content: View, Actions: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Clearance for the native traffic lights — the window has no
+            // titlebar, so they float over the rail's top-left.
+            Color.clear.frame(height: 46)
+
             MacSectionsNav(model: model)
 
             Rectangle().fill(ShioTheme.line).frame(height: 1)
@@ -43,12 +47,19 @@ struct MacSidebarColumn<Content: View, Actions: View>: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) { content() }
                     .padding(.horizontal, ShioSpace.sm)
-                    .padding(.bottom, ShioSpace.md)
+                    .padding(.bottom, ShioSpace.sm)
             }
+
+            Text("塩 shio")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
+                .padding(.horizontal, ShioSpace.md + 6)
+                .padding(.vertical, ShioSpace.md)
         }
         .frame(width: width)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(ShioTheme.rail)
+        .ignoresSafeArea(edges: .top)
     }
 }
 
@@ -70,18 +81,25 @@ struct MacSectionsNav: View {
 
     private func row(_ section: MacSection) -> some View {
         let isSel = model.section == section
+        // Terminal keywords, not icons: a ▸ marker carries the selection.
         return Button { model.show(section) } label: {
-            HStack(spacing: 9) {
-                Image(systemName: section.icon)
-                    .font(.system(size: 12))
-                    .frame(width: 18)
-                    .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textTertiary)
+            HStack(spacing: 8) {
+                Text("▸")
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 10, alignment: .leading)
+                    .foregroundStyle(isSel ? ShioTheme.accent : .clear)
                 Text(section.rawValue.lowercased())
                     .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textSecondary)
                 Spacer(minLength: 0)
+                if section == .projects, model.anyAgentNeedsYou {
+                    Text("⚑")
+                        .font(.system(size: 11))
+                        .foregroundStyle(ShioTheme.warning)
+                        .shioNeedsPulse()
+                }
             }
-            .padding(.horizontal, 9)
+            .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
@@ -92,6 +110,24 @@ struct MacSectionsNav: View {
         }
         .buttonStyle(.plain)
     }
+}
+
+/// The one sanctioned pulse — needs-you flags breathe, nothing else moves.
+private struct ShioNeedsPulse: ViewModifier {
+    @State private var dim = false
+    func body(content: Content) -> some View {
+        content
+            .opacity(dim ? 0.35 : 1)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    dim = true
+                }
+            }
+    }
+}
+
+extension View {
+    func shioNeedsPulse() -> some View { modifier(ShioNeedsPulse()) }
 }
 
 /// The hairline between the sidebar column and the detail canvas.

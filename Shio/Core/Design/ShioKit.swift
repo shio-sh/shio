@@ -180,13 +180,16 @@ struct ShioButtonStyle: ButtonStyle {
     /// keep the 44pt tap target.
     var fullWidth: Bool = false
 
+    // The constitution: actions are sentence-case MONO with hairline borders.
+    // Nothing in the app is a heavy fill — primary is the accent *tint*,
+    // destructive is danger text on a danger-tinted hairline.
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
         return configuration.label
-            .font(.system(size: compact ? 12 : 13, weight: .medium, design: .default))
+            .font(.system(size: compact ? 11 : 12, weight: .regular, design: .monospaced))
             .foregroundStyle(foreground)
-            .padding(.horizontal, compact ? 10 : ShioPadding.buttonHorizontal)
-            .padding(.vertical, compact ? 6 : ShioPadding.buttonVertical)
+            .padding(.horizontal, compact ? 9 : ShioPadding.buttonHorizontal)
+            .padding(.vertical, compact ? 5 : ShioPadding.buttonVertical)
             .frame(maxWidth: fullWidth ? .infinity : nil,
                    minHeight: fullWidth ? ShioPadding.tapTargetMin : nil)
             .background(background(pressed: pressed))
@@ -195,37 +198,37 @@ struct ShioButtonStyle: ButtonStyle {
                     .strokeBorder(border, lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: ShioRadius.sm, style: .continuous))
-            .opacity(pressed ? 0.85 : 1)
+            .opacity(pressed ? 0.8 : 1)
             .contentShape(Rectangle())
             .animation(.easeOut(duration: 0.12), value: pressed)
     }
 
     private var foreground: Color {
         switch kind {
-        case .primary:     return ShioTheme.background        // flips to read on the accent fill
-        case .secondary:   return ShioTheme.textPrimary
+        case .primary:     return ShioTheme.accent
+        case .secondary:   return ShioTheme.textSecondary
         case .ghost:       return ShioTheme.accent
-        case .destructive: return .white
+        case .destructive: return ShioTheme.danger
         }
     }
 
     private func background(pressed: Bool) -> some View {
         let fill: Color
         switch kind {
-        case .primary:     fill = ShioTheme.accent
-        case .secondary:   fill = ShioTheme.surface
+        case .primary:     fill = ShioTheme.accentBg
+        case .secondary:   fill = pressed ? ShioTheme.hover : .clear
         case .ghost:       fill = pressed ? ShioTheme.hover : .clear
-        case .destructive: fill = ShioTheme.danger
+        case .destructive: fill = pressed ? ShioTheme.hover : .clear
         }
         return RoundedRectangle(cornerRadius: ShioRadius.sm, style: .continuous).fill(fill)
     }
 
     private var border: Color {
         switch kind {
-        case .primary:     return .clear
+        case .primary:     return ShioTheme.accentBg
         case .secondary:   return ShioTheme.line2
         case .ghost:       return .clear
-        case .destructive: return .clear
+        case .destructive: return ShioTheme.danger.opacity(0.3)
         }
     }
 }
