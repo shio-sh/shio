@@ -195,6 +195,10 @@ struct MacMachinesView: View {
 
     private func remove(_ host: Host) {
         if selected == .host(host.persistentModelID) { selected = .thisMac }
+        // Drop the TOFU pin too — "remove the host and re-add it" is the
+        // documented recovery for a changed host key, so removal has to
+        // actually clear the pin.
+        ShioKnownHosts.forget("\(host.hostname):\(host.port)")
         context.delete(host)
         try? context.save()
     }

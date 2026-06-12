@@ -139,6 +139,10 @@ struct HostListView: View {
 
     /// Remove a machine from Shio (the machine itself is left alone).
     private func remove(_ host: Host) {
+        // Drop the TOFU pin too — "remove the host and re-add it" is the
+        // documented recovery for a changed host key, so removal has to
+        // actually clear the pin.
+        ShioKnownHosts.forget("\(host.hostname):\(host.port)")
         context.delete(host)
         try? context.save()
     }
