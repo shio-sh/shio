@@ -70,11 +70,11 @@ enum TmuxResume {
         var cmd = ""
         if let cloneURL, !cloneURL.isEmpty, let startDir, !startDir.isEmpty {
             // `[ -d dir ] || git clone url dir` — clone only if missing.
-            cmd += "[ -d \(singleQuoted(startDir)) ] || git clone \(singleQuoted(cloneURL)) \(singleQuoted(startDir)); "
+            cmd += "[ -d \(SSHClient.shellQuotedPath(startDir)) ] || git clone \(singleQuoted(cloneURL)) \(SSHClient.shellQuotedPath(startDir)); "
         }
         cmd += "tmux new-session -A -s \(name)"
         if let startDir, !startDir.isEmpty {
-            cmd += " -c \(singleQuoted(startDir))"
+            cmd += " -c \(SSHClient.shellQuotedPath(startDir))"
         }
         cmd += "\(sessionOptions)\n"
         return cmd

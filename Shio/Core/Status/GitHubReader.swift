@@ -21,7 +21,7 @@ enum GitHubReader {
     // MARK: Remote (SSH)
 
     static func prsRemote(config: SSHClient.Configuration, path: String) async -> [PullRequest] {
-        let q = "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        let q = SSHClient.shellQuotedPath(path)
         let script = "command -v gh >/dev/null 2>&1 || exit 0; cd \(q) 2>/dev/null && gh pr list --json \(fields) --limit 20 2>/dev/null || true"
         let client = SSHClient(configuration: config)
         do {

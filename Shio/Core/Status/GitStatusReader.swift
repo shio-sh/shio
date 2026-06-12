@@ -59,7 +59,7 @@ enum GitStatusReader {
 
     private static func remoteScript(paths: [String]) -> String {
         let blocks = paths.map { path -> String in
-            let q = shellQuote(path)
+            let q = SSHClient.shellQuotedPath(path)
             return """
             printf '\(ckMarker)%s\(bodyMarker)' \(q)
             GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git -C \(q) \(gitFlags) status --porcelain=v2 --branch -z 2>/dev/null

@@ -17,7 +17,7 @@ enum GitWriter {
 
     /// The actual command, scoped to `path` with `git -C`.
     private static func command(path: String, message: String) -> String {
-        let p = shellQuote(path)
+        let p = SSHClient.shellQuotedPath(path)
         return "git -C \(p) add -A && git -C \(p) commit -m \(shellQuote(message)) && git -C \(p) push"
     }
 

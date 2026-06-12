@@ -128,9 +128,22 @@ final class MacPairingHost {
 
     // MARK: authorized_keys
 
+    private struct InvalidPublicKey: LocalizedError {
+        var errorDescription: String? { "The pairing request didn't contain a valid SSH public key." }
+    }
+
     /// Append the phone's public key to ~/.ssh/authorized_keys (idempotent),
     /// creating ~/.ssh (700) and the file (600) with correct perms.
     private static func authorize(publicKey: String) throws {
+        let line = publicKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Exactly one key on one line, of a type Shio mints. Trimming alone
+        // leaves interior newlines intact — a crafted body could smuggle
+        // extra authorized_keys entries (or command=/from= options) past us.
+        guard line.range(
+            of: #"^(ssh-ed25519|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/]+={0,2}( [ -~]+)?$"#,
+            options: .regularExpression) != nil
+        else { throw InvalidPublicKey() }
+
         let fm = FileManager.default
         let ssh = fm.homeDirectoryForCurrentUser.appendingPathComponent(".ssh", isDirectory: true)
         if !fm.fileExists(atPath: ssh.path) {
@@ -138,7 +151,6 @@ final class MacPairingHost {
                                    attributes: [.posixPermissions: 0o700])
         }
         let file = ssh.appendingPathComponent("authorized_keys")
-        let line = publicKey.trimmingCharacters(in: .whitespacesAndNewlines)
         var existing = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
         if !existing.split(separator: "\n").contains(where: { $0.trimmingCharacters(in: .whitespaces) == line }) {
             if !existing.isEmpty && !existing.hasSuffix("\n") { existing += "\n" }
@@ -176,7 +188,10 @@ final class MacPairingHost {
         let headers = String(decoding: headerData, as: UTF8.self)
         var length = 0
         for line in headers.split(separator: "\r\n") where line.lowercased().hasPrefix("content-length:") {
-            length = Int(line.split(separator: ":")[1].trimmingCharacters(in: .whitespaces)) ?? 0
+            // maxSplits + count check: a bare "Content-Length:" header must
+            // not crash the listener with an index out of range.
+            let parts = line.split(separator: ":", maxSplits: 1)
+            length = parts.count > 1 ? Int(parts[1].trimmingCharacters(in: .whitespaces)) ?? 0 : 0
         }
         return (range.upperBound, length)
     }

@@ -15,6 +15,11 @@ enum ConnectErrorTranslator {
     /// Translate a raw error from a TCP/DNS layer (NIO or Network framework)
     /// into a user-readable explanation.
     static func translate(_ error: any Error, host: String, port: Int, connectTimeoutSeconds: Int = 10) -> String {
+        // Shio's own errors already carry actionable human copy — never show
+        // the bare enum case ("authenticationFailed", "eof") instead.
+        if let ssh = error as? SSHClient.SSHError, let copy = ssh.errorDescription {
+            return copy
+        }
         let raw = String(describing: error)
 
         if matchesDNSFailure(raw) {

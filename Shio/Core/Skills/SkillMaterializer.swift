@@ -276,7 +276,7 @@ final class SkillMaterializer {
                                         tombstones: [String] = [],
                                         config: SSHClient.Configuration) async {
         var lines: [String] = ["AG=\"$HOME/\(canonicalRel)\""]
-        let pb = q(projectBase)
+        let pb = SSHClient.shellQuotedPath(projectBase)
 
         /// Remove the canonical dir + any owned tool symlinks for `d`.
         func removalLines(_ d: String) {

@@ -336,6 +336,23 @@ final class SSHClient: @unchecked Sendable {
         "printf '%s' \(Data(script.utf8).base64EncodedString()) | base64 --decode | sh"
     }
 
+    /// Standard POSIX single-quoting (embedded quotes escaped).
+    static func shellQuoted(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// Quote a *path*, expanding a leading `~` to `"$HOME"` outside the
+    /// quotes — `'~/code/x'` is a literal directory named `~` to the shell,
+    /// which breaks git probes and makes a guarded clone create a real "~"
+    /// folder in the working directory.
+    static func shellQuotedPath(_ p: String) -> String {
+        if p == "~" { return "\"$HOME\"" }
+        if p.hasPrefix("~/") {
+            return "\"$HOME\"/" + shellQuoted(String(p.dropFirst(2)))
+        }
+        return shellQuoted(p)
+    }
+
     /// `exec` with the full result: separate stderr, the command's exit
     /// status, and an explicit timed-out marker.
     func execWithStatus(_ command: String, timeout: TimeAmount = .seconds(20)) async throws -> ExecResult {
