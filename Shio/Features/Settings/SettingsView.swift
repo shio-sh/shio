@@ -198,9 +198,16 @@ struct SettingsView: View {
     private func sendTestPush() async {
         sendingTestPush = true
         defer { sendingTestPush = false }
+        // Make sure we've actually registered for remote notifications first.
+        await PushService.shared.registerIfAuthorized()
+        let token = PushService.shared.deviceToken
         do {
             try await CloudKitSignalService.shared.sendTestSignal()
-            testPushResult = "Signal sent. The push should arrive in a few seconds (works on a real device with iCloud signed in)."
+            if let token {
+                testPushResult = "Signal saved ✓\nPush token: …\(token.suffix(8)) ✓\n\nThe banner can take 10–60s (CloudKit isn't instant). Lock the phone and wait."
+            } else {
+                testPushResult = "Signal saved ✓, BUT this device has no APNs push token — registerForRemoteNotifications didn't complete. CloudKit has no way to deliver. Likely the Push Notifications capability isn't enabled on the sh.shio.app App ID. Check Xcode's Signing & Capabilities (add Push Notifications) and the log for 'APNs registration failed'."
+            }
         } catch {
             testPushResult = "Couldn't send: \(error.localizedDescription)"
         }
