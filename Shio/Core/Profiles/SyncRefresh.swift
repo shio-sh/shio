@@ -13,7 +13,13 @@ import SwiftData
 enum SyncRefresh {
     @MainActor
     static func run(_ context: ModelContext) async {
-        try? context.save()
+        do {
+            try context.save()
+        } catch {
+            // The flush IS this gesture's one job — at least say so in the
+            // log instead of spinning and pretending it worked.
+            print("[shio] sync refresh: save failed: \(error.localizedDescription)")
+        }
         try? await Task.sleep(for: .milliseconds(700))
     }
 }

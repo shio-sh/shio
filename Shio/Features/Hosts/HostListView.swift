@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import WidgetKit
 
 /// The main host list. iPhone shows it as a sheet over the terminal; iPad
 /// will show it in the sidebar (Brick 8).
@@ -141,8 +142,10 @@ struct HostListView: View {
     private func remove(_ host: Host) {
         // Drop the TOFU pin too — "remove the host and re-add it" is the
         // documented recovery for a changed host key, so removal has to
-        // actually clear the pin.
+        // actually clear the pin. Same for the widget's tap targets.
         ShioKnownHosts.forget("\(host.hostname):\(host.port)")
+        WidgetSharedState.remove(ids: [host.deviceID, "\(host.persistentModelID)"].compactMap { $0 })
+        WidgetCenter.shared.reloadAllTimelines()
         ModelCascade.delete(host: host, context: context)
         try? context.save()
     }

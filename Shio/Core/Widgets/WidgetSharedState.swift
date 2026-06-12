@@ -44,6 +44,17 @@ enum WidgetSharedState {
         }
     }
 
+    /// Drop entries for a deleted host (any of its known id forms), so the
+    /// widget doesn't keep offering a tap-to-connect that resolves to nothing.
+    static func remove(ids: [String]) {
+        guard let defaults, !ids.isEmpty else { return }
+        var current = readRecentHosts()
+        current.removeAll { ids.contains($0.id) }
+        if let data = try? JSONEncoder().encode(current) {
+            defaults.set(data, forKey: recentHostsKey)
+        }
+    }
+
     /// Read the cached host list. Returns empty if the App Group isn't
     /// available or nothing has been recorded yet.
     static func readRecentHosts() -> [WidgetHost] {

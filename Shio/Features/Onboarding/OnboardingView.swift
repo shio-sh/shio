@@ -375,9 +375,10 @@ struct OnboardingView: View {
             verification = .verified
             Task {
                 try? await Task.sleep(nanoseconds: 700_000_000)
-                // Only advance if we're still on the same step the user just verified —
-                // they might have already navigated elsewhere via a different path.
-                if case .checking = verification {} else {}
+                // Only advance if the verified beat is still showing — the
+                // user may have navigated elsewhere in the meantime. (The old
+                // guard here was a no-op `if {} else {}`.)
+                guard case .verified = verification else { return }
                 onPass()
             }
         case .failed(let reason):

@@ -28,10 +28,17 @@ final class MacPairingHost {
     private(set) var qrString: String?
 
     private var listener: NWListener?
-    private let token = UUID().uuidString
+    /// Rotated on every start() — a Retry must invalidate the previous QR's
+    /// token, not keep honoring it.
+    private var token = UUID().uuidString
     private let port: UInt16 = 8730
 
     func start() {
+        // A Retry lands here with the old listener still bound — cancel it
+        // first or the new bind fails ("couldn't open the pairing port"),
+        // and rotate the one-time token.
+        stop()
+        token = UUID().uuidString
         state = .starting
         guard let address = Self.reachableIPv4() else {
             state = .failed("Couldn't find a reachable network address for this Mac. Connect to Wi-Fi or Tailscale and try again.")
