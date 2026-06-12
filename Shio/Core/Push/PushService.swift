@@ -4,16 +4,11 @@ import UIKit
 import UserNotifications
 import CloudKit
 
-/// The phone side of away-push. Registers for APNs, captures the device token,
-/// and routes incoming "a session needs you" triggers to the right host. The
-/// payload is deliberately opaque — it carries which session wants you, never
-/// terminal content (see `relay/` and `companion/` for the other half).
-///
-/// RUNTIME/INFRA NOTE: this compiles and runs on-device, but end-to-end away
-/// notifications require the relay deployed + the companion away-watcher
-/// running (both scaffolded under `relay/` and `companion/`, flagged there).
-/// Without a configured relay URL, token registration is stored locally and
-/// the network step is skipped.
+/// The phone side of away-push. Registers for APNs, captures the device
+/// token, and handles the user's response to a "needs you" banner (Approve /
+/// Deny / tap-to-route). Delivery is the sovereign CloudKit path
+/// (`CloudKitSignalService`) — no Shio server anywhere; the payload carries
+/// which session wants you, never terminal content.
 @Observable
 @MainActor
 final class PushService: NSObject, UNUserNotificationCenterDelegate {
@@ -21,8 +16,6 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
 
     private let appGroup = "group.sh.shio.app"
     private let deviceTokenKey = "shio.push.deviceToken"
-    /// Set this (App Group default) to your relay base URL to enable away-push.
-    private let relayURLKey = "shio.relay.baseURL"
 
     private(set) var deviceToken: String?
 
@@ -124,43 +117,10 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
         print("[shio] push: ✅ APNs token registered \(hex.prefix(8))…")
         deviceToken = hex
         defaults?.set(hex, forKey: deviceTokenKey)
-        Task { await registerWithRelay(deviceToken: hex) }
     }
 
     func didFailToRegister(_ error: any Error) {
         print("[shio] APNs registration failed: \(error.localizedDescription)")
-    }
-
-    /// Forward a Live Activity push-to-update token to the relay so it can
-    /// drive lock-screen updates remotely. Scaffold — no-op without a relay.
-    func registerActivityPushToken(_ token: String, sessionID: UUID) async {
-        await post(path: "activity-token", body: [
-            "deviceToken": deviceToken ?? "",
-            "activityToken": token,
-            "sessionID": sessionID.uuidString,
-        ])
-    }
-
-    // MARK: Relay (scaffold — flagged)
-
-    private func registerWithRelay(deviceToken: String) async {
-        await post(path: "register", body: ["deviceToken": deviceToken])
-    }
-
-    /// POST to the relay if one is configured; otherwise skip quietly. The
-    /// relay is the one consciously-scoped Shio-operated piece — opaque E2E,
-    /// self-hostable (see `relay/README.md`).
-    private func post(path: String, body: [String: String]) async {
-        guard let base = defaults?.string(forKey: relayURLKey),
-              let url = URL(string: base)?.appendingPathComponent(path) else {
-            return  // No relay configured — away-push disabled. Honest no-op.
-        }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        req.timeoutInterval = 15
-        _ = try? await URLSession.shared.data(for: req)
     }
 }
 

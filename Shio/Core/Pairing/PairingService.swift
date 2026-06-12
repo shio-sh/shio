@@ -7,9 +7,9 @@ import Foundation
 ///   3. Return the OpenSSH `authorized_keys` line so the UI can offer a
 ///      paste-it-yourself fallback when there's no live companion.
 ///
-/// RUNTIME NOTE: the network step talks to the companion's local pairing
-/// server (see `companion/shio-companion.py`). This compiles and runs
-/// app-side, but only completes end-to-end against a live companion on the
+/// RUNTIME NOTE: the network step talks to the Mac's local pairing
+/// listener (`MacPairingHost` in the Shio Mac app). This compiles and runs
+/// app-side, but only completes end-to-end against a live listener on the
 /// same reachable network — validate on a real device + machine.
 enum PairingService {
 
