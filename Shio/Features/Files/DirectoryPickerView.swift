@@ -33,7 +33,7 @@ struct DirectoryPickerView: View {
                 if case .browsing = vm.state {
                     VStack(spacing: 0) {
                         Divider()
-                        LegacyButton("Use this folder") {
+                        ShioButton("Use this folder", .primary, fullWidth: true) {
                             onSelect(vm.path)
                             dismiss()
                         }
@@ -72,7 +72,7 @@ struct DirectoryPickerView: View {
                     .font(ShioFont.callout)
                     .foregroundStyle(ShioTheme.textSecondary)
                     .multilineTextAlignment(.center)
-                LegacyButton("Retry") { Task { await vm.start() } }
+                ShioButton("Retry", .primary, fullWidth: true) { Task { await vm.start() } }
             }
             .padding(ShioSpace.xl)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

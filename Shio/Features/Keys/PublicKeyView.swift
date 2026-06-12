@@ -125,7 +125,7 @@ struct PublicKeyView: View {
                 .background(ShioTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: ShioRadius.md, style: .continuous))
 
-            LegacyButton(copyState == .copied ? "Copied" : "Copy public key", style: .secondary) {
+            ShioButton(copyState == .copied ? "Copied" : "Copy public key", .secondary, fullWidth: true) {
                 UIPasteboard.general.string = publicKeyLine
                 animateCopiedState()
             }
@@ -150,7 +150,7 @@ struct PublicKeyView: View {
                 .background(ShioTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: ShioRadius.md, style: .continuous))
 
-            LegacyButton("Copy install command", style: .secondary) {
+            ShioButton("Copy install command", .secondary, fullWidth: true) {
                 UIPasteboard.general.string = installCommand
                 animateCopiedState()
             }
@@ -161,7 +161,7 @@ struct PublicKeyView: View {
     private var onboardingFooter: some View {
         if case .onboarding(let onComplete) = mode {
             VStack(alignment: .leading, spacing: ShioSpace.sm) {
-                LegacyButton("I've installed the key") {
+                ShioButton("I've installed the key", .primary, fullWidth: true) {
                     onComplete()
                 }
                 Text("You can find this key again in Settings if you set up another Mac later.")
@@ -174,7 +174,7 @@ struct PublicKeyView: View {
 
     private var settingsFooter: some View {
         VStack(alignment: .leading, spacing: ShioSpace.sm) {
-            LegacyButton("Regenerate key", style: .destructive) {
+            ShioButton("Regenerate key", .destructive, fullWidth: true) {
                 confirmingRegenerate = true
             }
             Text("Only do this if your key has been compromised, or you want to start over. You'll need to paste the new key on every Mac you use.")

@@ -38,7 +38,7 @@ struct AppLockOverlay: View {
                         .padding(.horizontal, ShioSpace.xl)
                 }
 
-                LegacyButton(unlockLabel, style: .primary) {
+                ShioButton(unlockLabel, .primary, fullWidth: true) {
                     Task { await attempt() }
                 }
                 .padding(.horizontal, ShioSpace.xl)

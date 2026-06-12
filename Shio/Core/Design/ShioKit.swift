@@ -168,13 +168,17 @@ struct ShioChip: View {
 
 // MARK: - Button
 
-/// The three button weights in the kit. `primary` = filled accent (ink-on-bone
-/// flipping to bone-on-ink); `secondary` = hairline surface; `ghost` = text only.
-enum ShioButtonKind { case primary, secondary, ghost }
+/// The button weights in the kit. `primary` = filled accent (ink-on-bone
+/// flipping to bone-on-ink); `secondary` = hairline surface; `ghost` = text
+/// only; `destructive` = filled danger.
+enum ShioButtonKind { case primary, secondary, ghost, destructive }
 
 struct ShioButtonStyle: ButtonStyle {
     var kind: ShioButtonKind = .secondary
     var compact: Bool = false
+    /// Hero buttons (unlock, onboarding, retry overlays) span the row and
+    /// keep the 44pt tap target.
+    var fullWidth: Bool = false
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
@@ -183,6 +187,8 @@ struct ShioButtonStyle: ButtonStyle {
             .foregroundStyle(foreground)
             .padding(.horizontal, compact ? 10 : ShioPadding.buttonHorizontal)
             .padding(.vertical, compact ? 6 : ShioPadding.buttonVertical)
+            .frame(maxWidth: fullWidth ? .infinity : nil,
+                   minHeight: fullWidth ? ShioPadding.tapTargetMin : nil)
             .background(background(pressed: pressed))
             .overlay(
                 RoundedRectangle(cornerRadius: ShioRadius.sm, style: .continuous)
@@ -196,27 +202,30 @@ struct ShioButtonStyle: ButtonStyle {
 
     private var foreground: Color {
         switch kind {
-        case .primary:   return ShioTheme.background          // flips to read on the accent fill
-        case .secondary: return ShioTheme.textPrimary
-        case .ghost:     return ShioTheme.accent
+        case .primary:     return ShioTheme.background        // flips to read on the accent fill
+        case .secondary:   return ShioTheme.textPrimary
+        case .ghost:       return ShioTheme.accent
+        case .destructive: return .white
         }
     }
 
     private func background(pressed: Bool) -> some View {
         let fill: Color
         switch kind {
-        case .primary:   fill = ShioTheme.accent
-        case .secondary: fill = ShioTheme.surface
-        case .ghost:     fill = pressed ? ShioTheme.hover : .clear
+        case .primary:     fill = ShioTheme.accent
+        case .secondary:   fill = ShioTheme.surface
+        case .ghost:       fill = pressed ? ShioTheme.hover : .clear
+        case .destructive: fill = ShioTheme.danger
         }
         return RoundedRectangle(cornerRadius: ShioRadius.sm, style: .continuous).fill(fill)
     }
 
     private var border: Color {
         switch kind {
-        case .primary: return .clear
-        case .secondary: return ShioTheme.line2
-        case .ghost: return .clear
+        case .primary:     return .clear
+        case .secondary:   return ShioTheme.line2
+        case .ghost:       return .clear
+        case .destructive: return .clear
         }
     }
 }
@@ -227,12 +236,14 @@ struct ShioButton: View {
     var kind: ShioButtonKind = .secondary
     var icon: String? = nil
     var compact: Bool = false
+    var fullWidth: Bool = false
     let action: () -> Void
 
     init(_ title: String, _ kind: ShioButtonKind = .secondary,
-         icon: String? = nil, compact: Bool = false, action: @escaping () -> Void) {
+         icon: String? = nil, compact: Bool = false, fullWidth: Bool = false,
+         action: @escaping () -> Void) {
         self.title = title; self.kind = kind; self.icon = icon
-        self.compact = compact; self.action = action
+        self.compact = compact; self.fullWidth = fullWidth; self.action = action
     }
 
     var body: some View {
@@ -242,7 +253,7 @@ struct ShioButton: View {
                 Text(title)
             }
         }
-        .buttonStyle(ShioButtonStyle(kind: kind, compact: compact))
+        .buttonStyle(ShioButtonStyle(kind: kind, compact: compact, fullWidth: fullWidth))
     }
 }
 
