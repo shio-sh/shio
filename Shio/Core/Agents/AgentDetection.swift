@@ -93,8 +93,15 @@ public enum AgentDetector {
     /// Detect an approval / input prompt the agent (or a plain command) is
     /// blocked on. Returns a short label for it, or nil.
     private static func waitingPrompt(in tail: String, lower: String) -> String? {
-        // Only consider the last stretch — a prompt scrolled far up isn't live.
-        let window = String(lower.suffix(800))
+        // Only the live end of the output can be a prompt the user must
+        // answer — text further up has scrolled past (an already-answered
+        // prompt, or the agent merely *displaying* prompt-like content).
+        let window = String(lower.suffix(400))
+
+        // If the agent is visibly working at the very end, any prompt-like
+        // text above it is stale — never ping on it. (The stated bias: a
+        // false "needs you" is worse than a missed one.)
+        if isRunning(String(lower.suffix(200))) { return nil }
 
         // Claude Code / Codex style numbered approval menus. NOTE the explicit
         // grouping: `&&` binds tighter than `||`, so without these parens a
@@ -103,14 +110,21 @@ public enum AgentDetector {
             && (window.contains("2. no") || window.contains("don't ask again")) {
             return "Approve to continue"
         }
-        // Common yes/no confirmations.
+        // Explicit confirmations — distinctive enough to trust anywhere in
+        // the live window.
         let confirmations = [
             "do you want to proceed", "do you want to make this edit",
             "allow this command", "allow command", "run this command",
-            "proceed?", "continue?", "overwrite?", "are you sure",
-            "(y/n)", "[y/n]", "(yes/no)", "[y/n]", "press enter to continue",
+            "(y/n)", "[y/n]", "(yes/no)", "press enter to continue",
         ]
         for c in confirmations where window.contains(c) {
+            return "Waiting for your confirmation"
+        }
+        // Generic one-worders ("proceed?", "continue?") show up constantly in
+        // displayed content — only count them when the output *ends* there.
+        let end = String(lower.suffix(120)).trimmingCharacters(in: .whitespacesAndNewlines)
+        let generic = ["proceed?", "continue?", "overwrite?", "are you sure"]
+        for g in generic where end.hasSuffix(g) {
             return "Waiting for your confirmation"
         }
         // A bare "y/N"-style prompt at the very end.
