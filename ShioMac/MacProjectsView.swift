@@ -51,11 +51,15 @@ struct MacDashboardCanvas: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(ShioTheme.textPrimary)
                     .lineLimit(1)
+                    .layoutPriority(1)
             }
+            // The sub compresses first when the canvas gets narrow — middle
+            // truncation, never an overflow past the header's bounds.
             Text(headSub(project, glance: glance))
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(ShioTheme.textTertiary)
                 .lineLimit(1)
+                .truncationMode(.middle)
             Spacer(minLength: 10)
             ShioButton(renaming ? "Done" : "Rename", .secondary, compact: true) {
                 if renaming { try? context.save() }

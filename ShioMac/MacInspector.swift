@@ -25,6 +25,7 @@ struct MacInspector: View {
         .background(ShioTheme.background)
     }
 
+    // No close button — ⌘I and every header's ▤ own the toggle (his call).
     private var head: some View {
         HStack(spacing: 4) {
             Text("GLANCE")
@@ -32,9 +33,6 @@ struct MacInspector: View {
                 .tracking(2)
                 .foregroundStyle(ShioTheme.textTertiary)
             Spacer(minLength: 4)
-            MacHeaderIconButton(systemImage: "xmark", size: 12, help: "Close (⌘I)") {
-                model.inspectorOpen = false
-            }
         }
         .padding(.horizontal, 16)
         .frame(height: MacChrome.headerHeight)

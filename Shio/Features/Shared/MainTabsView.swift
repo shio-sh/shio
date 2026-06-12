@@ -1,82 +1,31 @@
 import SwiftUI
 import SwiftData
 
-/// The iPhone frame: three tabs on a custom mono tab bar — 塩 Home (this
-/// team's conversations), ⚑ Activity (the cross-project needs-you feed, with
-/// a breathing badge while something's blocked), ⋯ More (Machines · Files ·
-/// Settings).
+/// The iPhone frame: Home (this team's conversations), Activity (the
+/// cross-project needs-you feed, badged while something's blocked), and More
+/// (Machines · Files · Settings) — on the native Liquid Glass dock (his
+/// call: the system dock over a custom bar).
 struct MainTabsView: View {
-    enum ShioTab { case home, activity, more }
-    @State private var tab: ShioTab = .home
     @Query private var projects: [Project]
 
-    var body: some View {
-        VStack(spacing: 0) {
-            Group {
-                switch tab {
-                case .home:     HomeTabView()
-                case .activity: ActivityTabView()
-                case .more:     MoreTabView()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            ShioTabBar(tab: $tab, needsYou: anyNeedsYou)
-        }
-        .background(ShioTheme.background)
+    private var needsYou: Int {
+        ActivityFeed.items(projects: projects).filter { $0.activity == .waiting }.count
     }
-
-    private var anyNeedsYou: Bool {
-        ActivityFeed.items(projects: projects).contains { $0.activity == .waiting }
-    }
-}
-
-/// The custom tab bar — rail-tinted, hairline-topped, mono glyph + label.
-private struct ShioTabBar: View {
-    @Binding var tab: MainTabsView.ShioTab
-    let needsYou: Bool
 
     var body: some View {
-        HStack(spacing: 0) {
-            item(.home, glyph: "塩", label: "Home")
-            item(.activity, glyph: "⚑", label: "Activity", badge: needsYou)
-            item(.more, glyph: "⋯", label: "More")
-        }
-        .frame(height: 56)
-        .frame(maxWidth: .infinity)
-        .background(ShioTheme.rail.ignoresSafeArea(edges: .bottom))
-        .overlay(alignment: .top) {
-            Rectangle().fill(ShioTheme.line).frame(height: 1)
-        }
-    }
-
-    private func item(_ t: MainTabsView.ShioTab, glyph: String, label: String, badge: Bool = false) -> some View {
-        Button {
-            Haptics.tap()
-            tab = t
-        } label: {
-            VStack(spacing: 3) {
-                Text(glyph)
-                    .font(.system(size: 15, design: .monospaced))
-                    .overlay(alignment: .topTrailing) {
-                        if badge {
-                            Text("●")
-                                .font(.system(size: 8))
-                                .foregroundStyle(ShioTheme.warning)
-                                .shioNeedsPulse()
-                                .offset(x: 10, y: -3)
-                        }
-                    }
-                Text(label)
-                    .font(.system(size: 9.5, design: .monospaced))
+        TabView {
+            Tab("Home", systemImage: "house") {
+                HomeTabView()
             }
-            .foregroundStyle(tab == t ? ShioTheme.accent : ShioTheme.textTertiary)
-            .frame(maxWidth: .infinity)
-            .frame(maxHeight: .infinity)
-            .contentShape(Rectangle())
+            Tab("Activity", systemImage: "flag") {
+                ActivityTabView()
+            }
+            .badge(needsYou)
+            Tab("More", systemImage: "ellipsis") {
+                MoreTabView()
+            }
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-        .accessibilityAddTraits(tab == t ? [.isSelected] : [])
+        .tint(ShioTheme.textPrimary)
     }
 }
 
@@ -98,16 +47,16 @@ struct MoreTabView: View {
                 .padding(.bottom, 10)
 
                 NavigationLink { HostListView() } label: {
-                    moreRow(glyph: "⌗", name: "Machines",
+                    moreRow(systemImage: "desktopcomputer", name: "Machines",
                             meta: hosts.isEmpty ? "" : "\(hosts.dedupedByIdentity.count)")
                 }
                 .buttonStyle(.plain)
                 NavigationLink { FilesView() } label: {
-                    moreRow(glyph: "▤", name: "Files")
+                    moreRow(systemImage: "folder", name: "Files")
                 }
                 .buttonStyle(.plain)
                 NavigationLink { SettingsView() } label: {
-                    moreRow(glyph: "⚙", name: "Settings")
+                    moreRow(systemImage: "gearshape", name: "Settings")
                 }
                 .buttonStyle(.plain)
 
@@ -124,12 +73,12 @@ struct MoreTabView: View {
         }
     }
 
-    private func moreRow(glyph: String, name: String, meta: String = "") -> some View {
+    private func moreRow(systemImage: String, name: String, meta: String = "") -> some View {
         HStack(spacing: 12) {
-            Text(glyph)
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundStyle(ShioTheme.textTertiary)
-                .frame(width: 18)
+            Image(systemName: systemImage)
+                .font(.system(size: 14))
+                .foregroundStyle(ShioTheme.textSecondary)
+                .frame(width: 22)
             Text(name)
                 .font(.system(size: 15))
                 .foregroundStyle(ShioTheme.textPrimary)
@@ -139,8 +88,8 @@ struct MoreTabView: View {
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(ShioTheme.textTertiary)
             }
-            Text("›")
-                .font(.system(size: 13, design: .monospaced))
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(ShioTheme.textTertiary)
         }
         .padding(.horizontal, 16)

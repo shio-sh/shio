@@ -38,6 +38,8 @@ struct MacShell: View {
                     // under it.
                     .environment(\.shioHeaderLeadingInset,
                                  model.sidebarCollapsed ? MacChrome.lightsClearance : 0)
+                    // Nothing the center draws may ever cross a divider.
+                    .clipped()
                 if model.inspectorOpen {
                     MacSidebarDivider()
                     MacInspector(model: model)

@@ -171,6 +171,9 @@ struct MacNeedBar: View {
 /// floats beside the traffic lights when it's collapsed.
 struct MacRailToggleButton: View {
     @Bindable var model: MacTerminalModel
+    /// `.trailing` in the rail so the glyph lands exactly on the rail's
+    /// trailing axis; centered when floating beside the lights.
+    var glyphAlignment: Alignment = .center
     @State private var hovering = false
 
     var body: some View {
@@ -181,7 +184,7 @@ struct MacRailToggleButton: View {
             Image(systemName: "sidebar.leading")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(hovering ? ShioTheme.textPrimary : ShioTheme.textSecondary)
-                .frame(width: 28, height: 28)
+                .frame(width: 28, height: 28, alignment: glyphAlignment)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(hovering ? ShioTheme.hover : .clear)

@@ -18,14 +18,14 @@ struct MacRail: View {
 
             // ONE trailing axis: the toggle's glyph, the section-header +s and
             // the row meta all right-align 20pt off the rail edge, whatever
-            // the copy on the left is doing. (The 28pt hover box is wider
-            // than its glyph — hence the asymmetric inset.)
+            // the copy on the left is doing — every glyph trailing-aligned in
+            // its frame, every frame edge on the axis.
             HStack(spacing: 2) {
                 switcher
-                MacRailToggleButton(model: model)
+                MacRailToggleButton(model: model, glyphAlignment: .trailing)
             }
             .padding(.leading, 10)
-            .padding(.trailing, 16)
+            .padding(.trailing, 20)
 
             Rectangle().fill(ShioTheme.line)
                 .frame(height: 1)
@@ -164,7 +164,8 @@ struct MacRail: View {
             RailRow(title: "Machines", muted: true,
                     selected: model.canvas == .machines,
                     action: { model.canvas = .machines }) {
-                Text("⌗").font(.system(size: 11.5, design: .monospaced))
+                Image(systemName: "desktopcomputer")
+                    .font(.system(size: 11))
                     .foregroundStyle(ShioTheme.textTertiary)
             } trailing: {
                 Text("\(hosts.count)")
@@ -174,7 +175,8 @@ struct MacRail: View {
             RailRow(title: "Files", muted: true,
                     selected: model.canvas == .files,
                     action: { model.canvas = .files }) {
-                Text("▤").font(.system(size: 11.5, design: .monospaced))
+                Image(systemName: "folder")
+                    .font(.system(size: 11))
                     .foregroundStyle(ShioTheme.textTertiary)
             } trailing: { EmptyView() }
         }
@@ -287,7 +289,7 @@ private struct RailRow<Icon: View, Trailing: View>: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 9) {
-                icon().frame(width: 13)
+                icon().frame(width: 16)
                 Text(title)
                     .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(selected ? ShioTheme.accent
@@ -323,7 +325,7 @@ private struct ShellRailRow: View {
             HStack(spacing: 9) {
                 Text("%")
                     .font(.system(size: 11.5, design: .monospaced))
-                    .frame(width: 13)
+                    .frame(width: 16)
                     .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textTertiary)
                 Text(tab.title)
                     .font(.system(size: 13, design: .monospaced))
