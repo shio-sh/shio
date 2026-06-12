@@ -13,6 +13,8 @@ final class WorkspaceTab: Identifiable {
     let isShellTab: Bool
     var root: SplitNode
     var focusedPaneID: UUID
+    /// When this tab was last on screen — the hibernation clock.
+    var lastActiveAt: Date = .now
 
     init(pane: TerminalPane, title: String, isShell: Bool = false) {
         self.title = title
@@ -24,6 +26,19 @@ final class WorkspaceTab: Identifiable {
 
     var isSinglePane: Bool { if case .leaf = root.kind { return true }; return false }
     var focusedPane: TerminalPane? { root.node(withPane: focusedPaneID)?.leafPane }
+
+    /// Lossless to close: the real session lives in tmux, so dropping the
+    /// local surface (scrollback buffer + Metal textures — the app's RAM)
+    /// costs nothing; reopening from the rail reattaches. Plain shells have
+    /// no tmux behind them and split layouts shouldn't silently collapse, so
+    /// neither hibernates.
+    var isHibernatable: Bool {
+        guard !isShellTab, isSinglePane else { return false }
+        switch root.firstLeafPane?.content {
+        case .project, .ssh: return true
+        default: return false
+        }
+    }
 
     /// Split the focused pane, putting a fresh shell beside/below it.
     func split(_ direction: SplitDirection) {

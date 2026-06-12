@@ -133,7 +133,15 @@ final class MacTerminalModel {
     /// Open terminal tabs (each owns its surface). The conversation canvas
     /// shows the selected one; the rail's SHELLS/REPOS rows select them.
     var tabs: [WorkspaceTab] = []
-    var selectedTabID: UUID?
+    var selectedTabID: UUID? {
+        didSet {
+            guard oldValue != selectedTabID else { return }
+            // Stamp both sides of the switch: the deselected tab's idle
+            // clock starts now; the selected one resets.
+            tabs.first { $0.id == oldValue }?.lastActiveAt = .now
+            tabs.first { $0.id == selectedTabID }?.lastActiveAt = .now
+        }
+    }
 
     /// Whether any locally watched agent is blocked.
     var anyAgentNeedsYou: Bool {
@@ -387,6 +395,42 @@ final class MacTerminalModel {
         let session = MacSSHSession(host: host.hostname, port: host.port,
                                     username: host.username, password: password)
         openSSH(session, title: host.name, isShell: true)
+    }
+
+    // MARK: Hibernation (the RAM lever tmux makes safe)
+
+    /// How long a background conversation keeps its live surface. The surface
+    /// (scrollback buffer + Metal textures) is where the app's memory goes;
+    /// tmux holds the real session, so releasing it is lossless.
+    static let hibernateAfter: TimeInterval = 15 * 60
+    private var hibernateTimer: Timer?
+
+    /// Sweep idle background conversations once a minute: close their tabs
+    /// (freeing the renderer), keep the standing conversation in tmux —
+    /// clicking the repo row reattaches with scrollback intact.
+    func startHibernator() {
+        guard hibernateTimer == nil else { return }
+        hibernateTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.sweepIdleConversations() }
+        }
+    }
+
+    private func sweepIdleConversations() {
+        let cutoff = Date.now.addingTimeInterval(-Self.hibernateAfter)
+        for tab in tabs where tab.id != selectedTabID
+            && tab.isHibernatable
+            && tab.lastActiveAt < cutoff
+            && !agentBusy(tab) {
+            closeTab(tab.id)
+        }
+    }
+
+    /// Never hibernate a conversation whose agent is live — jumping to a
+    /// needs-you must be instant, not a reattach.
+    private func agentBusy(_ tab: WorkspaceTab) -> Bool {
+        guard let activity = MacProjectAgentMonitor.shared
+            .snapshot(forProjectNamed: tab.title)?.activity else { return false }
+        return activity == .running || activity == .waiting
     }
 
     func closeTab(_ id: UUID) {

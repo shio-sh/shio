@@ -114,6 +114,9 @@ struct MacShell: View {
         // Watch local tmux sessions so a repo row lights up when its agent
         // needs you — even though ghostty owns the local PTY.
         .task { MacProjectAgentMonitor.shared.start() }
+        // Release the renderer of conversations idle in the background —
+        // tmux keeps the session, so reopening reattaches losslessly.
+        .task { model.startHibernator() }
         // The rail is always on screen now — keep its git state warm app-wide.
         // warmOnly so it never wakes a sleeping remote.
         .task {
