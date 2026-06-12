@@ -39,12 +39,10 @@ enum AppLock {
             return false
         }
         do {
-            print("[shio] AppLock: calling evaluatePolicy")
             let ok = try await context.evaluatePolicy(
                 .deviceOwnerAuthentication,
                 localizedReason: reason
             )
-            print("[shio] AppLock: evaluatePolicy returned \(ok)")
             return ok
         } catch {
             print("[shio] AppLock: evaluatePolicy threw \(error)")

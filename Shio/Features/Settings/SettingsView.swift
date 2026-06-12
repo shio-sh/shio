@@ -75,7 +75,6 @@ struct SettingsView: View {
                     }
                     .tint(ShioTheme.accent)
                     .onChange(of: appLockEnabled) { _, newValue in
-                        print("[shio] appLock toggle → \(newValue)")
                         guard newValue else { return }
                         Task {
                             let ok = await AppLock.authenticate(

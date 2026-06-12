@@ -42,14 +42,11 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
     /// permission prompt stays contextual, via requestAuthorizationAndRegister.)
     func registerIfAuthorized() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
-        print("[shio] push: registerIfAuthorized authStatus=\(settings.authorizationStatus.rawValue) (0=notDetermined 2=authorized 3=provisional)")
         guard settings.authorizationStatus == .authorized
             || settings.authorizationStatus == .provisional else {
-            print("[shio] push: NOT authorized — skipping registerForRemoteNotifications")
             return
         }
         configureNotificationActions()
-        print("[shio] push: calling registerForRemoteNotifications()")
         UIApplication.shared.registerForRemoteNotifications()
     }
 
@@ -114,7 +111,6 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
 
     func didRegister(tokenData: Data) {
         let hex = tokenData.map { String(format: "%02x", $0) }.joined()
-        print("[shio] push: ✅ APNs token registered \(hex.prefix(8))…")
         deviceToken = hex
         defaults?.set(hex, forKey: deviceTokenKey)
     }
