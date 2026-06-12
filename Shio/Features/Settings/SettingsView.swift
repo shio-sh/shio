@@ -198,8 +198,11 @@ struct SettingsView: View {
     private func sendTestPush() async {
         sendingTestPush = true
         defer { sendingTestPush = false }
-        // Make sure we've actually registered for remote notifications first.
-        await PushService.shared.registerIfAuthorized()
+        // REQUEST permission (prompts the first time), then register — not just
+        // registerIfAuthorized, which silently skips when status is notDetermined.
+        await PushService.shared.requestAuthorizationAndRegister()
+        // The APNs token arrives async via the delegate callback, so it may be
+        // nil on this first tap right after granting — tap again to confirm.
         let token = PushService.shared.deviceToken
         do {
             try await CloudKitSignalService.shared.sendTestSignal()
