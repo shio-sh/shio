@@ -74,7 +74,7 @@ final class CloudKitSignalService {
         info.titleLocalizationArgs = ["title"]
         info.alertLocalizationKey = "%1$@"
         info.alertLocalizationArgs = ["body"]
-        info.alertBody = "A session needs you. Tap to jump back in."
+        info.alertBody = "An agent needs you. Tap to jump back in."
         info.soundName = "default"
         info.shouldSendContentAvailable = false
         // Drives the lock-screen Approve / Deny buttons (#33).

@@ -58,7 +58,7 @@ struct MacSettingsView: View {
             }
             Section("Remote control") {
                 Toggle("Take over on connect", isOn: $takeover)
-                Text("Mirror (default): every device sees the live session and shares control. Take over: connecting detaches the others so you have sole control.")
+                Text("Mirror (default): every device sees the live terminal and shares control. Take over: connecting detaches the others so you have sole control.")
                     .font(.footnote).foregroundStyle(.secondary)
                 Toggle("Keep watching in the menu bar", isOn: $menubarWatcher)
                 Text("Stay in the menu bar when the window is closed, so Shio still pushes your phone when an agent needs you. Off = Shio quits with its last window.")

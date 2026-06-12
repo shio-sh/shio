@@ -149,7 +149,7 @@ struct TerminalScene: View {
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
-            .accessibilityLabel("Close session")
+            .accessibilityLabel("Close terminal")
 
             Spacer(minLength: 0)
 
@@ -173,8 +173,8 @@ struct TerminalScene: View {
         .background(.ultraThinMaterial)
     }
 
-    /// The right-side menu button. Lists all live sessions across hosts
-    /// and offers "New session on <current host>". Tap selects; long
+    /// The right-side menu button. Lists all live terminals across machines
+    /// and offers "New terminal on <current machine>". Tap selects; long
     /// press / swipe-to-delete closes.
     @ViewBuilder
     private var sessionsMenu: some View {
@@ -202,7 +202,7 @@ struct TerminalScene: View {
                         Haptics.light()
                         store.createNewSession(on: host)
                     } label: {
-                        Label("New session on \(host.name)", systemImage: "plus")
+                        Label("New terminal on \(host.name)", systemImage: "plus")
                     }
                 }
             }
@@ -213,7 +213,7 @@ struct TerminalScene: View {
                         Haptics.medium()
                         Task { await store.close(active) }
                     } label: {
-                        Label("Close this session", systemImage: "xmark")
+                        Label("Close this terminal", systemImage: "xmark")
                     }
                 }
             }
@@ -224,7 +224,7 @@ struct TerminalScene: View {
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
         }
-        .accessibilityLabel("Sessions")
+        .accessibilityLabel("Open terminals")
     }
 
     private var statusColor: Color {
@@ -239,7 +239,7 @@ struct TerminalScene: View {
     }
 
     /// Look up a Host by its SwiftData PersistentIdentifier. Used by the
-    /// "New session on <host>" menu item.
+    /// "New terminal on <machine>" menu item.
     private func currentHost(id: PersistentIdentifier) -> Host? {
         let descriptor = FetchDescriptor<Host>()
         let all = (try? modelContext.fetch(descriptor)) ?? []

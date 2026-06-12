@@ -84,7 +84,7 @@ struct SettingsView: View {
                             }
                         }
                     }
-                    Text("Shio re-authenticates if you leave the app for more than 10 seconds. SSH sessions stay connected while locked.")
+                    Text("Shio re-authenticates if you leave the app for more than 10 seconds. SSH connections stay alive while locked.")
                         .font(ShioFont.footnote)
                         .foregroundStyle(ShioTheme.textTertiary)
                 }
@@ -93,7 +93,7 @@ struct SettingsView: View {
                     Toggle(isOn: $takeoverMode) {
                         Label("Take over on connect", systemImage: "rectangle.on.rectangle.angled")
                     }
-                    Text("Mirror (default): every device sees the live session and shares control. Take over: connecting from a device detaches the others so you have sole control.")
+                    Text("Mirror (default): every device sees the live terminal and shares control. Take over: connecting from a device detaches the others so you have sole control.")
                         .font(ShioFont.footnote)
                         .foregroundStyle(ShioTheme.textTertiary)
                 } header: {
@@ -299,7 +299,7 @@ private struct AboutView: View {
             Text("shio")
                 .font(ShioFont.wordmark(size: 32))
                 .foregroundStyle(ShioTheme.textPrimary)
-            Text("Your Mac, in your pocket.")
+            Text("A real terminal for the agent era.")
                 .font(ShioFont.callout)
                 .foregroundStyle(ShioTheme.textSecondary)
             Spacer()
