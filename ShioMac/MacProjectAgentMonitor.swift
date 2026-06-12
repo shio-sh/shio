@@ -47,6 +47,24 @@ final class MacProjectAgentMonitor {
         return indexed.first { $0.activity == .waiting } ?? indexed.first
     }
 
+    /// The local tmux session whose agent is blocked for this project/repo —
+    /// the target for an inline Approve/Deny. nil when the waiting agent is
+    /// remote (answer from inside its conversation instead).
+    func waitingSessionName(forProjectNamed name: String) -> String? {
+        let base = "shio-\(TmuxResume.scrubName(name))"
+        if byTmux[base]?.activity == .waiting { return base }
+        return byTmux.first { $0.key.hasPrefix("\(base)-") && $0.value.activity == .waiting }?.key
+    }
+
+    /// Inject a reply into a local agent's tmux session — the Mac-side twin of
+    /// the phone's approve/deny path (same `send-keys` the Action inject uses).
+    func send(key: String, toSession session: String) {
+        guard let tmux else { return }
+        Task.detached(priority: .userInitiated) {
+            _ = MacProjectAgentMonitor.run(tmux, ["send-keys", "-t", session, key, "Enter"])
+        }
+    }
+
     /// tmux sessions we've already pushed an away-signal for while they're
     /// blocked — so the phone buzzes once per "needs you", not every poll.
     /// Persisted so an app restart doesn't re-push for an agent that's been

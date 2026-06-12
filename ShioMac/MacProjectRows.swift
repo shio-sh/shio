@@ -89,6 +89,46 @@ enum ProjectRows {
         return ProjectStatusStore.shared.status(forHost: c.host, path: c.path)?.probe
     }
 
+    /// One row per machine carrying this project (the dashboard's machines
+    /// card): This Mac first, each with its repo spread.
+    struct MachineSummary: Identifiable {
+        let id: String
+        let name: String
+        let detail: String      // "3 repos" or the lone repo's name
+        let reachable: Bool
+    }
+
+    static func machines(for project: Project) -> [MachineSummary] {
+        var order: [String] = []
+        var repoNames: [String: Set<String>] = [:]
+        var reachable: [String: Bool] = [:]
+        func add(_ name: String, repo: String, fresh: Bool) {
+            if repoNames[name] == nil { order.append(name); repoNames[name] = []; reachable[name] = fresh }
+            repoNames[name]?.insert(repo)
+        }
+        for repo in project.sortedRepos {
+            let checkouts = repo.checkouts ?? []
+            if checkouts.isEmpty { add("This Mac", repo: repo.name, fresh: true) }
+            for c in checkouts {
+                if let h = c.host, !MacSelfHost.isThisMac(h) {
+                    let fresh = (h.lastConnectedAt ?? .distantPast).timeIntervalSinceNow > -3 * 24 * 3600
+                    add(h.name, repo: repo.name, fresh: fresh)
+                } else {
+                    add("This Mac", repo: repo.name, fresh: true)
+                }
+            }
+        }
+        // This Mac leads; everything else keeps first-seen order.
+        let sorted = order.sorted { a, _ in a == "This Mac" }
+        return sorted.map { name in
+            let repos = repoNames[name] ?? []
+            return MachineSummary(id: name, name: name,
+                                  detail: repos.count == 1 ? (repos.first ?? "")
+                                      : "\(repos.count) repo\(repos.count == 1 ? "" : "s")",
+                                  reachable: reachable[name] ?? false)
+        }
+    }
+
     static func machinesText(_ repo: Repo) -> String {
         let names = (repo.checkouts ?? []).map { c -> String in
             guard let h = c.host else { return "this mac" }

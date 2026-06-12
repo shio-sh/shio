@@ -164,6 +164,21 @@ struct TerminalWorkspaceView: View {
                 TerminalSearchBar(model: model).padding(12)
             }
         }
+        .overlay(alignment: .bottom) {
+            // The agent's question is in the scrollback right above — this is
+            // the one-keystroke answer. Local tmux only; a remote agent is
+            // answered in its terminal directly.
+            if let tab = model.selectedTab, !tab.isShellTab,
+               let session = MacProjectAgentMonitor.shared.waitingSessionName(forProjectNamed: tab.title) {
+                MacNeedBar(
+                    agentName: MacProjectAgentMonitor.shared.byTmux[session]?.agentName ?? "Your agent",
+                    approve: { MacProjectAgentMonitor.shared.send(key: "y", toSession: session) },
+                    deny: { MacProjectAgentMonitor.shared.send(key: "n", toSession: session) }
+                )
+                .padding(14)
+                .shadow(color: .black.opacity(0.18), radius: 10, y: 3)
+            }
+        }
     }
 }
 

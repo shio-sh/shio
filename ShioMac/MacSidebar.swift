@@ -83,6 +83,69 @@ struct MacHeaderIconButton: View {
     }
 }
 
+/// The inline micro-action — Approve · y / Deny · n on a needs-you row.
+/// Mono, hairline, status-tinted; never a heavy fill.
+struct MacMiniButton: View {
+    let title: String
+    var status: ShioStatus = .neutral
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(status == .neutral ? ShioTheme.textSecondary : status.tint)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(hovering ? ShioTheme.hover : .clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(status == .neutral ? ShioTheme.line2 : status.tint.opacity(0.35),
+                                      lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+/// "⚑ Codex is waiting on you · Approve · Deny" — the blocked-agent bar shown
+/// over a conversation (and echoed by the dashboard's needs-you row).
+struct MacNeedBar: View {
+    let agentName: String
+    let approve: () -> Void
+    let deny: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("⚑")
+                .font(.system(size: 12))
+                .foregroundStyle(ShioTheme.warning)
+                .shioNeedsPulse()
+            Text("\(agentName) is waiting on you")
+                .font(.system(size: 12.5))
+                .foregroundStyle(ShioTheme.textPrimary)
+            Spacer(minLength: 10)
+            MacMiniButton(title: "Approve · y", status: .success, action: approve)
+            MacMiniButton(title: "Deny · n", status: .danger, action: deny)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(ShioTheme.warningBg)
+        )
+        .overlay(alignment: .leading) {
+            Rectangle().fill(ShioTheme.warning).frame(width: 2)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+}
+
 /// The one sanctioned pulse — needs-you flags breathe, nothing else moves.
 private struct ShioNeedsPulse: ViewModifier {
     @State private var dim = false
