@@ -108,6 +108,20 @@ final class LiveActivityController {
         )
     }
 
+    /// End activities left over from a previous process. After a force-quit
+    /// or crash, `activityIDs` is empty — nothing in this run knows about the
+    /// old activities, so a stale "Connected to <host>" would sit on the lock
+    /// screen indefinitely. Called from the launch/foreground reconcile.
+    func endOrphans() async {
+        let owned = Set(activityIDs.values)
+        for activity in Activity<ShioSessionAttributes>.activities
+        where !owned.contains(activity.id) {
+            let state = ShioSessionAttributes.ContentState(connectionState: "ended")
+            await activity.end(ActivityContent(state: state, staleDate: nil),
+                               dismissalPolicy: .immediate)
+        }
+    }
+
     /// End the Activity, optionally with a final state shown briefly
     /// (e.g., "disconnected") before it fades.
     func end(sessionID: UUID, finalState: String = "ended") async {

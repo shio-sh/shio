@@ -18,6 +18,10 @@ enum SkillImporter {
     /// Split `--- … ---` YAML frontmatter (just `name` / `description`) from the
     /// markdown body. Falls back to the directory name when there's no `name:`.
     static func parse(_ text: String, fallbackName: String) -> Parsed {
+        // Normalize CRLF first: a Windows-edited SKILL.md leaves \r on every
+        // line, the "---" fences never match, and the frontmatter gets
+        // imported as body — then doubled on the next re-materialize.
+        let text = text.replacingOccurrences(of: "\r\n", with: "\n")
         var name = fallbackName, desc = ""
         var body = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let lines = text.components(separatedBy: "\n")

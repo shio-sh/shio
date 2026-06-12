@@ -1,5 +1,6 @@
 import AppIntents
 import Foundation
+import SwiftData
 
 /// "Connect to <host>" — Siri / Shortcuts entry point that opens Shio and
 /// connects to the selected host.
@@ -40,10 +41,34 @@ struct RunCommandIntent: AppIntent {
     @Parameter(title: "Return output", default: true)
     var returnsOutput: Bool
 
+    struct HostNotFound: LocalizedError {
+        var errorDescription: String? { "That machine isn't saved in Shio anymore." }
+    }
+    struct CommandFailed: LocalizedError {
+        let output: String
+        var errorDescription: String? { output }
+    }
+
+    @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<String> {
-        // Brick 11 second pass implements headless SSH execution. For now
-        // we return a placeholder so Shortcuts surfaces the action.
-        return .result(value: "\(command) — pending implementation")
+        let context = ModelContext(ShioModelContainer.shared)
+        guard let saved = (try? context.fetch(FetchDescriptor<Host>()))?
+            .first(where: { $0.hostname == host.id }) else { throw HostNotFound() }
+        let client = SSHClient(configuration: saved.makeClientConfiguration())
+        defer { Task { await client.disconnect() } }
+        try await client.connect()
+        let result = try await client.execWithStatus(posixScript: command, timeout: .seconds(30))
+        let transcript = [result.stdout, result.stderr]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        if result.timedOut {
+            throw CommandFailed(output: "Timed out after 30s.\(transcript.isEmpty ? "" : "\n\(transcript)")")
+        }
+        if let status = result.exitStatus, status != 0 {
+            throw CommandFailed(output: transcript.isEmpty ? "Exited with status \(status)." : transcript)
+        }
+        return .result(value: returnsOutput ? transcript : "")
     }
 }
 // `.shioConnectToHost` now lives in Core/Util/ShioNotifications.swift (shared

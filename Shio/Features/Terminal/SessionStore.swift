@@ -255,6 +255,8 @@ final class SessionStore {
     /// any session whose SSH client is no longer `.connected` gets its
     /// activity ended.
     func reconcileLiveActivities() async {
+        // First, anything a previous process left behind (force-quit/crash).
+        await LiveActivityController.shared.endOrphans()
         for session in sessions {
             let id = session.id
             switch session.viewModel.state {
