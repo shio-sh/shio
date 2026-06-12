@@ -21,6 +21,10 @@ final class FilesViewModel {
     private(set) var state: State = .connecting
     private(set) var path: String = "/"
     private(set) var entries: [SFTPFile] = []
+    /// A failed *operation* (rename, delete, upload, one listing) — shown as
+    /// an inline banner. Session-level failures still go through `state`;
+    /// a permission error on one file must not tear down the whole browse.
+    var lastError: String?
 
     private var client: SSHClient?
     private var sftp: SFTPClient?
@@ -119,15 +123,20 @@ final class FilesViewModel {
         do { try await load(p) } catch { state = .failed(error.localizedDescription) }
     }
 
-    /// Run a mutating SFTP op, then refresh the listing. Surfaces failures in
-    /// `state` without tearing down the session.
+    /// Run a mutating SFTP op, then refresh the listing. A failure surfaces
+    /// as `lastError` (an inline banner) — the browsing session survives,
+    /// instead of collapsing to the full-screen failure whose Retry resets
+    /// to the home directory.
     private func mutate(_ op: @escaping (SFTPClient) async throws -> Void) async {
         guard let sftp else { return }
         do {
             try await op(sftp)
+            lastError = nil
             try await load(path)
         } catch {
-            state = .failed(error.localizedDescription)
+            lastError = error.localizedDescription
+            // Best-effort refresh — the op may have partially applied.
+            try? await load(path)
         }
     }
 

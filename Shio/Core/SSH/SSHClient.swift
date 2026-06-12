@@ -93,8 +93,19 @@ final class SSHClient: @unchecked Sendable {
     // are expected to use a shared group; per-client ELGs deadlock on deinit.
     private static let sharedGroup: any EventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: 1)
 
-    private var channel:      (any Channel)?
-    private var childChannel: (any Channel)?
+    // Channel state is touched from caller tasks AND NIO callbacks — guard
+    // it so a reconnect tearing down while an exec reads can't race.
+    private let stateLock = NSLock()
+    private var _channel: (any Channel)?
+    private var _childChannel: (any Channel)?
+    private var channel: (any Channel)? {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return _channel }
+        set { stateLock.lock(); defer { stateLock.unlock() }; _channel = newValue }
+    }
+    private var childChannel: (any Channel)? {
+        get { stateLock.lock(); defer { stateLock.unlock() }; return _childChannel }
+        set { stateLock.lock(); defer { stateLock.unlock() }; _childChannel = newValue }
+    }
     private let configuration: Configuration
     /// The SSH keys resolved at connect() time (in preference order), so the
     /// auth delegate never touches Keychain or the filesystem on the NIO event

@@ -61,6 +61,8 @@ struct MacFilesPane: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(ShioTheme.background)
     }
 
     // Cross-machine results: This Mac (Spotlight, live) + each machine (find, on ⏎).
@@ -99,6 +101,8 @@ struct MacFilesPane: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(ShioTheme.background)
     }
 
     private func hitRow(_ hit: FileHit) -> some View {

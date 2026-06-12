@@ -122,6 +122,23 @@ struct FileBrowserView: View {
 
     private var fileList: some View {
         List {
+            if let err = vm.lastError {
+                HStack(alignment: .firstTextBaseline, spacing: ShioSpace.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(ShioTheme.warning)
+                    Text(err)
+                        .font(ShioFont.footnote)
+                        .foregroundStyle(ShioTheme.textSecondary)
+                    Spacer()
+                    Button { vm.lastError = nil } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(ShioTheme.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listRowBackground(ShioTheme.warningBg)
+            }
             if vm.entries.isEmpty {
                 Text("Empty folder")
                     .font(ShioFont.callout)

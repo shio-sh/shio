@@ -23,6 +23,33 @@ enum ProjectMigration {
         backfillRepos(in: context)       // M-repo: project → one Repo, reparent checkouts
         reconcileRepos(in: context)      // collapse race-duplicated repos first…
         reconcile(in: context)           // …then their (now merged) checkouts
+        reconcileSkills(in: context)
+    }
+
+    /// Collapse duplicate Skills two devices created concurrently (an import
+    /// run on both before sync converged): same dir, same scope = the same
+    /// skill, and the duplicates would fight over one SKILL.md on disk. Keep
+    /// the oldest, tie-broken on the synced UUID so every device deletes the
+    /// same copy. Files are untouched — the winner owns the same dir.
+    private static func reconcileSkills(in context: ModelContext) {
+        let all = (try? context.fetch(FetchDescriptor<Skill>())) ?? []
+        guard all.count > 1 else { return }
+        var didChange = false
+        var seen: [String: Skill] = [:]
+        let ordered = all.sorted {
+            ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString)
+        }
+        for skill in ordered {
+            let scope = skill.project.map { "\($0.persistentModelID)" } ?? "global"
+            let key = "\(scope)|\(skill.dirName)"
+            if seen[key] != nil {
+                context.delete(skill)
+                didChange = true
+            } else {
+                seen[key] = skill
+            }
+        }
+        if didChange { try? context.save() }
     }
 
     /// Give every project that has no repos one `Repo` (carrying the project's
