@@ -103,7 +103,11 @@ struct ProjectOverviewView: View {
                                         authentication: .systemKeys, initialCols: 80, initialRows: 24)
             }
             CommitSheet(repoName: ctx.repo.name, dirtyCount: GitLineFormatter.make(probe).dirty,
-                        path: c?.path ?? "", config: config)
+                        path: c?.path ?? "", config: config,
+                        onCommitted: {
+                            // Clear the dirty badge right away, not on the next tick.
+                            status.refresh(ProjectStatusStore.targets(for: [project], isLocalHost: { _ in false }))
+                        })
                 .presentationDetents([.medium])
         }
         .alert("Rename project", isPresented: $showingRename) {

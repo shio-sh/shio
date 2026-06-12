@@ -35,8 +35,13 @@ final class MacProjectAgentMonitor {
     }
 
     /// Current agent state for a project by name (maps to its tmux session).
+    /// Indexed sessions (`shio-<name>-2`) match by prefix; one that needs you
+    /// wins over one that's merely running.
     func snapshot(forProjectNamed name: String) -> AgentSnapshot? {
-        byTmux["shio-\(TmuxResume.scrubName(name))"]
+        let base = "shio-\(TmuxResume.scrubName(name))"
+        if let exact = byTmux[base] { return exact }
+        let indexed = byTmux.filter { $0.key.hasPrefix("\(base)-") }.map(\.value)
+        return indexed.first { $0.activity == .waiting } ?? indexed.first
     }
 
     /// tmux sessions we've already pushed an away-signal for while they're

@@ -82,7 +82,12 @@ final class ProjectStatusStore {
     /// own `MacProjectAgentMonitor`; this covers machines you aren't viewing.
     private(set) var remoteAgents: [String: [String: AgentSnapshot]] = [:]
     private(set) var isRefreshing = false
-    private var inFlight: Task<Void, Never>?
+    /// Checkout keys currently being probed — a new refresh skips these
+    /// instead of cancelling the work (the old cancel-everything behavior let
+    /// the narrow warm-only timer kill a full on-appear refresh and silently
+    /// drop the cold-host results it was about to deliver).
+    private var inFlightKeys: Set<String> = []
+    private var activeRefreshes = 0
 
     func status(forKey key: String) -> Cached? { statuses[key] }
 
@@ -91,8 +96,14 @@ final class ProjectStatusStore {
     }
 
     /// A remote agent for a repo by name on a given host, if one was detected.
+    /// Indexed sessions (`shio-<repo>-2`, a second terminal on the same repo)
+    /// match by prefix; one that needs you wins over one that's merely running.
     func remoteAgent(host: Host, repoName: String) -> AgentSnapshot? {
-        remoteAgents["\(host.persistentModelID)"]?["shio-\(TmuxResume.scrubName(repoName))"]
+        guard let byTmux = remoteAgents["\(host.persistentModelID)"] else { return nil }
+        let base = "shio-\(TmuxResume.scrubName(repoName))"
+        if let exact = byTmux[base] { return exact }
+        let indexed = byTmux.filter { $0.key.hasPrefix("\(base)-") }.map(\.value)
+        return indexed.first { $0.activity == .waiting } ?? indexed.first
     }
 
     /// Open PRs per checkout (via the machine's `gh`), keyed like `statuses`.
@@ -145,12 +156,22 @@ final class ProjectStatusStore {
         }
     }
 
-    /// Refresh the given checkouts. Cancels any in-flight refresh.
+    /// Refresh the given checkouts. Targets already being probed are skipped
+    /// (their in-flight result is on the way); everything else fans out
+    /// concurrently with whatever is running.
     func refresh(_ targets: [Target]) {
-        inFlight?.cancel()
-        guard !targets.isEmpty else { isRefreshing = false; return }
+        let fresh = targets.filter { !inFlightKeys.contains($0.key) }
+        guard !fresh.isEmpty else { return }
+        for t in fresh { inFlightKeys.insert(t.key) }
         isRefreshing = true
-        inFlight = Task { [weak self] in await self?.run(targets) }
+        activeRefreshes += 1
+        Task { [weak self] in
+            await self?.run(fresh)
+            guard let self else { return }
+            for t in fresh { self.inFlightKeys.remove(t.key) }
+            self.activeRefreshes -= 1
+            if self.activeRefreshes == 0 { self.isRefreshing = false }
+        }
     }
 
     private func run(_ targets: [Target]) async {
@@ -172,7 +193,15 @@ final class ProjectStatusStore {
                 if !Task.isCancelled {
                     let now = Date()
                     if let hostKey = result.hostKey {
-                        remoteAgents[hostKey] = result.agents   // replace: empty clears stale agents
+                        // Replace so a genuinely-finished agent clears — but
+                        // not when the whole probe failed (a transient timeout
+                        // must not wipe a real needs-you signal while the git
+                        // statuses next to it are kept).
+                        let probeFailed = !result.git.isEmpty
+                            && result.git.allSatisfy { isTransient($0.1) }
+                        if !probeFailed {
+                            remoteAgents[hostKey] = result.agents
+                        }
                     }
                     // A host that answered a probe is awake — stamp it warm so
                     // the timer refresh keeps including it. (Without this, a
@@ -198,7 +227,6 @@ final class ProjectStatusStore {
                 addNext()
             }
         }
-        isRefreshing = false
         if !Task.isCancelled { saveDiskCache() }
     }
 

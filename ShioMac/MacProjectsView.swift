@@ -351,7 +351,12 @@ private struct MacProjectDashboard: View {
                                           authentication: .systemKeys, initialCols: 80, initialRows: 24)
                 : nil
             CommitSheet(repoName: row.name, dirtyCount: GitLineFormatter.make(row.git).dirty,
-                        path: c?.path ?? "", config: config)
+                        path: c?.path ?? "", config: config,
+                        onCommitted: {
+                            // Clear the dirty badge right away, not on the next tick.
+                            ProjectStatusStore.shared.refresh(ProjectStatusStore.targets(
+                                for: [project], isLocalHost: MacSelfHost.isThisMac))
+                        })
         }
     }
 
