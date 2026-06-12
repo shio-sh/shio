@@ -63,10 +63,17 @@ struct MacShell: View {
             }
         }
         .ignoresSafeArea(edges: .top)
-        // Slack-style titlebar: an empty transparent unified toolbar gives the
-        // traffic lights their lower, airier position instead of the cramped
-        // compact one — without drawing any chrome of its own.
-        .background(MacWindowChrome())
+        // Slack-style titlebar: an invisible toolbar item makes the window
+        // carry a (transparent) unified toolbar, which moves the traffic
+        // lights to the relaxed position. Declared through SwiftUI so IT owns
+        // the NSToolbar — assigning our own crashed its toolbar bridge
+        // (KVO removeObserver on a toolbar it never registered on).
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Color.clear.frame(width: 1, height: 1)
+            }
+        }
+        .toolbarBackground(.hidden, for: .windowToolbar)
         .sheet(isPresented: $model.showingAddHost) {
             MacAddHostForm(model: model)
         }
@@ -157,35 +164,6 @@ struct MacShell: View {
         guard skillSyncEnabled, SkillMaterializer.shared.hasGlobalWork() else { return }
         if skillsExplained { SkillMaterializer.shared.scheduleGlobalSync() }
         else { showSkillsExplainer = true }
-    }
-}
-
-/// Window-level chrome the SwiftUI scene can't express: a transparent,
-/// item-less unified toolbar so the traffic lights sit at the relaxed
-/// Slack/Linear position rather than hugging the corner. No visible band —
-/// the rail and canvas still run to the very top.
-private struct MacWindowChrome: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async { configure(view.window) }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { configure(nsView.window) }
-    }
-
-    private func configure(_ window: NSWindow?) {
-        guard let window else { return }
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.titlebarSeparatorStyle = .none
-        if window.toolbar == nil {
-            let toolbar = NSToolbar(identifier: "shio.titlebar.spacer")
-            toolbar.showsBaselineSeparator = false
-            window.toolbar = toolbar
-        }
-        window.toolbarStyle = .unified
     }
 }
 
