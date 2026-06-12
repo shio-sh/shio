@@ -64,7 +64,9 @@ struct CommitSheet: View {
             }
         }
         .padding(20)
+        #if os(macOS)
         .frame(minWidth: 380, idealWidth: 460)
+        #endif
         .background(ShioTheme.background)
     }
 

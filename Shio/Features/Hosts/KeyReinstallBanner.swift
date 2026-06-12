@@ -45,7 +45,7 @@ struct KeyReinstallBanner: View {
             }
         }
         .padding(ShioSpace.md)
-        .background(ShioTheme.warning.opacity(0.12))
+        .background(ShioTheme.warningBg)
         .overlay(
             RoundedRectangle(cornerRadius: ShioRadius.md, style: .continuous)
                 .strokeBorder(ShioTheme.warning.opacity(0.3), lineWidth: 1)

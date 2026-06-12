@@ -23,9 +23,11 @@ struct SettingsView: View {
     @State private var sendingTestPush = false
     @State private var creatingAction = false
 
+    // NB: no NavigationStack here — every call site (Projects, Files,
+    // Machines) presents SettingsView inside its own stack; nesting a second
+    // one broke push animations and doubled the bar.
     var body: some View {
-        NavigationStack {
-            Form {
+        Form {
                 if let reason = ShioModelContainer.loadFailureReason {
                     Section {
                         VStack(alignment: .leading, spacing: ShioSpace.xs) {
@@ -198,7 +200,6 @@ struct SettingsView: View {
             } message: {
                 Text(testPushResult ?? "")
             }
-        }
     }
 
     /// Write one Action record so CloudKit materializes the `Action` record type

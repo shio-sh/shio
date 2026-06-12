@@ -135,11 +135,17 @@ struct SkillEditor: View {
             Text(skill == nil ? "New skill" : "Edit skill")
                 .font(.system(size: 17, weight: .semibold)).foregroundStyle(ShioTheme.textPrimary)
             TextField("name (e.g. swift-style)", text: $name)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
                 .font(.system(size: 14, design: .monospaced))
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(ShioTheme.surface))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ShioTheme.line, lineWidth: 1))
             TextField("description — when should the agent use this?", text: $desc)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
                 .font(.system(size: 13))
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(ShioTheme.surface))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ShioTheme.line, lineWidth: 1))
             Text("The rule")
                 .font(ShioKitFont.label).tracking(1).textCase(.uppercase)
                 .foregroundStyle(ShioTheme.textTertiary)
@@ -161,7 +167,9 @@ struct SkillEditor: View {
             }
         }
         .padding(20)
+        #if os(macOS)
         .frame(minWidth: 380, idealWidth: 460)
+        #endif
         .background(ShioTheme.background)
         .onAppear {
             name = skill?.name ?? ""
