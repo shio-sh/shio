@@ -136,7 +136,10 @@ final class SSHClient: @unchecked Sendable {
             var keys: [NIOSSHPrivateKey] = []
             // Opt-in Secure Enclave key first (preferred), Ed25519 as fallback
             // so a host authorized for either still connects (#36).
-            if KeyManager.useEnclaveKey, let se = try KeyManager.existingEnclaveKey() {
+            // Best-effort: an Enclave read failure (key invalidated, biometry
+            // changed) must not abort the connect — the Ed25519 key below is
+            // still valid on its own.
+            if KeyManager.useEnclaveKey, let se = try? KeyManager.existingEnclaveKey() {
                 keys.append(NIOSSHPrivateKey(secureEnclaveP256Key: se))
             }
             if let pk = try KeyManager.existingKey() {
@@ -180,7 +183,14 @@ final class SSHClient: @unchecked Sendable {
 
     private func doConnect() async throws {
         let cfg = configuration
-        let auth = SSHAuthenticationDelegate(configuration: cfg, resolvedKeys: resolvedKeys)
+        // The handshake gate: connect() must mean *authenticated*, not "TCP is
+        // up". Without it, a rejected key/password never surfaces — NIOSSH
+        // goes quiet on auth exhaustion and the connection idles until the
+        // server's LoginGraceTime (~2 min) kills it as a generic eof.
+        let gate = HandshakeGate(on: SSHClient.sharedGroup.next())
+        let auth = SSHAuthenticationDelegate(configuration: cfg, resolvedKeys: resolvedKeys) {
+            gate.fail(SSHError.authenticationFailed)
+        }
         let host = SSHHostKeyDelegate(hostPort: "\(cfg.host):\(cfg.port)")
 
         let bootstrap = ClientBootstrap(group: SSHClient.sharedGroup)
@@ -199,15 +209,38 @@ final class SSHClient: @unchecked Sendable {
                             inboundChildChannelInitializer: nil
                         )
                     )
+                    try channel.pipeline.syncOperations.addHandler(
+                        HandshakeGateHandler(gate: gate)
+                    )
                 }
             }
 
+        let parent: any Channel
         do {
-            let parent = try await bootstrap.connect(host: cfg.host, port: cfg.port).get()
-            self.channel = parent
+            parent = try await bootstrap.connect(host: cfg.host, port: cfg.port).get()
         } catch let error as SSHError {
+            gate.fail(error)   // complete the gate so the promise never leaks
             throw error
         } catch {
+            gate.fail(error)
+            throw SSHError.connectionFailed(translateConnectError(error, host: cfg.host, port: cfg.port))
+        }
+
+        // Deadline for the whole SSH handshake (version exchange → KEX → host
+        // key → user auth), so a post-TCP stall can't hang the UI.
+        let deadline = parent.eventLoop.scheduleTask(in: .seconds(Int64(cfg.connectTimeoutSeconds) + 5)) {
+            gate.fail(SSHError.connectionFailed("The SSH handshake timed out."))
+        }
+        do {
+            try await gate.future.get()
+            deadline.cancel()
+            self.channel = parent
+        } catch {
+            deadline.cancel()
+            // Close eagerly — on auth exhaustion the server would otherwise
+            // hold the half-open connection until its grace timeout.
+            try? await parent.close()
+            if let sshError = error as? SSHError { throw sshError }
             throw SSHError.connectionFailed(translateConnectError(error, host: cfg.host, port: cfg.port))
         }
     }
@@ -339,6 +372,62 @@ final class SSHClient: @unchecked Sendable {
     static var sharedEventLoopGroup: any EventLoopGroup { sharedGroup }
 }
 
+// MARK: - Handshake gate
+
+/// One-shot wrapper around the handshake promise. The gate can be completed
+/// from several places (auth-success event, pipeline error, auth exhaustion,
+/// deadline, channel close) and NIO promises trap on double-completion, so
+/// only the first outcome wins.
+private final class HandshakeGate: @unchecked Sendable {
+    private let promise: EventLoopPromise<Void>
+    private let lock = NSLock()
+    private var completed = false
+
+    init(on loop: any EventLoop) {
+        promise = loop.makePromise(of: Void.self)
+    }
+
+    var future: EventLoopFuture<Void> { promise.futureResult }
+
+    func succeed() { complete { $0.succeed(()) } }
+    func fail(_ error: any Error) { complete { $0.fail(error) } }
+
+    private func complete(_ body: (EventLoopPromise<Void>) -> Void) {
+        lock.lock()
+        let first = !completed
+        completed = true
+        lock.unlock()
+        if first { body(promise) }
+    }
+}
+
+/// Watches the parent SSH pipeline during connect: succeeds the gate when
+/// user auth completes, fails it on any handshake error — a host-key mismatch
+/// arrives here as the original `SSHError.hostKeyChanged`, since NIOSSH fires
+/// the delegate's validation error down the pipeline verbatim — or when the
+/// server closes mid-handshake. Inert after the gate resolves.
+private final class HandshakeGateHandler: ChannelInboundHandler, @unchecked Sendable {
+    typealias InboundIn = Any
+
+    private let gate: HandshakeGate
+    init(gate: HandshakeGate) { self.gate = gate }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if event is UserAuthSuccessEvent { gate.succeed() }
+        context.fireUserInboundEventTriggered(event)
+    }
+
+    func errorCaught(context: ChannelHandlerContext, error: any Error) {
+        gate.fail(error)
+        context.fireErrorCaught(error)
+    }
+
+    func channelInactive(context: ChannelHandlerContext) {
+        gate.fail(SSHClient.SSHError.connectionFailed("The server closed the connection during the SSH handshake."))
+        context.fireChannelInactive()
+    }
+}
+
 // MARK: - User auth delegate
 
 private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDelegate, @unchecked Sendable {
@@ -346,6 +435,11 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
     /// Pre-resolved by SSHClient.connect() so this delegate never touches
     /// Keychain on the NIO event loop.
     let resolvedKeys: [NIOSSHPrivateKey]
+    /// Called when we run out of credentials to offer (or the server doesn't
+    /// accept our method at all). NIOSSH treats a nil offer as "do nothing",
+    /// which stalls the connection silently — this lets SSHClient fail fast
+    /// with `.authenticationFailed` instead.
+    private let onExhausted: @Sendable () -> Void
     /// Tracks which methods we've already tried this session so NIO doesn't
     /// loop us into the same offer when the server rejects it.
     private var attempted: Set<String> = []
@@ -353,9 +447,14 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
     /// reject one and we try the next (system keys, then the Shio key).
     private var keyIndex = 0
 
-    init(configuration: SSHClient.Configuration, resolvedKeys: [NIOSSHPrivateKey]) {
+    init(
+        configuration: SSHClient.Configuration,
+        resolvedKeys: [NIOSSHPrivateKey],
+        onExhausted: @escaping @Sendable () -> Void
+    ) {
         self.configuration = configuration
         self.resolvedKeys = resolvedKeys
+        self.onExhausted = onExhausted
     }
 
     func nextAuthenticationType(
@@ -366,6 +465,7 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
         case .password(let password):
             guard availableMethods.contains(.password), !attempted.contains("password") else {
                 nextChallengePromise.succeed(nil)
+                onExhausted()
                 return
             }
             attempted.insert("password")
@@ -381,6 +481,7 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
             // server rejects one, so we advance to the next key in the list.
             guard availableMethods.contains(.publicKey), keyIndex < resolvedKeys.count else {
                 nextChallengePromise.succeed(nil)
+                onExhausted()
                 return
             }
             let key = resolvedKeys[keyIndex]
@@ -394,6 +495,7 @@ private final class SSHAuthenticationDelegate: NIOSSHClientUserAuthenticationDel
 
         case .unconfigured:
             nextChallengePromise.succeed(nil)
+            onExhausted()
         }
     }
 }
