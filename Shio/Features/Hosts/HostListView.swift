@@ -2,8 +2,8 @@ import SwiftUI
 import SwiftData
 import WidgetKit
 
-/// The main host list. iPhone shows it as a sheet over the terminal; iPad
-/// will show it in the sidebar (Brick 8).
+/// The machines list — pushed from the More tab (it relies on the enclosing
+/// NavigationStack for its title + toolbar).
 struct HostListView: View {
 
     @Query(sort: \Host.lastConnectedAt, order: .reverse) private var hosts: [Host]
@@ -19,7 +19,6 @@ struct HostListView: View {
     @State private var isAddingHost = false
     @State private var isPairing = false
     @State private var showingTerminal = false
-    @State private var showingSettings = false
     private let sessionStore = SessionStore.shared
 
     /// Set by the parent: which kind of "add" sheet to show (Tailscale picker vs Pro Mode).
@@ -27,81 +26,67 @@ struct HostListView: View {
     private var proModeEnabled: Bool = false
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                KeyReinstallBanner()
-                if hosts.isEmpty {
-                    emptyState
-                } else {
-                    List {
-                        ForEach(dedupedHosts) { host in
-                            Button {
-                                sessionStore.openOrCreate(host: host)
-                                showingTerminal = true
-                            } label: {
-                                HostRow(host: host)
+        VStack(spacing: 0) {
+            KeyReinstallBanner()
+            if hosts.isEmpty {
+                emptyState
+            } else {
+                List {
+                    ForEach(dedupedHosts) { host in
+                        Button {
+                            sessionStore.openOrCreate(host: host)
+                            showingTerminal = true
+                        } label: {
+                            HostRow(host: host)
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(ShioTheme.background)
+                        .listRowSeparatorTint(ShioTheme.line)
+                        // "Remove" (not "Delete") — drops it from Shio
+                        // only; the machine itself is untouched.
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) { remove(host) } label: {
+                                Label("Remove", systemImage: "trash")
                             }
-                            .buttonStyle(.plain)
-                            .listRowBackground(ShioTheme.background)
-                            .listRowSeparatorTint(ShioTheme.line)
-                            // "Remove" (not "Delete") — drops it from Shio
-                            // only; the machine itself is untouched.
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) { remove(host) } label: {
-                                    Label("Remove", systemImage: "trash")
-                                }
-                                .tint(ShioTheme.danger)
-                            }
+                            .tint(ShioTheme.danger)
                         }
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
-                    .refreshable { await SyncRefresh.run(context) }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .refreshable { await SyncRefresh.run(context) }
             }
-            .background(ShioTheme.background)
-            .shioNavTitle("Machines")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            isPairing = true
-                        } label: {
-                            Label("Pair with QR", systemImage: "qrcode.viewfinder")
-                        }
-                        Button {
-                            isAddingHost = true
-                        } label: {
-                            Label("Add manually", systemImage: "square.and.pencil")
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .foregroundStyle(ShioTheme.textPrimary)
-                    }
-                    .accessibilityLabel("Add a machine")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
+        }
+        .background(ShioTheme.background)
+        .shioNavTitle("Machines")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
                     Button {
-                        showingSettings = true
+                        isPairing = true
                     } label: {
-                        Image(systemName: "person.crop.circle")
-                            .foregroundStyle(ShioTheme.textPrimary)
+                        Label("Pair with QR", systemImage: "qrcode.viewfinder")
                     }
-                    .accessibilityLabel("Settings")
+                    Button {
+                        isAddingHost = true
+                    } label: {
+                        Label("Add manually", systemImage: "square.and.pencil")
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .foregroundStyle(ShioTheme.textPrimary)
                 }
+                .accessibilityLabel("Add a machine")
             }
-            .sheet(isPresented: $isAddingHost) {
-                AddHostSheet(proModeEnabled: proModeEnabled)
-            }
-            .sheet(isPresented: $isPairing) {
-                PairingView()
-            }
-            .sheet(isPresented: $showingSettings) {
-                NavigationStack { SettingsView() }
-            }
-            .fullScreenCover(isPresented: $showingTerminal) {
-                TerminalScene()
-            }
+        }
+        .sheet(isPresented: $isAddingHost) {
+            AddHostSheet(proModeEnabled: proModeEnabled)
+        }
+        .sheet(isPresented: $isPairing) {
+            PairingView()
+        }
+        .fullScreenCover(isPresented: $showingTerminal) {
+            TerminalScene()
         }
     }
 

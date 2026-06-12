@@ -146,24 +146,6 @@ struct MacNeedBar: View {
     }
 }
 
-/// The one sanctioned pulse — needs-you flags breathe, nothing else moves.
-private struct ShioNeedsPulse: ViewModifier {
-    @State private var dim = false
-    func body(content: Content) -> some View {
-        content
-            .opacity(dim ? 0.35 : 1)
-            .onAppear {
-                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                    dim = true
-                }
-            }
-    }
-}
-
-extension View {
-    func shioNeedsPulse() -> some View { modifier(ShioNeedsPulse()) }
-}
-
 /// The hairline between the rail and the center canvas.
 struct MacSidebarDivider: View {
     var body: some View {

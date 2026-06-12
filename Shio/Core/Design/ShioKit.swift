@@ -166,6 +166,53 @@ struct ShioChip: View {
     }
 }
 
+// MARK: - Mini action
+
+/// The inline micro-action — Approve · y / Deny · n on a needs-you row.
+/// Mono, hairline, status-tinted; never a heavy fill.
+struct ShioMiniButton: View {
+    let title: String
+    var status: ShioStatus = .neutral
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(status == .neutral ? ShioTheme.textSecondary : status.tint)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .strokeBorder(status == .neutral ? ShioTheme.line2 : status.tint.opacity(0.35),
+                                      lineWidth: 1)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Needs-you pulse
+
+/// The one sanctioned pulse — needs-you flags breathe, nothing else moves.
+private struct ShioNeedsPulse: ViewModifier {
+    @State private var dim = false
+    func body(content: Content) -> some View {
+        content
+            .opacity(dim ? 0.35 : 1)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
+                    dim = true
+                }
+            }
+    }
+}
+
+extension View {
+    func shioNeedsPulse() -> some View { modifier(ShioNeedsPulse()) }
+}
+
 // MARK: - Button
 
 /// The button weights in the kit. `primary` = filled accent (ink-on-bone

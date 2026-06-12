@@ -7,7 +7,6 @@ struct FilesView: View {
     private enum Sort { case name, recent }
 
     @Query(sort: \Host.name) private var hosts: [Host]
-    @State private var showingSettings = false
     @State private var sort: Sort = .name
 
     private var sortedHosts: [Host] {
@@ -18,49 +17,35 @@ struct FilesView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if hosts.isEmpty {
-                    emptyState
-                } else {
-                    List(sortedHosts) { host in
-                        NavigationLink {
-                            FileBrowserView(host: host)
-                        } label: {
-                            HostFileRow(host: host)
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-                    .scrollContentBackground(.hidden)
-                }
-            }
-            .background(ShioTheme.background)
-            .shioNavTitle("Files")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Picker("Sort", selection: $sort) {
-                            Label("Name", systemImage: "textformat").tag(Sort.name)
-                            Label("Recently added", systemImage: "clock").tag(Sort.recent)
-                        }
+        Group {
+            if hosts.isEmpty {
+                emptyState
+            } else {
+                List(sortedHosts) { host in
+                    NavigationLink {
+                        FileBrowserView(host: host)
                     } label: {
-                        Image(systemName: "arrow.up.arrow.down")
-                            .foregroundStyle(ShioTheme.textPrimary)
+                        HostFileRow(host: host)
                     }
-                    .accessibilityLabel("Sort machines")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingSettings = true
-                    } label: {
-                        Image(systemName: "person.crop.circle")
-                            .foregroundStyle(ShioTheme.textPrimary)
-                    }
-                    .accessibilityLabel("Settings")
-                }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
             }
-            .sheet(isPresented: $showingSettings) {
-                NavigationStack { SettingsView() }
+        }
+        .background(ShioTheme.background)
+        .shioNavTitle("Files")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Sort", selection: $sort) {
+                        Label("Name", systemImage: "textformat").tag(Sort.name)
+                        Label("Recently added", systemImage: "clock").tag(Sort.recent)
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .foregroundStyle(ShioTheme.textPrimary)
+                }
+                .accessibilityLabel("Sort machines")
             }
         }
     }

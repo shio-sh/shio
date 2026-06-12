@@ -50,23 +50,12 @@ struct RootView: View {
             OnboardingView()
                 .transition(.opacity)
         } else {
-            // The four-tab Liquid Glass dock. Projects is home; Settings
-            // moves behind the profile button on the Projects tab. Used on
-            // both iPhone and iPad (the iPadOS tab bar adapts); a bespoke iPad
-            // split view is a planned design pass.
-            TabView {
-                Tab("Projects", systemImage: "folder.fill") {
-                    ProjectsView()
-                }
-                Tab("Machines", systemImage: "desktopcomputer") {
-                    HostListView()
-                }
-                Tab("Files", systemImage: "tray.full.fill") {
-                    FilesView()
-                }
-            }
-            .tint(ShioTheme.textPrimary)
-            .transition(.opacity)
+            // The Slack frame, mobile grammar: 塩 Home / ⚑ Activity / ⋯ More
+            // on Shio's own mono tab bar. (iPad's Mac-style split layer is the
+            // next step.)
+            MainTabsView()
+                .tint(ShioTheme.textPrimary)
+                .transition(.opacity)
         }
     }
 }

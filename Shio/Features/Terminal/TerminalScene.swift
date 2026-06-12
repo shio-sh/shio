@@ -14,6 +14,7 @@ private struct IdentifiableURL: Identifiable {
 struct TerminalScene: View {
 
     @State private var showingDiagnose: Bool = false
+    @State private var showingInspector: Bool = false
     @State private var presentedLink: IdentifiableURL?
     /// Live SSH forward backing a loopback OAuth redirect, torn down when the
     /// in-app browser closes.
@@ -29,6 +30,14 @@ struct TerminalScene: View {
     /// nil if the store has no session (e.g. last one was closed).
     private var viewModel: SessionViewModel? {
         store.activeSession?.viewModel
+    }
+
+    /// The active conversation's blocked agent, if any — drives the answer bar.
+    private var waitingSnapshot: AgentSnapshot? {
+        guard let id = store.activeSession?.id,
+              let snap = AgentStateStore.shared.snapshot(for: id),
+              snap.activity == .waiting else { return nil }
+        return snap
     }
 
     var body: some View {
@@ -71,6 +80,24 @@ struct TerminalScene: View {
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             topBar
+        }
+        // The agent's question is in the scrollback right above — this is the
+        // one-keystroke answer, injected straight into the live channel.
+        .overlay(alignment: .bottom) {
+            if let viewModel, let waiting = waitingSnapshot {
+                NeedBar(agentName: waiting.agentName ?? "Your agent",
+                        approve: { Haptics.medium(); viewModel.terminal.onInput?("y\n") },
+                        deny: { Haptics.medium(); viewModel.terminal.onInput?("n\n") })
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 10)
+            }
+        }
+        .sheet(isPresented: $showingInspector) {
+            if let session = store.activeSession {
+                ConversationInspectorSheet(session: session)
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
         }
         .onAppear { store.isTerminalPresented = true }
         .onDisappear { store.isTerminalPresented = false }
@@ -165,6 +192,15 @@ struct TerminalScene: View {
             }
 
             Spacer(minLength: 0)
+
+            Button { showingInspector = true } label: {
+                Text("▤")
+                    .font(.system(size: 14, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textSecondary)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Inspector")
 
             sessionsMenu
         }
@@ -374,5 +410,138 @@ struct TerminalScene: View {
         .clipShape(RoundedRectangle(cornerRadius: ShioRadius.lg, style: .continuous))
         .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
         .padding(ShioSpace.xl)
+    }
+}
+
+// MARK: - Needs-you answer bar
+
+/// "⚑ Codex is waiting · Approve · Deny" — floats over the terminal while the
+/// agent is blocked; the question itself is in the scrollback right above.
+private struct NeedBar: View {
+    let agentName: String
+    let approve: () -> Void
+    let deny: () -> Void
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Text("⚑")
+                .font(.system(size: 12))
+                .foregroundStyle(ShioTheme.warning)
+                .shioNeedsPulse()
+            Text("\(agentName) is waiting")
+                .font(.system(size: 12.5))
+                .foregroundStyle(ShioTheme.textPrimary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            ShioMiniButton(title: "Approve", status: .success, action: approve)
+            ShioMiniButton(title: "Deny", status: .danger, action: deny)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(ShioTheme.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(ShioTheme.warningBg)
+        )
+        .overlay(alignment: .leading) {
+            Rectangle().fill(ShioTheme.warning).frame(width: 2)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .shadow(color: .black.opacity(0.25), radius: 10, y: 3)
+    }
+}
+
+// MARK: - Inspector sheet (▤)
+
+/// The conversation's GLANCE as a sheet: where it runs, who's on it, and the
+/// repo's git state. Empty modules disappear (the empty-states law).
+private struct ConversationInspectorSheet: View {
+    let session: SessionStore.Session
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+
+    private var checkout: ProjectCheckout? {
+        session.checkoutID.flatMap { context.model(for: $0) as? ProjectCheckout }
+    }
+    private var snapshot: AgentSnapshot? {
+        AgentStateStore.shared.snapshot(for: session.id)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("GLANCE")
+                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                    .tracking(2)
+                    .foregroundStyle(ShioTheme.textTertiary)
+                Spacer()
+                Button { dismiss() } label: {
+                    Text("✕")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(ShioTheme.textTertiary)
+                        .frame(width: 30, height: 30)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close")
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+
+            VStack(alignment: .leading, spacing: 0) {
+                kv("Conversation") { Text(session.displayName).foregroundStyle(ShioTheme.textPrimary) }
+                kv("Machine") { Text(session.viewModel.hostName).foregroundStyle(ShioTheme.textPrimary) }
+                if let snap = snapshot, snap.activity != .none {
+                    kv("Agent") {
+                        switch snap.activity {
+                        case .waiting:
+                            Text("⚑ \(snap.agentName ?? "agent") needs you").foregroundStyle(ShioTheme.warning)
+                        case .running:
+                            Text("⠿ \(snap.agentName ?? "agent") working").foregroundStyle(ShioTheme.info)
+                        default:
+                            Text("✓ finished").foregroundStyle(ShioTheme.success)
+                        }
+                    }
+                }
+                if let checkout {
+                    let m = GitLineFormatter.make(
+                        ProjectStatusStore.shared.status(forHost: checkout.host, path: checkout.path)?.probe)
+                    if m.hasTracking {
+                        kv("⎇ Branch") { Text(m.branch).foregroundStyle(ShioTheme.textPrimary) }
+                        kv("Dirty") {
+                            if m.dirty > 0 {
+                                Text("\(m.dirty) file\(m.dirty == 1 ? "" : "s")").foregroundStyle(ShioTheme.warning)
+                            } else {
+                                Text("clean").foregroundStyle(ShioTheme.success)
+                            }
+                        }
+                    }
+                    kv("Path") {
+                        Text(checkout.path)
+                            .foregroundStyle(ShioTheme.textSecondary)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(ShioTheme.background)
+    }
+
+    private func kv<V: View>(_ key: String, @ViewBuilder value: () -> V) -> some View {
+        HStack(spacing: 8) {
+            Text(key).foregroundStyle(ShioTheme.textSecondary)
+            Spacer(minLength: 8)
+            value()
+        }
+        .font(.system(size: 12.5, design: .monospaced))
+        .monospacedDigit()
+        .padding(.vertical, 7)
     }
 }
