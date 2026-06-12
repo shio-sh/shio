@@ -12,6 +12,7 @@ struct RootView: View {
 
     @Query private var hosts: [Host]
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.horizontalSizeClass) private var hSize
     @Bindable private var router = ConnectRouter.shared
 
     var body: some View {
@@ -49,10 +50,15 @@ struct RootView: View {
         if hosts.isEmpty {
             OnboardingView()
                 .transition(.opacity)
+        } else if hSize == .regular {
+            // iPad (and any regular width) = the Mac layout, touch-sized:
+            // rail · center canvas · inspector.
+            PadRootView()
+                .tint(ShioTheme.textPrimary)
+                .transition(.opacity)
         } else {
             // The Slack frame, mobile grammar: 塩 Home / ⚑ Activity / ⋯ More
-            // on Shio's own mono tab bar. (iPad's Mac-style split layer is the
-            // next step.)
+            // on Shio's own mono tab bar.
             MainTabsView()
                 .tint(ShioTheme.textPrimary)
                 .transition(.opacity)
