@@ -109,10 +109,18 @@ final class CloudKitSignalService {
         _ = try? await database.save(record)
     }
 
-    /// Mac side: fetch any pending `Action` records, return them, and delete them
-    /// so each approval is consumed exactly once. Best-effort (empty on any
-    /// failure / no iCloud / schema not deployed).
-    func fetchAndClearActions() async -> [(sessionId: String, key: String)] {
+    /// Mac side: fetch pending `Action` records and consume them at-most-once.
+    /// Best-effort (empty on any failure / no iCloud / schema not deployed).
+    ///
+    /// Two safety properties an approve channel needs:
+    /// - **Delete before inject.** Only actions whose delete the server
+    ///   confirmed are returned — a failed delete would be re-fetched next
+    ///   poll, and injecting it now too would answer the prompt twice. A
+    ///   re-tap is cheap; a double-"y" into the *next* prompt is not.
+    /// - **TTL.** An action older than `maxAge` is a leftover (written while
+    ///   the Mac was off or the agent already moved on) — it's consumed but
+    ///   never injected into whatever happens to be blocking *now*.
+    func fetchAndClearActions(maxAge: TimeInterval = 120) async -> [(sessionId: String, key: String)] {
         guard await iCloudAvailable() else { return [] }
         // Filter on the queryable `sessionId` field rather than a true predicate,
         // which would need the system `recordName` index marked Queryable (the
@@ -122,16 +130,27 @@ final class CloudKitSignalService {
                             predicate: NSPredicate(format: "sessionId > %@", ""))
         do {
             let (matches, _) = try await database.records(matching: query)
-            var actions: [(sessionId: String, key: String)] = []
-            var ids: [CKRecord.ID] = []
+            let cutoff = Date().addingTimeInterval(-maxAge)
+            var fresh: [CKRecord.ID: (sessionId: String, key: String)] = [:]
+            var allIDs: [CKRecord.ID] = []
             for (id, result) in matches {
-                if case .success(let rec) = result,
-                   let s = rec["sessionId"] as? String, let k = rec["key"] as? String {
-                    actions.append((s, k)); ids.append(id)
+                guard case .success(let rec) = result,
+                      let s = rec["sessionId"] as? String,
+                      let k = rec["key"] as? String else { continue }
+                allIDs.append(id)
+                if (rec.creationDate ?? .distantPast) > cutoff {
+                    fresh[id] = (s, k)
                 }
             }
-            if !ids.isEmpty { _ = try? await database.modifyRecords(saving: [], deleting: ids) }
-            return actions
+            guard !allIDs.isEmpty else { return [] }
+            let (_, deleteResults) = try await database.modifyRecords(saving: [], deleting: allIDs)
+            var consumed: [(sessionId: String, key: String)] = []
+            for (id, result) in deleteResults {
+                if case .success = result, let action = fresh[id] {
+                    consumed.append(action)
+                }
+            }
+            return consumed
         } catch {
             return []
         }

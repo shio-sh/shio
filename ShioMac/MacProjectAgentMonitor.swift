@@ -41,7 +41,20 @@ final class MacProjectAgentMonitor {
 
     /// tmux sessions we've already pushed an away-signal for while they're
     /// blocked — so the phone buzzes once per "needs you", not every poll.
-    private var signaledWaiting: Set<String> = []
+    /// Persisted so an app restart doesn't re-push for an agent that's been
+    /// sitting on the same prompt the whole time.
+    private static let signaledKey = "shio.awaySignal.signaled"
+    private var signaledWaiting: Set<String> = Set(
+        UserDefaults.standard.stringArray(forKey: MacProjectAgentMonitor.signaledKey) ?? []
+    ) {
+        didSet {
+            guard signaledWaiting != oldValue else { return }
+            UserDefaults.standard.set(Array(signaledWaiting), forKey: Self.signaledKey)
+        }
+    }
+    /// True while an inject pass is in flight — a slow iCloud round trip must
+    /// not overlap the next poll's pass, or both fetch the same Action.
+    private var isInjecting = false
 
     private func poll() {
         guard let tmux else { return }
@@ -58,7 +71,9 @@ final class MacProjectAgentMonitor {
     /// keystroke into the matching tmux session. Only polls iCloud while an
     /// agent is actually blocked, so it's quiet the rest of the time.
     private func injectPendingActions(tmux: String) async {
-        guard !signaledWaiting.isEmpty else { return }
+        guard !signaledWaiting.isEmpty, !isInjecting else { return }
+        isInjecting = true
+        defer { isInjecting = false }
         let actions = await CloudKitSignalService.shared.fetchAndClearActions()
         guard !actions.isEmpty else { return }
         await Task.detached(priority: .utility) {

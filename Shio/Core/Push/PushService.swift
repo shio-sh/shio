@@ -169,6 +169,18 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
 final class ShioAppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        // The notification delegate must exist before launch finishes: when a
+        // lock-screen Approve/Deny tap cold-launches the app, iOS delivers the
+        // response right after this returns — a delegate installed later (the
+        // async registerIfAuthorized hop) misses it and the action is dropped.
+        PushService.shared.configureNotificationActions()
+        return true
+    }
+
+    func application(
+        _ application: UIApplication,
         didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
     ) {
         Task { @MainActor in PushService.shared.didRegister(tokenData: deviceToken) }
