@@ -13,6 +13,7 @@ struct ProjectsView: View {
     @State private var isAddingProject = false
     @State private var showingTerminal = false
     @State private var selectedProject: Project?
+    @State private var noCheckoutName: String?
     private let sessionStore = SessionStore.shared
     private let agents = AgentStateStore.shared
     private let status = ProjectStatusStore.shared
@@ -90,6 +91,12 @@ struct ProjectsView: View {
             .sheet(isPresented: $showingSettings) { NavigationStack { SettingsView() } }
             .sheet(isPresented: $isAddingProject) { AddProjectSheet() }
             .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
+            .alert("No machine for this project", isPresented: Binding(
+                get: { noCheckoutName != nil }, set: { if !$0 { noCheckoutName = nil } })) {
+                Button("OK") { noCheckoutName = nil }
+            } message: {
+                Text("“\(noCheckoutName ?? "")” has no checkout on a reachable machine yet. Add one from the project's dashboard (Repos → Open on), or re-add the machine it lived on.")
+            }
             .onAppear { refreshStatus() }
             // Cheap keep-fresh while the list is on screen (mirrors the Mac
             // dashboard timer): needs-you cards appear/clear without a manual
@@ -110,12 +117,17 @@ struct ProjectsView: View {
     private func openRepo(_ repo: Repo) {
         if sessionStore.openOrCreate(repo: repo) != nil {
             showingTerminal = true
+        } else {
+            // No checkout (or its host is gone) — say so instead of a dead tap.
+            noCheckoutName = repo.name
         }
     }
 
     private func open(_ project: Project) {
         if sessionStore.openOrCreate(project: project) != nil {
             showingTerminal = true
+        } else {
+            noCheckoutName = project.name
         }
     }
 

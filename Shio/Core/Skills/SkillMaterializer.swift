@@ -327,10 +327,14 @@ final class SkillMaterializer {
         let client = SSHClient(configuration: config)
         do {
             try await client.connect()
-            _ = try? await client.exec(posixScript: script, timeout: .seconds(12))
+            let result = try await client.execWithStatus(posixScript: script, timeout: .seconds(12))
             await client.disconnect()
+            if result.timedOut || (result.exitStatus ?? 0) != 0 {
+                print("[shio] skills: materialize on \(config.host) failed (exit \(result.exitStatus.map(String.init) ?? "?")\(result.timedOut ? ", timed out" : "")): \(result.stderr.prefix(200))")
+            }
         } catch {
             await client.disconnect()
+            print("[shio] skills: materialize on \(config.host) unreachable: \(error.localizedDescription)")
         }
     }
 
