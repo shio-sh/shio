@@ -234,16 +234,20 @@ private struct RailSwitcherButton: View {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
                             .fill(muted ? ShioTheme.hover : ShioTheme.accentBg)
                     )
-                Text(name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(muted ? ShioTheme.textSecondary : ShioTheme.textPrimary)
-                    .lineLimit(1)
-                Spacer(minLength: 4)
-                if !muted {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(ShioTheme.textTertiary)
+                // Slack-style: the caret rides the name, never the far edge.
+                HStack(spacing: 5) {
+                    Text(name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(muted ? ShioTheme.textSecondary : ShioTheme.textPrimary)
+                        .lineLimit(1)
+                    if !muted {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(ShioTheme.textSecondary)
+                            .padding(.top, 1)
+                    }
                 }
+                Spacer(minLength: 4)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)

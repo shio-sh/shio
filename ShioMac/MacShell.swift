@@ -44,11 +44,11 @@ struct MacShell: View {
                 }
             }
 
-            // The rail toggle never moves — Slack/Notion practice: one spot,
-            // always, beside the lights.
+            // The rail toggle never moves — Slack/Notion practice: snug after
+            // the lights, on their centerline, one spot always.
             MacRailToggle(model: model)
-                .padding(.leading, 82)
-                .padding(.top, 10)
+                .padding(.leading, 78)
+                .padding(.top, 9)
 
             if model.showingProjectMenu, !model.sidebarCollapsed {
                 // Click-away catcher under the menu.
@@ -166,7 +166,7 @@ private struct MacRailToggle: View {
             withAnimation(.easeOut(duration: 0.15)) { model.sidebarCollapsed.toggle() }
         } label: {
             Image(systemName: "sidebar.leading")
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(hovering ? ShioTheme.textPrimary : ShioTheme.textSecondary)
                 .frame(width: 30, height: 30)
                 .background(
