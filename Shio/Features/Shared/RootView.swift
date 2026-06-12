@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Combine
 
 /// Root scene router.
 ///
@@ -10,6 +11,8 @@ import SwiftData
 struct RootView: View {
 
     @Query private var hosts: [Host]
+    @Environment(\.modelContext) private var modelContext
+    @Bindable private var router = ConnectRouter.shared
 
     var body: some View {
         contentBody
@@ -20,6 +23,15 @@ struct RootView: View {
                 // TerminalScene.
                 OverlayWindow.shared.install()
             }
+            // The single observer behind every "jump in" entry point: an
+            // away-push tap, a widget link, the Siri intent, Handoff, and
+            // `shio://connect` URLs all post `.shioConnectToHost`; the router
+            // resolves the host (and the tmux session, if the away-signal
+            // named one) and opens the session.
+            .onReceive(NotificationCenter.default.publisher(for: .shioConnectToHost)) { note in
+                router.handle(userInfo: note.userInfo ?? [:], context: modelContext)
+            }
+            .fullScreenCover(isPresented: $router.showTerminal) { TerminalScene() }
     }
 
     @ViewBuilder

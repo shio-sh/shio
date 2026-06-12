@@ -79,8 +79,11 @@ final class MacProjectAgentMonitor {
             let title = "\(snap.agentName ?? "An agent") needs you"
             let body = snap.detail ?? "\(project) is waiting on you."
             Task {
+                // The phone resolves this Mac by the deviceID stamped on its
+                // synced Host record (MacSelfHost) — the one host reference
+                // that survives the CloudKit round trip.
                 await CloudKitSignalService.shared.sendAgentSignal(
-                    hostId: "", sessionId: name, title: title, body: body)
+                    hostId: MacSelfHost.deviceID, sessionId: name, title: title, body: body)
             }
         }
         // Re-arm sessions that are no longer waiting (or vanished).

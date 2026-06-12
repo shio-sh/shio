@@ -80,25 +80,6 @@ final class CloudKitSignalService {
         }
     }
 
-    /// Parse an incoming CloudKit push and route to the right host. Returns
-    /// true if this was a CloudKit notification (so the caller doesn't also
-    /// run the relay path on it).
-    @discardableResult
-    func handleNotification(_ userInfo: [AnyHashable: Any]) -> Bool {
-        guard let notification = CKNotification(fromRemoteNotificationDictionary: userInfo) else {
-            return false
-        }
-        guard let query = notification as? CKQueryNotification else { return false }
-        if let hostId = query.recordFields?["hostId"] as? String, !hostId.isEmpty {
-            NotificationCenter.default.post(
-                name: .shioConnectToHost,
-                object: nil,
-                userInfo: ["hostId": hostId]
-            )
-        }
-        return true
-    }
-
     // MARK: Verification
 
     /// Fire the away-push for a real "an agent needs you" event — a Shio

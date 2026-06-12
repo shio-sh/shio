@@ -100,8 +100,10 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
         default:
             if let host {
                 await MainActor.run {
+                    var info: [AnyHashable: Any] = ["hostId": host]
+                    if let sid { info["sessionId"] = sid }
                     NotificationCenter.default.post(name: .shioConnectToHost, object: nil,
-                                                    userInfo: ["hostId": host])
+                                                    userInfo: info)
                 }
             }
         }
@@ -127,20 +129,6 @@ final class PushService: NSObject, UNUserNotificationCenterDelegate {
 
     func didFailToRegister(_ error: any Error) {
         print("[shio] APNs registration failed: \(error.localizedDescription)")
-    }
-
-    /// Handle an incoming away-push. The opaque payload may carry the host id
-    /// to jump to; we route through the same path the App Intent / Handoff /
-    /// deep links use, so behavior stays unified.
-    func handleRemoteNotification(_ userInfo: [AnyHashable: Any]) {
-        let hostId = (userInfo["hostId"] as? String)
-            ?? ((userInfo["aps"] as? [String: Any])?["hostId"] as? String)
-        guard let hostId else { return }
-        NotificationCenter.default.post(
-            name: .shioConnectToHost,
-            object: nil,
-            userInfo: ["hostId": hostId]
-        )
     }
 
     /// Forward a Live Activity push-to-update token to the relay so it can
@@ -197,13 +185,9 @@ final class ShioAppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didReceiveRemoteNotification userInfo: [AnyHashable: Any]
     ) async -> UIBackgroundFetchResult {
-        // CloudKit pushes (the sovereign path) take precedence; only fall
-        // through to the relay path if this wasn't one. These are MainActor
-        // calls and the delegate is already MainActor-isolated, so no await.
-        let handledByCloudKit = CloudKitSignalService.shared.handleNotification(userInfo)
-        if !handledByCloudKit {
-            PushService.shared.handleRemoteNotification(userInfo)
-        }
+        // Arrival is not intent: routing happens only when the user taps the
+        // banner (`userNotificationCenter(_:didReceive:)`). Auto-routing here
+        // would yank the terminal open the moment a push lands mid-use.
         return .noData
     }
 }

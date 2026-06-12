@@ -72,6 +72,8 @@ struct TerminalScene: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             topBar
         }
+        .onAppear { store.isTerminalPresented = true }
+        .onDisappear { store.isTerminalPresented = false }
         // Broadcast the current session as a Handoff activity so iPad /
         // Mac Catalyst can pick it up. Republishes whenever the active
         // session changes.
@@ -80,9 +82,13 @@ struct TerminalScene: View {
             isActive: store.activeSession != nil
         ) { activity in
             guard let session = store.activeSession else { return }
+            // The activity crosses devices, where persistentModelID strings
+            // mean nothing — hand off the synced device id (or the hostname),
+            // which the receiving ConnectRouter resolves.
+            let host = modelContext.model(for: session.hostID) as? Host
             let built = SessionHandoff.makeActivity(
                 hostName: session.viewModel.hostName,
-                hostID: "\(session.hostID)"
+                hostID: host?.deviceID ?? host?.hostname ?? "\(session.hostID)"
             )
             activity.userInfo = built.userInfo
             activity.title = built.title

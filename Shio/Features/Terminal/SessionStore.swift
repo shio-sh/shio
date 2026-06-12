@@ -53,6 +53,11 @@ final class SessionStore {
     /// nil = no terminal scene is up.
     var activeSession: Session?
 
+    /// True while a `TerminalScene` is on screen (it flips this from
+    /// onAppear/onDisappear). Lets `ConnectRouter` know whether routing needs
+    /// to present a terminal or just switch `activeSession`.
+    var isTerminalPresented = false
+
     private init() {}
 
     /// Convenience: sessions for a particular host, in creation order.
@@ -137,8 +142,11 @@ final class SessionStore {
             await CloudKitSignalService.shared.ensureSubscription()
         }
 
+        // Prefer the synced per-device id when the host has one — it survives
+        // a store rebuild (CloudKit re-mirror), which regenerates every
+        // persistentModelID and would strand the widget's links.
         WidgetSharedState.recordConnect(
-            id: "\(host.persistentModelID)",
+            id: host.deviceID ?? "\(host.persistentModelID)",
             name: host.name
         )
         WidgetCenter.shared.reloadAllTimelines()
