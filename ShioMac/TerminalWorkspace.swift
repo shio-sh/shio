@@ -106,10 +106,11 @@ struct TerminalWorkspaceView: View {
         MacCanvasHeader(title: tab.title, sub: sub(for: tab)) {
             presenceGlyph(tab)
         } trailing: {
-            MacHeaderIconButton(glyph: "◫", help: "Split right (⌘D)") {
+            MacHeaderIconButton(systemImage: "rectangle.split.2x1", help: "Split right (⌘D)") {
                 model.splitFocused(.horizontal)
             }
-            MacHeaderIconButton(glyph: "▤", help: "Inspector (⌘I)", on: model.inspectorOpen) {
+            MacHeaderIconButton(systemImage: "sidebar.trailing", help: "Inspector (⌘I)",
+                                on: model.inspectorOpen) {
                 model.inspectorOpen.toggle()
             }
         }

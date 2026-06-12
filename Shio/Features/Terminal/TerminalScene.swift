@@ -194,8 +194,8 @@ struct TerminalScene: View {
             Spacer(minLength: 0)
 
             Button { showingInspector = true } label: {
-                Text("▤")
-                    .font(.system(size: 14, design: .monospaced))
+                Image(systemName: "sidebar.trailing")
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(ShioTheme.textSecondary)
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
@@ -479,8 +479,8 @@ private struct ConversationInspectorSheet: View {
                     .foregroundStyle(ShioTheme.textTertiary)
                 Spacer()
                 Button { dismiss() } label: {
-                    Text("✕")
-                        .font(.system(size: 12, design: .monospaced))
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(ShioTheme.textTertiary)
                         .frame(width: 30, height: 30)
                         .contentShape(Rectangle())

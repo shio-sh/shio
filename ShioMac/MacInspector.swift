@@ -32,7 +32,7 @@ struct MacInspector: View {
                 .tracking(2)
                 .foregroundStyle(ShioTheme.textTertiary)
             Spacer(minLength: 4)
-            MacHeaderIconButton(glyph: "✕", help: "Close (⌘I)") {
+            MacHeaderIconButton(systemImage: "xmark", size: 12, help: "Close (⌘I)") {
                 model.inspectorOpen = false
             }
         }

@@ -9,6 +9,7 @@ import SwiftData
 struct MacDashboardCanvas: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
+    @Environment(\.shioHeaderLeadingInset) private var headerInset
     @State private var renaming = false
 
     var body: some View {
@@ -63,11 +64,13 @@ struct MacDashboardCanvas: View {
             ShioButton("New repo", .primary, compact: true) {
                 model.addRepoToProject = project
             }
-            MacHeaderIconButton(glyph: "▤", help: "Inspector (⌘I)", on: model.inspectorOpen) {
+            MacHeaderIconButton(systemImage: "sidebar.trailing", help: "Inspector (⌘I)",
+                                on: model.inspectorOpen) {
                 model.inspectorOpen.toggle()
             }
         }
-        .padding(.horizontal, 18)
+        .padding(.leading, 18 + headerInset)
+        .padding(.trailing, 18)
         .frame(maxWidth: .infinity)
         .frame(height: MacChrome.headerHeight)
         .overlay(alignment: .bottom) {

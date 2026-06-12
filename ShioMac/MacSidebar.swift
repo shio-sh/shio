@@ -9,6 +9,23 @@ import SwiftUI
 /// a header by padding (the alignment law).
 enum MacChrome {
     static let headerHeight: CGFloat = 48
+    /// Leading clearance a canvas header needs when the rail is collapsed —
+    /// the traffic lights + the fixed sidebar toggle live in that strip.
+    static let lightsClearance: CGFloat = 122
+}
+
+private struct ShioHeaderInsetKey: EnvironmentKey {
+    static let defaultValue: CGFloat = 0
+}
+
+extension EnvironmentValues {
+    /// Extra leading inset for canvas headers — MacShell sets it to
+    /// `MacChrome.lightsClearance` while the rail is collapsed so titles
+    /// never run under the traffic lights or the sidebar toggle.
+    var shioHeaderLeadingInset: CGFloat {
+        get { self[ShioHeaderInsetKey.self] }
+        set { self[ShioHeaderInsetKey.self] = newValue }
+    }
 }
 
 /// The center canvas's top bar: optional presence glyph, title, quiet mono
@@ -18,6 +35,7 @@ struct MacCanvasHeader<Leading: View, Trailing: View>: View {
     var sub: String? = nil
     @ViewBuilder var leading: () -> Leading
     @ViewBuilder var trailing: () -> Trailing
+    @Environment(\.shioHeaderLeadingInset) private var leadingInset
 
     init(title: String,
          sub: String? = nil,
@@ -46,7 +64,8 @@ struct MacCanvasHeader<Leading: View, Trailing: View>: View {
             Spacer(minLength: 10)
             trailing()
         }
-        .padding(.horizontal, 18)
+        .padding(.leading, 18 + leadingInset)
+        .padding(.trailing, 18)
         .frame(maxWidth: .infinity)
         .frame(height: MacChrome.headerHeight)
         .background(ShioTheme.background)
@@ -56,9 +75,11 @@ struct MacCanvasHeader<Leading: View, Trailing: View>: View {
     }
 }
 
-/// A quiet glyph button for canvas headers (◫ split, ▤ inspector, ✕ close).
+/// A quiet icon button for canvas headers (split, inspector, close) — real
+/// SF Symbols at the standard toolbar size, never tiny text glyphs.
 struct MacHeaderIconButton: View {
-    let glyph: String
+    let systemImage: String
+    var size: CGFloat = 14
     var help: String = ""
     var on: Bool = false
     let action: () -> Void
@@ -66,16 +87,16 @@ struct MacHeaderIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text(glyph)
-                .font(.system(size: 13, design: .monospaced))
+            Image(systemName: systemImage)
+                .font(.system(size: size, weight: .medium))
                 .foregroundStyle(on ? ShioTheme.accent
-                                 : (hovering ? ShioTheme.textPrimary : ShioTheme.textTertiary))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                                 : (hovering ? ShioTheme.textPrimary : ShioTheme.textSecondary))
+                .frame(width: 28, height: 28)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(on ? ShioTheme.accentBg : (hovering ? ShioTheme.hover : .clear))
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }

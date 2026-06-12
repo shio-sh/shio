@@ -138,8 +138,8 @@ struct HomeTabView: View {
                     Label("New project…", systemImage: "plus")
                 }
             } label: {
-                Text("▾")
-                    .font(.system(size: 11, design: .monospaced))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(ShioTheme.textTertiary)
                     .frame(width: 30, height: 30)
                     .contentShape(Rectangle())
@@ -149,8 +149,8 @@ struct HomeTabView: View {
             Spacer()
 
             Button { isAddingProject = true } label: {
-                Text("+")
-                    .font(.system(size: 17, design: .monospaced))
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(ShioTheme.textSecondary)
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())

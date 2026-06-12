@@ -24,7 +24,8 @@ struct MacFilesPane: View {
         VStack(spacing: 0) {
             MacCanvasHeader(title: "Files") {
             } trailing: {
-                MacHeaderIconButton(glyph: "▤", help: "Inspector (⌘I)", on: model.inspectorOpen) {
+                MacHeaderIconButton(systemImage: "sidebar.trailing", help: "Inspector (⌘I)",
+                                    on: model.inspectorOpen) {
                     model.inspectorOpen.toggle()
                 }
             }

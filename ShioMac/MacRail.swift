@@ -187,9 +187,11 @@ struct MacRail: View {
             Spacer(minLength: 4)
             if let add {
                 Button(action: add) {
-                    Text("+")
-                        .font(.system(size: 12, design: .monospaced))
+                    Image(systemName: "plus")
+                        .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(ShioTheme.textTertiary)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(help)
@@ -238,8 +240,8 @@ private struct RailSwitcherButton: View {
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 if !muted {
-                    Text("▾")
-                        .font(.system(size: 10, design: .monospaced))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(ShioTheme.textTertiary)
                 }
             }
@@ -318,9 +320,11 @@ private struct ShellRailRow: View {
                 Spacer(minLength: 6)
                 if hovering {
                     Button { model.closeTab(tab.id) } label: {
-                        Text("✕")
-                            .font(.system(size: 10, design: .monospaced))
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(ShioTheme.textTertiary)
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .help("Close shell (⌘W)")

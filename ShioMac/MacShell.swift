@@ -33,6 +33,11 @@ struct MacShell: View {
                     MacSidebarDivider()
                 }
                 center
+                    // Collapsed rail = the lights + toggle float over the
+                    // canvas; headers clear that strip instead of running
+                    // under it.
+                    .environment(\.shioHeaderLeadingInset,
+                                 model.sidebarCollapsed ? MacChrome.lightsClearance : 0)
                 if model.inspectorOpen {
                     MacSidebarDivider()
                     MacInspector(model: model)
@@ -42,8 +47,8 @@ struct MacShell: View {
             // The rail toggle never moves — Slack/Notion practice: one spot,
             // always, beside the lights.
             MacRailToggle(model: model)
-                .padding(.leading, 84)
-                .padding(.top, 13)
+                .padding(.leading, 82)
+                .padding(.top, 10)
 
             if model.showingProjectMenu, !model.sidebarCollapsed {
                 // Click-away catcher under the menu.
@@ -149,7 +154,8 @@ struct MacShell: View {
     }
 }
 
-/// ◧ — the fixed rail toggle beside the traffic lights (⌘\).
+/// The fixed rail toggle beside the traffic lights (⌘\) — the standard
+/// sidebar symbol, the standard spot, open or collapsed.
 private struct MacRailToggle: View {
     @Bindable var model: MacTerminalModel
     @State private var hovering = false
@@ -159,15 +165,15 @@ private struct MacRailToggle: View {
             model.showingProjectMenu = false
             withAnimation(.easeOut(duration: 0.15)) { model.sidebarCollapsed.toggle() }
         } label: {
-            Text(model.sidebarCollapsed ? "◨" : "◧")
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundStyle(hovering ? ShioTheme.textPrimary : ShioTheme.textTertiary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+            Image(systemName: "sidebar.leading")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(hovering ? ShioTheme.textPrimary : ShioTheme.textSecondary)
+                .frame(width: 30, height: 30)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(hovering ? ShioTheme.hover : .clear)
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
