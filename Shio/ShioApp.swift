@@ -59,19 +59,26 @@ struct ShioApp: App {
         .modelContainer(ShioModelContainer.shared)
     }
 
-    /// Routes incoming URLs (currently just `shio://connect?host=<id>`).
-    /// The connect handler delegates to the same notification path the
-    /// App Intent uses, so behavior stays unified.
+    /// Routes incoming URLs: `shio://connect?host=<id>` (widget taps) and
+    /// `shio://pair?d=<base64url>` (the Mac's QR scanned with the Camera app,
+    /// or tapped as a link). Connect delegates to the same notification path
+    /// the App Intent uses, so behavior stays unified.
     private func handleDeepLink(_ url: URL) {
-        guard url.scheme == "shio",
-              url.host == "connect",
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let hostID = components.queryItems?.first(where: { $0.name == "host" })?.value
-        else { return }
-        NotificationCenter.default.post(
-            name: .shioConnectToHost,
-            object: nil,
-            userInfo: ["hostId": hostID]
-        )
+        guard url.scheme == "shio" else { return }
+        switch url.host {
+        case "connect":
+            guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  let hostID = components.queryItems?.first(where: { $0.name == "host" })?.value
+            else { return }
+            NotificationCenter.default.post(
+                name: .shioConnectToHost,
+                object: nil,
+                userInfo: ["hostId": hostID]
+            )
+        case "pair":
+            ConnectRouter.shared.pendingPairing = .init(scanned: url.absoluteString)
+        default:
+            break
+        }
     }
 }

@@ -32,6 +32,11 @@ struct RootView: View {
                 router.handle(userInfo: note.userInfo ?? [:], context: modelContext)
             }
             .fullScreenCover(isPresented: $router.showTerminal) { TerminalScene() }
+            // A shio://pair link (the Mac's QR scanned with the Camera app,
+            // or tapped as a link) opens the pairing flow directly.
+            .sheet(item: $router.pendingPairing) { pending in
+                PairingView(prescanned: pending.scanned)
+            }
     }
 
     @ViewBuilder

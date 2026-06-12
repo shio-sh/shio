@@ -20,6 +20,15 @@ final class ConnectRouter {
     /// is enough (the scene renders whatever's active).
     var showTerminal = false
 
+    /// A `shio://pair` payload that arrived from outside the app (Camera-app
+    /// scan, tapped link) — RootView presents the pairing sheet for it.
+    var pendingPairing: PendingPairing?
+
+    struct PendingPairing: Identifiable {
+        let id = UUID()
+        let scanned: String
+    }
+
     private init() {}
 
     /// Entry point for `.shioConnectToHost`. `hostId` is required; `sessionId`

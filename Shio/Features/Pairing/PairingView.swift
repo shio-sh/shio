@@ -21,9 +21,14 @@ struct PairingView: View {
     @State private var phase: Phase
     @State private var manualText: String = ""
     @State private var localNetwork = LocalNetworkPrimer()
+    /// A payload that arrived as a `shio://pair` deep link (Camera-app scan
+    /// or a link tap) — skips the in-app scanner and pairs immediately.
+    private let prescanned: String?
 
-    init() {
-        _phase = State(initialValue: PairingScanner.isSupported ? .scanning : .manualEntry)
+    init(prescanned: String? = nil) {
+        self.prescanned = prescanned
+        _phase = State(initialValue: prescanned != nil ? .pairing
+                       : PairingScanner.isSupported ? .scanning : .manualEntry)
     }
 
     var body: some View {
@@ -35,7 +40,10 @@ struct PairingView: View {
                 // Prompt for Local Network access up front — before the camera
                 // — so the post-scan POST to the Mac's local endpoint isn't
                 // racing the permission and failing on the first try.
-                .onAppear { localNetwork.prime() }
+                .onAppear {
+                    localNetwork.prime()
+                    if let prescanned { handle(prescanned) }
+                }
                 .onDisappear { localNetwork.stop() }
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
