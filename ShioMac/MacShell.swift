@@ -151,7 +151,8 @@ struct SectionSearchField: View {
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(ShioTheme.hover, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ShioTheme.line, lineWidth: 1))
         .padding(.horizontal, 12).padding(.top, 10)
         .onAppear { focused = true }
     }
@@ -189,7 +190,7 @@ private struct MacAddHostForm: View {
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
-                Button("Add & Connect") { addAndConnect() }
+                ShioButton("Add & Connect", .primary, compact: true) { addAndConnect() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(hostname.trimmingCharacters(in: .whitespaces).isEmpty || user.isEmpty)
             }

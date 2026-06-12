@@ -52,7 +52,7 @@ struct MacAddProjectForm: View {
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
-                Button("Add & Open") { add() }
+                ShioButton("Add & Open", .primary, compact: true) { add() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canAdd)
             }

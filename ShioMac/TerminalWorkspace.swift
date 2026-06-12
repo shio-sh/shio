@@ -145,8 +145,8 @@ private struct TerminalSearchBar: View {
         }
         .font(.system(size: 12))
         .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(.separator))
+        .background(ShioTheme.surface, in: Capsule())
+        .overlay(Capsule().strokeBorder(ShioTheme.line2))
         .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
         .onAppear {
             focused = true
@@ -210,7 +210,7 @@ private struct TabStrip: View {
         // macOS's unified titlebar, which extends the strip's tint up through
         // the window title to the very top of the window (the "color goes to the
         // top" glitch). An explicit window-background keeps the strip contained.
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(ShioTheme.background)
     }
 }
 

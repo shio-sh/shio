@@ -208,14 +208,14 @@ private struct CommandRow: View {
         HStack(spacing: 10) {
             Image(systemName: cmd.symbol)
                 .frame(width: 20)
-                .foregroundStyle(selected ? Color.white : .secondary)
+                .foregroundStyle(selected ? ShioTheme.background : .secondary)
             VStack(alignment: .leading, spacing: 1) {
                 Text(cmd.title)
-                    .foregroundStyle(selected ? Color.white : .primary)
+                    .foregroundStyle(selected ? ShioTheme.background : .primary)
                 if let subtitle = cmd.subtitle {
                     Text(subtitle)
                         .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(selected ? Color.white.opacity(0.8) : .secondary)
+                        .foregroundStyle(selected ? ShioTheme.background.opacity(0.8) : .secondary)
                         .lineLimit(1).truncationMode(.middle)
                 }
             }
@@ -223,12 +223,12 @@ private struct CommandRow: View {
             if let shortcut = cmd.shortcut {
                 Text(shortcut)
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(selected ? Color.white.opacity(0.9) : Color.secondary)
+                    .foregroundStyle(selected ? ShioTheme.background.opacity(0.9) : Color.secondary)
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(selected ? Color.accentColor : Color.clear)
+        .background(selected ? ShioTheme.accent : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .padding(.horizontal, 6)
     }
