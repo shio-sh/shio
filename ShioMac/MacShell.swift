@@ -44,11 +44,13 @@ struct MacShell: View {
                 }
             }
 
-            // The rail toggle never moves — Slack/Notion practice: snug after
-            // the lights, on their centerline, one spot always.
-            MacRailToggle(model: model)
-                .padding(.leading, 78)
-                .padding(.top, 9)
+            // While the rail is open the toggle lives in its switcher row;
+            // collapsed, it floats beside the lights on their centerline.
+            if model.sidebarCollapsed {
+                MacRailToggleButton(model: model)
+                    .padding(.leading, 80)
+                    .padding(.top, 12)
+            }
 
             if model.showingProjectMenu, !model.sidebarCollapsed {
                 // Click-away catcher under the menu.
@@ -57,10 +59,14 @@ struct MacShell: View {
                     .onTapGesture { model.showingProjectMenu = false }
                 MacProjectMenu(model: model)
                     .padding(.leading, 10)
-                    .padding(.top, 86)
+                    .padding(.top, 90)
             }
         }
         .ignoresSafeArea(edges: .top)
+        // Slack-style titlebar: an empty transparent unified toolbar gives the
+        // traffic lights their lower, airier position instead of the cramped
+        // compact one — without drawing any chrome of its own.
+        .background(MacWindowChrome())
         .sheet(isPresented: $model.showingAddHost) {
             MacAddHostForm(model: model)
         }
@@ -154,30 +160,32 @@ struct MacShell: View {
     }
 }
 
-/// The fixed rail toggle beside the traffic lights (⌘\) — the standard
-/// sidebar symbol, the standard spot, open or collapsed.
-private struct MacRailToggle: View {
-    @Bindable var model: MacTerminalModel
-    @State private var hovering = false
+/// Window-level chrome the SwiftUI scene can't express: a transparent,
+/// item-less unified toolbar so the traffic lights sit at the relaxed
+/// Slack/Linear position rather than hugging the corner. No visible band —
+/// the rail and canvas still run to the very top.
+private struct MacWindowChrome: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { configure(view.window) }
+        return view
+    }
 
-    var body: some View {
-        Button {
-            model.showingProjectMenu = false
-            withAnimation(.easeOut(duration: 0.15)) { model.sidebarCollapsed.toggle() }
-        } label: {
-            Image(systemName: "sidebar.leading")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(hovering ? ShioTheme.textPrimary : ShioTheme.textSecondary)
-                .frame(width: 30, height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(hovering ? ShioTheme.hover : .clear)
-                )
-                .contentShape(Rectangle())
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { configure(nsView.window) }
+    }
+
+    private func configure(_ window: NSWindow?) {
+        guard let window else { return }
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        if window.toolbar == nil {
+            let toolbar = NSToolbar(identifier: "shio.titlebar.spacer")
+            toolbar.showsBaselineSeparator = false
+            window.toolbar = toolbar
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .help(model.sidebarCollapsed ? "Show sidebar (⌘\\)" : "Hide sidebar (⌘\\)")
+        window.toolbarStyle = .unified
     }
 }
 

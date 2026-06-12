@@ -167,6 +167,33 @@ struct MacNeedBar: View {
     }
 }
 
+/// The sidebar toggle (⌘\) — rides the switcher row while the rail is open,
+/// floats beside the traffic lights when it's collapsed.
+struct MacRailToggleButton: View {
+    @Bindable var model: MacTerminalModel
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            model.showingProjectMenu = false
+            withAnimation(.easeOut(duration: 0.15)) { model.sidebarCollapsed.toggle() }
+        } label: {
+            Image(systemName: "sidebar.leading")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(hovering ? ShioTheme.textPrimary : ShioTheme.textSecondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(hovering ? ShioTheme.hover : .clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(model.sidebarCollapsed ? "Show sidebar (⌘\\)" : "Hide sidebar (⌘\\)")
+    }
+}
+
 /// The hairline between the rail and the center canvas.
 struct MacSidebarDivider: View {
     var body: some View {

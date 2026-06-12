@@ -13,11 +13,15 @@ struct MacRail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Clearance for the traffic lights + the fixed ◧ toggle.
-            Color.clear.frame(height: 46)
+            // Clearance for the traffic lights band above the switcher row.
+            Color.clear.frame(height: 50)
 
-            switcher
-                .padding(.horizontal, 10)
+            HStack(spacing: 2) {
+                switcher
+                MacRailToggleButton(model: model)
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 8)
 
             Rectangle().fill(ShioTheme.line)
                 .frame(height: 1)
