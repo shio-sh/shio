@@ -142,6 +142,11 @@ final class SessionStore {
             await CloudKitSignalService.shared.ensureSubscription()
         }
 
+        // Opening a session is the warm signal on iOS (the Mac stamps on its
+        // own connect path) — without it, warm-gated timer refreshes would
+        // skip every host this device knows.
+        host.lastConnectedAt = .now
+
         // Prefer the synced per-device id when the host has one — it survives
         // a store rebuild (CloudKit re-mirror), which regenerates every
         // persistentModelID and would strand the widget's links.

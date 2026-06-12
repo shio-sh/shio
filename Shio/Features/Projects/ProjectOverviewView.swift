@@ -119,6 +119,17 @@ struct ProjectOverviewView: View {
             status.refresh(targets)
             status.refreshPRs(targets)
         }
+        // Keep the dashboard live while it's on screen — an in-app Approve
+        // clears the needs-you card on the next tick instead of never.
+        // warmOnly so it can't wake a sleeping remote.
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(20))
+                if Task.isCancelled { break }
+                status.refresh(ProjectStatusStore.targets(
+                    for: [project], isLocalHost: { _ in false }, warmOnly: true))
+            }
+        }
     }
 
     // MARK: - Agent reads

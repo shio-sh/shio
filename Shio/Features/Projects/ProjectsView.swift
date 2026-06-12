@@ -91,6 +91,17 @@ struct ProjectsView: View {
             .sheet(isPresented: $isAddingProject) { AddProjectSheet() }
             .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
             .onAppear { refreshStatus() }
+            // Cheap keep-fresh while the list is on screen (mirrors the Mac
+            // dashboard timer): needs-you cards appear/clear without a manual
+            // pull. warmOnly so it never wakes a sleeping remote.
+            .task {
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(20))
+                    if Task.isCancelled { break }
+                    status.refresh(ProjectStatusStore.targets(
+                        for: projects, isLocalHost: { _ in false }, warmOnly: true))
+                }
+            }
         }
     }
 

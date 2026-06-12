@@ -71,6 +71,9 @@ final class ProjectStatusStore {
         let hostKey: String        // groups checkouts that share one connection
         enum Location { case local; case remote(SSHClient.Configuration) }
         let location: Location
+        /// The Host model behind a remote target, so a successful probe can
+        /// stamp `lastConnectedAt` (the warm-gating signal) back on it.
+        var hostID: PersistentIdentifier? = nil
     }
 
     private(set) var statuses: [String: Cached] = [:]
@@ -171,6 +174,16 @@ final class ProjectStatusStore {
                     if let hostKey = result.hostKey {
                         remoteAgents[hostKey] = result.agents   // replace: empty clears stale agents
                     }
+                    // A host that answered a probe is awake — stamp it warm so
+                    // the timer refresh keeps including it. (Without this, a
+                    // device that never opens terminals to a host — or iOS
+                    // before its first session — reads it as permanently
+                    // asleep and the warmOnly timer skips it forever.)
+                    if let hostID = result.hostID,
+                       result.git.contains(where: { if case .ok = $0.1 { return true } else { return false } }),
+                       let host = ShioModelContainer.shared.mainContext.model(for: hostID) as? Host {
+                        host.lastConnectedAt = now
+                    }
                     for (key, probe) in result.git {
                         // Never discard a good status for a transient failure.
                         if case .ok = probe {
@@ -202,11 +215,12 @@ final class ProjectStatusStore {
     private struct GroupResult {
         var git: [(String, GitProbe)]
         var hostKey: String?
+        var hostID: PersistentIdentifier?
         var agents: [String: AgentSnapshot]
     }
 
     private static func probeGroup(_ targets: [Target]) async -> GroupResult {
-        guard let first = targets.first else { return GroupResult(git: [], hostKey: nil, agents: [:]) }
+        guard let first = targets.first else { return GroupResult(git: [], hostKey: nil, hostID: nil, agents: [:]) }
         let paths = targets.map { $0.path }
         let byPath: [String: GitProbe]
         var agents: [String: AgentSnapshot] = [:]
@@ -225,7 +239,7 @@ final class ProjectStatusStore {
             hostKey = first.hostKey
         }
         let git = targets.compactMap { t in byPath[t.path].map { (t.key, $0) } }
-        return GroupResult(git: git, hostKey: hostKey, agents: agents)
+        return GroupResult(git: git, hostKey: hostKey, hostID: first.hostID, agents: agents)
     }
 }
 
@@ -247,7 +261,8 @@ extension ProjectStatusStore {
                     if warmOnly && !isWarm(host) { continue }
                     out.append(Target(key: key, path: checkout.path,
                                       hostKey: "\(host.persistentModelID)",
-                                      location: .remote(statusConfig(for: host))))
+                                      location: .remote(statusConfig(for: host)),
+                                      hostID: host.persistentModelID))
                 } else {
                     out.append(Target(key: key, path: checkout.path,
                                       hostKey: "local", location: .local))
