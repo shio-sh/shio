@@ -35,21 +35,23 @@ struct MacShell: View {
     @State private var showSkillsExplainer = false
 
     var body: some View {
-        NavigationSplitView {
-            List(MacSection.allCases, selection: sectionBinding) { section in
-                Label(section.rawValue, systemImage: section.icon).tag(section)
+        // ONE sidebar: each section's own custom rail. The sections live in
+        // the title bar (Finder-style segmented switcher) instead of a second
+        // system sidebar with its own material and borders fighting the
+        // bone/ink canvas — which is also where macOS itself is headed.
+        detail
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Picker("Section", selection: $model.section) {
+                        ForEach(MacSection.allCases) { section in
+                            Label(section.rawValue, systemImage: section.icon)
+                                .tag(section)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .help("Sections — also ⌘⇧T / ⌘⇧P / ⌘⇧M / ⌘⇧F, or the Go menu")
+                }
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 280)
-            .safeAreaInset(edge: .bottom) {
-                Text("塩 shio")
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-            }
-        } detail: {
-            detail
-        }
         .sheet(isPresented: $model.showingAddHost) {
             MacAddHostForm(model: model)
         }
@@ -92,12 +94,6 @@ struct MacShell: View {
         }
     }
 
-    /// List wants an optional selection binding; the model's section is always
-    /// set, so bridge it (ignore deselection).
-    private var sectionBinding: Binding<MacSection?> {
-        Binding(get: { model.section }, set: { if let v = $0 { model.section = v } })
-    }
-
     @ViewBuilder
     private var detail: some View {
         switch model.section {
@@ -119,14 +115,6 @@ struct MacShell: View {
         else { showSkillsExplainer = true }
     }
 
-    private func placeholder(_ title: String, _ icon: String, _ subtitle: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: icon).font(.largeTitle).foregroundStyle(.secondary)
-            Text(title).font(.system(.title2, design: .monospaced))
-            Text(subtitle).font(.callout).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
 }
 
 /// Reusable context-aware ⌘F filter field shown at the top of a list section.
