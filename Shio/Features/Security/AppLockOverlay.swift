@@ -13,7 +13,9 @@ struct AppLockOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            // Theme canvas, not hardcoded black — textPrimary is ink in light
+            // mode, which rendered the wordmark invisible on black.
+            ShioTheme.background
                 .ignoresSafeArea()
 
             VStack(spacing: ShioSpace.xl) {

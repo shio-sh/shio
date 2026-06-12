@@ -232,7 +232,7 @@ struct MacPairingView: View {
                     .font(.caption).foregroundStyle(.secondary)
             case .paired(let who):
                 VStack(spacing: 10) {
-                    Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundStyle(.green)
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 48)).foregroundStyle(ShioTheme.success)
                     Text("Paired \(who)").font(.title3)
                     Text("Your iPhone can now reach this Mac.").font(.callout).foregroundStyle(.secondary)
                 }

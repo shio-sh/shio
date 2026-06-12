@@ -51,7 +51,7 @@ struct FilePreviewView: View {
                     VStack(spacing: ShioSpace.md) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.largeTitle)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(ShioTheme.warning)
                         Text(message)
                             .font(ShioFont.callout)
                             .foregroundStyle(ShioTheme.textSecondary)

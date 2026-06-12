@@ -40,14 +40,14 @@ struct ShioCompanion: View {
             ZStack {
                 Text("✳")
                     .font(.system(size: 15, design: .monospaced))
-                    .foregroundStyle(MacInk.amber)
+                    .foregroundStyle(ShioTheme.warning)
                     .opacity(max(0, Double(sparkle) - 0.55) / 0.45)
                     .scaleEffect(0.7 + 0.3 * max(0, Double(sparkle)))
                     .offset(x: 18, y: -26 + bob)
 
                 Text(face(blinking: blinking))
                     .font(.system(size: 22, design: .monospaced).weight(.medium))
-                    .foregroundStyle(MacInk.bone)
+                    .foregroundStyle(ShioTheme.accent)
                     .multilineTextAlignment(.center)
                     .offset(y: bob)
             }

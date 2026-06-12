@@ -63,7 +63,7 @@ struct HostListView: View {
                                 Button(role: .destructive) { remove(host) } label: {
                                     Label("Remove", systemImage: "trash")
                                 }
-                                .tint(.red)
+                                .tint(ShioTheme.danger)
                             }
                         }
                     }

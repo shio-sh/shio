@@ -69,7 +69,7 @@ struct SettingsView: View {
                     Toggle(isOn: $appLockEnabled) {
                         Label(appLockToggleTitle, systemImage: appLockToggleIcon)
                     }
-                    .tint(.green)
+                    .tint(ShioTheme.accent)
                     .onChange(of: appLockEnabled) { _, newValue in
                         print("[shio] appLock toggle → \(newValue)")
                         guard newValue else { return }
@@ -91,7 +91,7 @@ struct SettingsView: View {
                     Toggle(isOn: $takeoverMode) {
                         Label("Take over on connect", systemImage: "rectangle.on.rectangle.angled")
                     }
-                    .tint(.green)
+                    .tint(ShioTheme.accent)
                     Text("Mirror (default): every device sees the live session and shares control. Take over: connecting from a device detaches the others so you have sole control.")
                         .font(ShioFont.footnote)
                         .foregroundStyle(ShioTheme.textTertiary)
@@ -104,7 +104,7 @@ struct SettingsView: View {
                         Toggle(isOn: $useEnclaveKey) {
                             Label("Hardware key (Secure Enclave)", systemImage: "lock.shield")
                         }
-                        .tint(.green)
+                        .tint(ShioTheme.accent)
                         .onChange(of: useEnclaveKey) { _, on in
                             guard on else { return }
                             Task.detached { try? KeyManager.generateEnclaveIfNeeded() }
@@ -122,7 +122,7 @@ struct SettingsView: View {
                     Toggle(isOn: $proModeEnabled) {
                         Label("Pro Mode", systemImage: "wrench.adjustable.fill")
                     }
-                    .tint(.green)
+                    .tint(ShioTheme.accent)
                     .onChange(of: proModeEnabled) { _, newValue in
                         if newValue {
                             // Only show disclosure once.

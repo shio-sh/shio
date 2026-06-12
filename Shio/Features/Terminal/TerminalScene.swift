@@ -230,11 +230,11 @@ struct TerminalScene: View {
     private var statusColor: Color {
         guard let vm = viewModel else { return ShioTheme.textTertiary }
         switch vm.state {
-        case .connected:    return .green
-        case .connecting:   return .yellow
-        case .reconnecting: return .yellow
+        case .connected:    return ShioTheme.success
+        case .connecting:   return ShioTheme.warning
+        case .reconnecting: return ShioTheme.warning
         case .idle:         return ShioTheme.textTertiary
-        case .disconnected: return .red
+        case .disconnected: return ShioTheme.danger
         }
     }
 

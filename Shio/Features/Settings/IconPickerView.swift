@@ -41,7 +41,7 @@ struct IconPickerView: View {
                             Spacer()
                             if selected == icon {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
+                                    .foregroundStyle(ShioTheme.success)
                                     .font(.title3)
                             }
                         }

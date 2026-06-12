@@ -150,7 +150,7 @@ struct PairingView: View {
         VStack(spacing: ShioSpace.lg) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 48))
-                .foregroundStyle(.green)
+                .foregroundStyle(ShioTheme.success)
             Text("Paired with \(name)")
                 .font(ShioFont.title2)
                 .foregroundStyle(ShioTheme.textPrimary)
@@ -180,7 +180,7 @@ struct PairingView: View {
         VStack(spacing: ShioSpace.lg) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 44))
-                .foregroundStyle(.orange)
+                .foregroundStyle(ShioTheme.warning)
             Text("Couldn't pair")
                 .font(ShioFont.title2)
                 .foregroundStyle(ShioTheme.textPrimary)
