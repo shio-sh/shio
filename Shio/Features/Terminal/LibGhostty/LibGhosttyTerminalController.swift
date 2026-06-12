@@ -106,7 +106,6 @@ final class LibGhosttyTerminalController {
     // The following are kept as no-ops for now so SessionViewModel /
     // TerminalView code paths don't have to change.
     func setFontSize(_ px: CGFloat) {}
-    func applyTheme(_ theme: TerminalTheme) {}
     func fit() {}
     func focus() { surfaceView.setFocus(true) }
     func load() { /* libghostty initializes synchronously in init */

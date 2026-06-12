@@ -1,7 +1,7 @@
 import Foundation
 
 /// Compact relative age: `now`, `5m`, `2h`, `3d`, `1w`. Empty for nil.
-/// Shared across iOS and Mac (was Mac-only in MacPromptRows).
+/// Shared across iOS and Mac.
 func shioShortAge(_ date: Date?) -> String {
     guard let date else { return "" }
     let s = max(0, Date().timeIntervalSince(date))

@@ -204,7 +204,7 @@ enum KeyManager {
 
     private static let reinstallFlagKey = "shio.key.needsReinstallOnMacs"
 
-    /// Flag set by `regenerate()`. Read by `HostListView` / `IPadRootView`
+    /// Flag set by `regenerate()`. Read by `HostListView`
     /// to show a "your hosts need the new key" banner. Cleared by the user
     /// dismissing that banner.
     static var needsReinstall: Bool {

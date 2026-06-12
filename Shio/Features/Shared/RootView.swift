@@ -52,8 +52,8 @@ struct RootView: View {
         } else {
             // The four-tab Liquid Glass dock. Projects is home; Settings
             // moves behind the profile button on the Projects tab. Used on
-            // both iPhone and iPad (the iPadOS tab bar adapts); the old
-            // IPadRootView split is retired for now.
+            // both iPhone and iPad (the iPadOS tab bar adapts); a bespoke iPad
+            // split view is a planned design pass.
             TabView {
                 Tab("Projects", systemImage: "folder.fill") {
                     ProjectsView()

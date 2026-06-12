@@ -10,22 +10,15 @@ struct TerminalView: UIViewRepresentable {
     /// `controller.write(_:)`; user input arrives via `onInput`.
     let controller: LibGhosttyTerminalController
 
-    @Environment(\.colorScheme) private var colorScheme
 
     func makeUIView(context: Context) -> TerminalContainerView {
         let container = TerminalContainerView(controller: controller)
         container.backgroundColor = .clear
-        controller.onReady = { [weak controller] in
-            let theme: TerminalTheme = context.environment.colorScheme == .dark ? .dark : .light
-            controller?.applyTheme(theme)
-        }
         controller.load()
         return container
     }
 
     func updateUIView(_ uiView: TerminalContainerView, context: Context) {
-        let theme: TerminalTheme = colorScheme == .dark ? .dark : .light
-        controller.applyTheme(theme)
         uiView.setNeedsLayout()
     }
 }
