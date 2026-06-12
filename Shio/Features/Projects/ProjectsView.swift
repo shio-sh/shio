@@ -121,7 +121,7 @@ struct ProjectsView: View {
 
     /// Remove a project from Shio (the repo on the machine is left alone).
     private func remove(_ project: Project) {
-        context.delete(project)
+        ModelCascade.delete(project: project, context: context, isLocalHost: { _ in false })
         try? context.save()
     }
 

@@ -143,7 +143,7 @@ struct HostListView: View {
         // documented recovery for a changed host key, so removal has to
         // actually clear the pin.
         ShioKnownHosts.forget("\(host.hostname):\(host.port)")
-        context.delete(host)
+        ModelCascade.delete(host: host, context: context)
         try? context.save()
     }
 }

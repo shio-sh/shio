@@ -182,7 +182,7 @@ struct MacProjectsView: View {
 
     private func remove(_ project: Project) {
         if selected?.persistentModelID == project.persistentModelID { selected = nil }
-        context.delete(project)
+        ModelCascade.delete(project: project, context: context, isLocalHost: MacSelfHost.isThisMac)
         try? context.save()
         ensureSelection()
     }

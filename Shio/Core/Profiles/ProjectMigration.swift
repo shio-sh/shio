@@ -21,7 +21,8 @@ enum ProjectMigration {
     static func run(in context: ModelContext) {
         backfillCheckouts(in: context)   // M1: legacy project → one ProjectCheckout
         backfillRepos(in: context)       // M-repo: project → one Repo, reparent checkouts
-        reconcile(in: context)
+        reconcileRepos(in: context)      // collapse race-duplicated repos first…
+        reconcile(in: context)           // …then their (now merged) checkouts
     }
 
     /// Give every project that has no repos one `Repo` (carrying the project's
@@ -45,7 +46,10 @@ enum ProjectMigration {
             let repo = Repo(name: project.name, cloneURL: project.cloneURL,
                             identityKey: identity, project: project)
             repo.lastOpenedAt = project.lastOpenedAt
-            repo.createdAt = project.createdAt
+            // createdAt stays "now" (the migration moment) on purpose: if two
+            // devices race this backfill, their stamps differ, so the
+            // reconciler's keep-the-oldest pick is deterministic on both.
+            // Copying project.createdAt made the duplicates tie exactly.
             context.insert(repo)
             for checkout in checkouts { checkout.repo = repo }
             didChange = true
@@ -76,9 +80,45 @@ enum ProjectMigration {
             let checkout = ProjectCheckout(path: project.path, project: project, host: host)
             checkout.persistenceModeOverrideRaw = project.persistenceModeOverrideRaw
             checkout.lastOpenedAt = project.lastOpenedAt
-            checkout.createdAt = project.createdAt
+            // createdAt stays "now" — see backfillRepos: distinct stamps make
+            // the duplicate-reconciler deterministic across racing devices.
             context.insert(checkout)
             didChange = true
+        }
+
+        if didChange { try? context.save() }
+    }
+
+    /// Collapse duplicate Repos a multi-device migration race produced — two
+    /// devices that both ran `backfillRepos` before sync converged each made
+    /// one, and the duplicate can hold (steal) half the project's checkouts.
+    /// The loser's checkouts are merged onto the winner before it's deleted,
+    /// so nothing is lost; the winner is the oldest, tie-broken on synced
+    /// fields so every device picks the same one.
+    private static func reconcileRepos(in context: ModelContext) {
+        let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+        var didChange = false
+
+        for project in projects {
+            let repos = project.repos ?? []
+            guard repos.count > 1 else { continue }
+            var seen: [String: Repo] = [:]
+            let ordered = repos.sorted {
+                ($0.createdAt, $0.identityKey ?? "", $0.name)
+                    < ($1.createdAt, $1.identityKey ?? "", $1.name)
+            }
+            for repo in ordered {
+                let key = repo.identityKey
+                    ?? repo.cloneURL.flatMap { normalize(cloneURL: $0) }
+                    ?? repo.name
+                if let winner = seen[key] {
+                    for checkout in repo.checkouts ?? [] { checkout.repo = winner }
+                    context.delete(repo)
+                    didChange = true
+                } else {
+                    seen[key] = repo
+                }
+            }
         }
 
         if didChange { try? context.save() }
@@ -90,16 +130,21 @@ enum ProjectMigration {
     }
 
     /// Collapse duplicate checkouts of the same (host, path) that a multi-device
-    /// migration race may have produced; keep the oldest by `createdAt`.
+    /// migration race may have produced; keep the oldest by `createdAt` (with a
+    /// synced tiebreak so racing devices delete the same copy, not each other's).
     private static func reconcile(in context: ModelContext) {
         let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
         var didChange = false
 
         for project in projects {
-            let checkouts = project.checkouts ?? []
+            let checkouts = project.allCheckouts
             guard checkouts.count > 1 else { continue }
             var seen: [DupKey: ProjectCheckout] = [:]
-            for c in checkouts.sorted(by: { $0.createdAt < $1.createdAt }) {
+            let ordered = checkouts.sorted {
+                ($0.createdAt, $0.lastOpenedAt ?? .distantPast)
+                    < ($1.createdAt, $1.lastOpenedAt ?? .distantPast)
+            }
+            for c in ordered {
                 let key = DupKey(host: c.host?.persistentModelID, path: c.path)
                 if seen[key] == nil {
                     seen[key] = c
