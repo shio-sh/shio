@@ -33,22 +33,25 @@ struct MacMachinesView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            ShioRail(title: "machines", width: 222) {
-                machineItem(.thisMac, name: "This Mac", sub: Self.localSubtitle, reach: .ok)
-                if !remotes.isEmpty {
-                    ForEach(remotes) { host in
-                        machineItem(.host(host.persistentModelID),
-                                    name: host.name,
-                                    sub: "\(host.username)@\(host.hostname) · \(host.kind.rawValue)",
-                                    reach: reach(host))
-                        .contextMenu {
-                            Button("Remove from Shio", role: .destructive) { remove(host) }
+            if !model.sidebarCollapsed {
+                MacSidebarColumn(model: model, title: "machines") {
+                    machineItem(.thisMac, name: "This Mac", sub: Self.localSubtitle, reach: .ok)
+                    if !remotes.isEmpty {
+                        ForEach(remotes) { host in
+                            machineItem(.host(host.persistentModelID),
+                                        name: host.name,
+                                        sub: "\(host.username)@\(host.hostname) · \(host.kind.rawValue)",
+                                        reach: reach(host))
+                            .contextMenu {
+                                Button("Remove from Shio", role: .destructive) { remove(host) }
+                            }
                         }
                     }
+                } actions: {
+                    railActions
                 }
+                MacSidebarDivider()
             }
-            .overlay(alignment: .topTrailing) { railActions }
-            Rectangle().fill(ShioTheme.line).frame(width: 1)
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(ShioTheme.background)
@@ -83,7 +86,7 @@ struct MacMachinesView: View {
     }
 
     private var railActions: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 8) {
             Button { model.showingPairing = true } label: {
                 Image(systemName: "qrcode").font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary)
             }.buttonStyle(.plain).help("Pair your iPhone")
@@ -91,7 +94,6 @@ struct MacMachinesView: View {
                 Image(systemName: "plus").font(.system(size: 12, weight: .medium)).foregroundStyle(ShioTheme.textTertiary)
             }.buttonStyle(.plain).help("Add a machine")
         }
-        .padding(10)
     }
 
     // MARK: detail

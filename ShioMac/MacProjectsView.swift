@@ -19,23 +19,29 @@ struct MacProjectsView: View {
     private let status = ProjectStatusStore.shared
 
     var body: some View {
-        Group {
-            if projects.isEmpty {
-                emptyState
-            } else {
-                HStack(spacing: 0) {
-                    ShioRail(title: "projects", width: 238) {
+        HStack(spacing: 0) {
+            if !model.sidebarCollapsed {
+                MacSidebarColumn(model: model, title: "projects") {
+                    if projects.isEmpty {
+                        Text("No projects yet.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(ShioTheme.textTertiary)
+                            .padding(.horizontal, 9).padding(.vertical, 6)
+                    } else {
                         ForEach(sorted) { project in
                             railItem(project)
                         }
                     }
-                    .overlay(alignment: .topTrailing) { addButton }
-                    Rectangle().fill(ShioTheme.line).frame(width: 1)
-                    dashboard
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(ShioTheme.background)
+                } actions: {
+                    addButton
                 }
+                MacSidebarDivider()
             }
+            Group {
+                if projects.isEmpty { emptyState } else { dashboard }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(ShioTheme.background)
         }
         .sheet(isPresented: $model.showingAddProject) { MacAddProjectForm(model: model) }
         .sheet(item: $addRepoTarget) { proj in MacAddProjectForm(model: model, targetProject: proj) }
@@ -110,7 +116,6 @@ struct MacProjectsView: View {
         Button { model.showingAddProject = true } label: {
             Image(systemName: "plus").font(.system(size: 12, weight: .medium))
                 .foregroundStyle(ShioTheme.textTertiary)
-                .padding(10)
         }
         .buttonStyle(.plain)
         .help("Add a project")

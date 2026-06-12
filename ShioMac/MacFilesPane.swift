@@ -14,55 +14,86 @@ struct MacFilesPane: View {
     private var query: String { model.searchQuery.trimmingCharacters(in: .whitespaces) }
     private var searching: Bool { model.showingSearch && !query.isEmpty }
 
+    /// Which machine's files the detail shows — the sidebar drives it.
+    enum FilesTarget: Hashable { case thisMac, host(PersistentIdentifier) }
+    @State private var selection: FilesTarget = .thisMac
+
+    private var remoteHosts: [Host] { machines.dedupedByIdentity.filter { !MacSelfHost.isThisMac($0) } }
+
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                if model.showingSearch {
-                    SectionSearchField(model: model,
-                                       placeholder: "Search files across all machines (⏎ to include remote)",
-                                       onSubmit: runRemoteSearch)
+        HStack(spacing: 0) {
+            if !model.sidebarCollapsed {
+                MacSidebarColumn(model: model, title: "files") {
+                    machineRow(.thisMac, icon: "laptopcomputer", name: "This Mac",
+                               sub: FileManager.default.homeDirectoryForCurrentUser.path)
+                    ForEach(remoteHosts) { host in
+                        machineRow(.host(host.persistentModelID), icon: "desktopcomputer",
+                                   name: host.name, sub: "\(host.username)@\(host.hostname)")
+                    }
                 }
-                if searching {
-                    searchResults
-                } else {
-                    machineList
-                }
+                MacSidebarDivider()
             }
-            .background(ShioTheme.background)
-            .navigationTitle("Files")
+            NavigationStack {
+                VStack(spacing: 0) {
+                    if model.showingSearch {
+                        SectionSearchField(model: model,
+                                           placeholder: "Search files across all machines (⏎ to include remote)",
+                                           onSubmit: runRemoteSearch)
+                    }
+                    if searching {
+                        searchResults
+                    } else {
+                        browser
+                    }
+                }
+                .background(ShioTheme.background)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onChange(of: model.searchQuery) { _, q in spotlight.search(q) }
         .onChange(of: model.showingSearch) { _, on in if !on { spotlight.stop(); remote.cancel() } }
     }
 
-    // The browse home: This Mac + saved machines.
-    private var machineList: some View {
-        List {
-            Section {
-                NavigationLink {
-                    LocalDirectoryView(url: FileManager.default.homeDirectoryForCurrentUser,
-                                       title: "This Mac", model: model)
-                } label: {
-                    MachineFileRow(icon: "laptopcomputer", name: "This Mac",
-                                   subtitle: FileManager.default.homeDirectoryForCurrentUser.path)
-                }
-            }
-            let remote = machines.filter { !MacSelfHost.isThisMac($0) }
-            if !remote.isEmpty {
-                Section("Remote") {
-                    ForEach(remote) { machine in
-                        NavigationLink {
-                            RemoteFilesBrowser(host: machine, model: model)
-                        } label: {
-                            MachineFileRow(icon: "desktopcomputer", name: machine.name,
-                                           subtitle: "\(machine.username)@\(machine.hostname)")
-                        }
-                    }
-                }
+    /// The selected machine's browser. `.id()` resets navigation/listing
+    /// state when the sidebar switches machines.
+    @ViewBuilder private var browser: some View {
+        switch selection {
+        case .thisMac:
+            LocalDirectoryView(url: FileManager.default.homeDirectoryForCurrentUser,
+                               title: "This Mac", model: model)
+        case .host(let id):
+            if let host = machines.first(where: { $0.persistentModelID == id }) {
+                RemoteFilesBrowser(host: host, model: model).id(id)
+            } else {
+                Color.clear.onAppear { selection = .thisMac }
             }
         }
-        .scrollContentBackground(.hidden)
-        .background(ShioTheme.background)
+    }
+
+    private func machineRow(_ target: FilesTarget, icon: String, name: String, sub: String) -> some View {
+        let isSel = selection == target
+        return Button { selection = target } label: {
+            HStack(spacing: 9) {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .frame(width: 18)
+                    .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textTertiary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(name).font(.system(size: 12.5))
+                        .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textPrimary)
+                        .lineLimit(1)
+                    Text(sub).font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(ShioTheme.textTertiary).lineLimit(1).truncationMode(.middle)
+                }
+                Spacer(minLength: 4)
+            }
+            .padding(.horizontal, 9).padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(isSel ? ShioTheme.accentBg : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // Cross-machine results: This Mac (Spotlight, live) + each machine (find, on ⏎).

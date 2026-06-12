@@ -88,6 +88,33 @@ struct TerminalWorkspaceView: View {
     @Bindable var model: MacTerminalModel
 
     var body: some View {
+        HStack(spacing: 0) {
+            if !model.sidebarCollapsed {
+                MacSidebarColumn(model: model, title: "tabs") {
+                    if model.tabs.isEmpty {
+                        Text("No open tabs.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(ShioTheme.textTertiary)
+                            .padding(.horizontal, 9).padding(.vertical, 6)
+                    } else {
+                        ForEach(model.tabs) { tab in tabRow(tab) }
+                    }
+                } actions: {
+                    Button { model.newLocalTab() } label: {
+                        Image(systemName: "plus").font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(ShioTheme.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("New tab (⌘T)")
+                }
+                MacSidebarDivider()
+            }
+            workspace
+        }
+        .onAppear { model.ensureTerminalTab() }
+    }
+
+    private var workspace: some View {
         VStack(spacing: 0) {
             if model.tabs.count > 1 {
                 TabStrip(model: model)
@@ -108,7 +135,29 @@ struct TerminalWorkspaceView: View {
                 TerminalSearchBar(model: model).padding(12)
             }
         }
-        .onAppear { model.ensureTerminalTab() }
+    }
+
+    private func tabRow(_ tab: WorkspaceTab) -> some View {
+        let isSel = model.selectedTabID == tab.id
+        return Button { model.selectedTabID = tab.id } label: {
+            HStack(spacing: 9) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 11))
+                    .frame(width: 18)
+                    .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textTertiary)
+                Text(tab.title)
+                    .font(.system(size: 13))
+                    .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 9).padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(isSel ? ShioTheme.accentBg : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

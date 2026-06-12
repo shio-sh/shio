@@ -35,21 +35,20 @@ struct MacShell: View {
     @State private var showSkillsExplainer = false
 
     var body: some View {
-        // ONE sidebar: each section's own custom rail. The sections live in
-        // the title bar (Finder-style segmented switcher) instead of a second
-        // system sidebar with its own material and borders fighting the
-        // bone/ink canvas — which is also where macOS itself is headed.
+        // ONE sidebar: Shio's own (MacSidebarColumn, rendered inside each
+        // section view) carries the sections nav AND the section's rows.
+        // The title bar holds only the collapse toggle.
         detail
             .toolbar {
                 ToolbarItem(placement: .navigation) {
-                    Picker("Section", selection: $model.section) {
-                        ForEach(MacSection.allCases) { section in
-                            Label(section.rawValue, systemImage: section.icon)
-                                .tag(section)
+                    Button {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            model.sidebarCollapsed.toggle()
                         }
+                    } label: {
+                        Image(systemName: "sidebar.leading")
                     }
-                    .pickerStyle(.segmented)
-                    .help("Sections — also ⌘⇧T / ⌘⇧P / ⌘⇧M / ⌘⇧F, or the Go menu")
+                    .help("Hide or show the sidebar (⌃⌘S)")
                 }
             }
         .sheet(isPresented: $model.showingAddHost) {

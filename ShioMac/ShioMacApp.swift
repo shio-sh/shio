@@ -42,6 +42,11 @@ struct ShioMacApp: App {
             // Jump straight to a sidebar section. Mnemonic ⌘⇧+letter
             // (T/P/M/F) — plain ⌘+letter is taken by Tab/Find/Minimize/SelectAll.
             CommandMenu("Go") {
+                Button(model.sidebarCollapsed ? "Show Sidebar" : "Hide Sidebar") {
+                    withAnimation(.easeOut(duration: 0.18)) { model.sidebarCollapsed.toggle() }
+                }
+                .keyboardShortcut("s", modifiers: [.command, .control])
+                Divider()
                 Button("Terminal") { model.show(.terminal) }
                     .keyboardShortcut("t", modifiers: [.command, .shift])
                 Button("Projects") { model.show(.projects) }
@@ -122,6 +127,12 @@ final class MacTerminalModel {
     /// selected one when `section == .terminal`.
     var tabs: [WorkspaceTab] = []
     var selectedTabID: UUID?
+
+    /// THE sidebar's collapse state (persisted). Toggled from the title bar
+    /// and ⌃⌘S; every section's MacSidebarColumn respects it.
+    var sidebarCollapsed: Bool = UserDefaults.standard.bool(forKey: "shio.mac.sidebarCollapsed") {
+        didSet { UserDefaults.standard.set(sidebarCollapsed, forKey: "shio.mac.sidebarCollapsed") }
+    }
     /// Which sidebar section is selected. On the model (not local @State) so
     /// opening a Project / connecting can flip back to the terminal.
     /// Which sidebar section is selected. Switching sections clears any active
