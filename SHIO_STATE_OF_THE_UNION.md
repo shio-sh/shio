@@ -1,6 +1,8 @@
 # Shio — State of the Union
 
-> Handoff context for a fresh agent (Fable) picking up the build. Written 2026‑06‑12 after a long build session that took the app from a working terminal to a feature‑complete command center. Repo: `github.com/shio-sh/shio` (branch `main`). Two Apple targets — `Shio` (iOS/iPad), `ShioMac` (macOS) — sharing a platform‑agnostic Swift core.
+> Handoff context for a fresh agent picking up the build. Written 2026‑06‑12 after a long build session that took the app from a working terminal to a feature‑complete command center. Repo: `github.com/shio-sh/shio` (branch `main`). Two Apple targets — `Shio` (iOS/iPad), `ShioMac` (macOS) — sharing a platform‑agnostic Swift core.
+>
+> **Continue this work in a session running on a Mac with Xcode.** This is an Xcode/iOS/macOS project — the build + verify loop (`xcodegen`, `xcodebuild`, on‑device runs) requires macOS and cannot run on Linux. Editing/reasoning could happen anywhere, but every change must be compiled on a Mac (both targets green) before it counts as done.
 
 ---
 
