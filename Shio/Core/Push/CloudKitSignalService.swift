@@ -171,6 +171,31 @@ final class CloudKitSignalService {
         }
     }
 
+    enum SubscriptionCheck {
+        case active            // confirmed on the server
+        case created           // was missing; created just now
+        case unavailable(String)
+    }
+
+    /// Server-side truth about the alerting subscription. The local latch can
+    /// lie (reinstall, environment switch, iCloud account change) — this asks
+    /// CloudKit directly and repairs if it's missing.
+    func verifySubscription() async -> SubscriptionCheck {
+        guard await iCloudAvailable() else {
+            return .unavailable("Not signed into iCloud (or the container is unreachable).")
+        }
+        if (try? await database.subscription(for: subscriptionID)) != nil {
+            UserDefaults.standard.set(true, forKey: didSubscribeKey)
+            return .active
+        }
+        UserDefaults.standard.set(false, forKey: didSubscribeKey)
+        await ensureSubscription()
+        if (try? await database.subscription(for: subscriptionID)) != nil {
+            return .created
+        }
+        return .unavailable("The subscription couldn't be created — check the Signal record type exists in this CloudKit environment.")
+    }
+
     /// Best-effort housekeeping: delete Signal records older than a day. The
     /// banner has long been delivered (or never will be) — without this the
     /// user's private database accumulates one record per needs-you forever.
@@ -191,16 +216,21 @@ final class CloudKitSignalService {
         }
     }
 
-    /// Write a test Signal record. The subscription fires and Apple pushes a
-    /// Shio-branded alert back to this (and any same-account) device — the way
-    /// to verify delivery + branding on a real device before the Mac companion
-    /// exists. Throws so the caller can surface setup problems.
-    func sendTestSignal(hostId: String? = nil) async throws {
+    /// Write a test Signal record. IMPORTANT delivery semantics: CloudKit
+    /// never pushes a subscription notification back to the device that
+    /// *wrote* the record — so the device calling this will not banner from
+    /// its own test. Every OTHER subscribed device on the account will.
+    /// (This is why the Mac's "ping iPhone" is the real end-to-end test.)
+    /// Throws so the caller can surface setup problems.
+    func sendTestSignal(hostId: String? = nil,
+                        sessionId: String = "shio-test",
+                        title: String = "Test from Shio",
+                        body: String = "If you see this, CloudKit away-push works.") async throws {
         let record = CKRecord(recordType: Self.recordType)
         record["hostId"] = hostId ?? ""
-        record["sessionId"] = ""
-        record["title"] = "Test from Shio"
-        record["body"] = "If you see this, CloudKit away-push works."
+        record["sessionId"] = sessionId
+        record["title"] = title
+        record["body"] = body
         _ = try await database.save(record)
     }
 }

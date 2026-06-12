@@ -225,9 +225,17 @@ struct SettingsView: View {
             testPushResult = "Notifications are denied for Shio. Enable them in Settings → Apps → Shio → Notifications, then try again."
             return
         }
-        // Re-ensure the CloudKit subscription in THIS environment (the latch
-        // is per-environment; a fresh install or account switch lands here).
-        await CloudKitSignalService.shared.ensureSubscription()
+        // Server-side subscription check (the local latch can lie across
+        // reinstalls / Dev→Prod switches) — repairs it if missing.
+        let subscription = await CloudKitSignalService.shared.verifySubscription()
+        let subLine: String
+        switch subscription {
+        case .active:  subLine = "Subscription: active ✓"
+        case .created: subLine = "Subscription: was missing — created ✓"
+        case .unavailable(let why):
+            testPushResult = "CloudKit subscription problem: \(why)"
+            return
+        }
         // The APNs token arrives via an async delegate callback — give it a
         // moment instead of mis-diagnosing a missing capability on first tap.
         var token = PushService.shared.deviceToken
@@ -235,16 +243,38 @@ struct SettingsView: View {
             try? await Task.sleep(nanoseconds: 300_000_000)
             token = PushService.shared.deviceToken
         }
+        guard let token else {
+            testPushResult = "\(subLine)\nBUT this device has no APNs push token — registerForRemoteNotifications didn't complete. CloudKit has no way to deliver. Likely the Push Notifications capability isn't enabled on the sh.shio.app App ID. Check Xcode's Signing & Capabilities (add Push Notifications) and the log for 'APNs registration failed'."
+            return
+        }
         do {
             try await CloudKitSignalService.shared.sendTestSignal()
-            if let token {
-                testPushResult = "Signal saved ✓\nPush token: …\(token.suffix(8)) ✓\n\nThe banner can take 10–60s (CloudKit isn't instant). Lock the phone and wait."
-            } else {
-                testPushResult = "Signal saved ✓, BUT this device has no APNs push token — registerForRemoteNotifications didn't complete. CloudKit has no way to deliver. Likely the Push Notifications capability isn't enabled on the sh.shio.app App ID. Check Xcode's Signing & Capabilities (add Push Notifications) and the log for 'APNs registration failed'."
-            }
+            // Rehearse the banner locally (same category → the lock-screen
+            // Approve/Deny buttons), because the CloudKit push for the Signal
+            // we just wrote will NEVER arrive here: Apple doesn't deliver a
+            // subscription push to the device that originated the change.
+            await scheduleRehearsalBanner()
+            testPushResult = "\(subLine)\nSignal saved ✓\nPush token: …\(token.suffix(8)) ✓\n\nThis phone can't receive its own test Signal — CloudKit never pushes back to the device that wrote the record. A local rehearsal banner (same Approve/Deny category) arrives in ~3s; lock the phone to see it there.\n\nThe real end-to-end test is on your Mac: Settings → Remote control → “Send test push to your iPhone”."
         } catch {
-            testPushResult = "Couldn't send: \(error.localizedDescription)"
+            testPushResult = "\(subLine)\nCouldn't write the Signal: \(error.localizedDescription)"
         }
+    }
+
+    /// A local stand-in for the away banner: same category, so the lock-screen
+    /// Approve / Deny buttons render exactly as the real push would show them.
+    private func scheduleRehearsalBanner() async {
+        let content = UNMutableNotificationContent()
+        content.title = "Claude Code needs you"
+        content.body = "Rehearsal banner — this is how an away-push looks. Approve/Deny work from the lock screen."
+        content.sound = .default
+        content.categoryIdentifier = CloudKitSignalService.needsYouCategory
+        content.userInfo = ["sessionId": "shio-test", "hostId": ""]
+        let request = UNNotificationRequest(
+            identifier: "shio-test-banner",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
+        )
+        try? await UNUserNotificationCenter.current().add(request)
     }
 
     private var appLockToggleTitle: String {

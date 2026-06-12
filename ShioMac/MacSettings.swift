@@ -38,6 +38,8 @@ struct MacSettingsView: View {
     @AppStorage(MacSettings.menubarWatcherKey) private var menubarWatcher: Bool = false
     @AppStorage(SkillMaterializer.syncEnabledKey) private var skillSync: Bool = true
     @State private var showingSkills = false
+    @State private var pinging = false
+    @State private var pingResult: String?
 
     var body: some View {
         Form {
@@ -60,6 +62,20 @@ struct MacSettingsView: View {
                     .font(.footnote).foregroundStyle(.secondary)
                 Toggle("Keep watching in the menu bar", isOn: $menubarWatcher)
                 Text("Stay in the menu bar when the window is closed, so Shio still pushes your phone when an agent needs you. Off = Shio quits with its last window.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Button {
+                    Task { await pingPhone() }
+                } label: {
+                    HStack {
+                        Text("Send test push to your iPhone")
+                        if pinging { Spacer(); ProgressView().controlSize(.small) }
+                    }
+                }
+                .disabled(pinging)
+                if let pingResult {
+                    Text(pingResult).font(.footnote).foregroundStyle(.secondary)
+                }
+                Text("Writes a Signal through your own iCloud — the exact path a blocked agent uses. The banner lands on your iPhone (works locked), usually within a minute. It can never appear on this Mac: CloudKit doesn't push back to the device that wrote the record.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section("Skills") {
@@ -87,6 +103,26 @@ struct MacSettingsView: View {
                 SkillsLibraryView()
             }
             .frame(width: 560, height: 460)
+        }
+    }
+
+    /// The REAL end-to-end away-push test: this Mac writes a Signal (the exact
+    /// record a blocked agent produces) and the iPhone's subscription turns it
+    /// into a banner. Cross-device, so it isn't suppressed the way a phone's
+    /// own test Signal is.
+    private func pingPhone() async {
+        pinging = true
+        defer { pinging = false }
+        do {
+            try await CloudKitSignalService.shared.sendTestSignal(
+                hostId: MacSelfHost.deviceID,
+                sessionId: "shio-test",
+                title: "Test from your Mac",
+                body: "Away-push works end to end. 塩"
+            )
+            pingResult = "Signal written ✓ — your iPhone should show the banner within ~10–60s. Lock it to see the Approve/Deny buttons."
+        } catch {
+            pingResult = "Couldn't write the Signal: \(error.localizedDescription)"
         }
     }
 }
