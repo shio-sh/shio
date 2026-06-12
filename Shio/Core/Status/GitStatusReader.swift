@@ -11,6 +11,7 @@ enum GitStatusReader {
     private static let ckMarker = "__SHIO_CK__"
     private static let bodyMarker = "__SHIO_BODY__"
     private static let exMarker = "__SHIO_EX__"
+    private static let errMarker = "__SHIO_ERR__"
     private static let endMarker = "__SHIO_END__"
     private static let noGitMarker = "__SHIO_NOGIT__"
     // Agent-capture markers (a separate block appended to the same round trip).
@@ -58,15 +59,22 @@ enum GitStatusReader {
     }
 
     private static func remoteScript(paths: [String]) -> String {
+        // stderr's first line rides back per path so a non-zero exit can be
+        // classified ("not a git repository" vs "dubious ownership" vs …)
+        // instead of mapping every 128 to "not a repo".
         let blocks = paths.map { path -> String in
             let q = SSHClient.shellQuotedPath(path)
             return """
             printf '\(ckMarker)%s\(bodyMarker)' \(q)
-            GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git -C \(q) \(gitFlags) status --porcelain=v2 --branch -z 2>/dev/null
-            printf '\(exMarker)%d\(endMarker)' "$?"
+            GIT_TERMINAL_PROMPT=0 GIT_OPTIONAL_LOCKS=0 git -C \(q) \(gitFlags) status --porcelain=v2 --branch -z 2>"$SHIO_E"
+            printf '\(exMarker)%d\(errMarker)' "$?"
+            head -c 160 "$SHIO_E" 2>/dev/null | tr -d '\\n\\0'
+            printf '\(endMarker)'
             """
         }.joined(separator: "\n")
-        let gitPart = "command -v git >/dev/null 2>&1 || { printf '\(noGitMarker)'; }\n" + blocks + "\n"
+        let gitPart = "SHIO_E=\"${TMPDIR:-/tmp}/shio-probe-err.$$\"\n"
+            + "command -v git >/dev/null 2>&1 || { printf '\(noGitMarker)'; }\n"
+            + blocks + "\nrm -f \"$SHIO_E\"\n"
         // Agent capture: base64 each shio-* pane so arbitrary terminal bytes can
         // never collide with our markers. tmux absent → silently no agents.
         let agentPart = """
@@ -110,19 +118,33 @@ enum GitStatusReader {
             let afterBody = chunk[bodyR.upperBound...]
             guard let exR = afterBody.range(of: exMarker) else { continue }
             let body = String(afterBody[..<exR.lowerBound])
-            let exitStr = afterBody[exR.upperBound...]
-                .components(separatedBy: endMarker).first ?? ""
+            let tail = afterBody[exR.upperBound...]
+            let exitStr: String
+            let stderrTail: String
+            if let errR = tail.range(of: errMarker) {
+                exitStr = String(tail[..<errR.lowerBound])
+                stderrTail = String(tail[errR.upperBound...].components(separatedBy: endMarker).first ?? "")
+            } else {
+                exitStr = tail.components(separatedBy: endMarker).first ?? ""
+                stderrTail = ""
+            }
             let exit = Int32(exitStr.trimmingCharacters(in: .whitespacesAndNewlines)) ?? -1
-            result[path] = probe(exit: exit, body: body)
+            result[path] = probe(exit: exit, body: body, stderr: stderrTail)
         }
         return result
     }
 
-    private static func probe(exit: Int32, body: String) -> GitProbe {
+    private static func probe(exit: Int32, body: String, stderr: String = "") -> GitProbe {
         switch exit {
-        case 0:   return .ok(GitStatus.parse(porcelainV2: body))
-        case 128: return .notARepo          // fatal: not a git repository (the common case)
-        default:  return .failed(exit: exit, stderrTail: "")
+        case 0:
+            return .ok(GitStatus.parse(porcelainV2: body))
+        case 128 where stderr.isEmpty || stderr.contains("not a git repository"):
+            // The common 128. Other fatals (dubious ownership, bad config)
+            // also exit 128 but say so on stderr — those report as failed,
+            // not as "not a repo".
+            return .notARepo
+        default:
+            return .failed(exit: exit, stderrTail: String(stderr.prefix(160)))
         }
     }
 
@@ -152,18 +174,40 @@ enum GitStatusReader {
         env["GIT_OPTIONAL_LOCKS"] = "0"
         process.environment = env
         let stdout = Pipe()
+        let stderr = Pipe()
         process.standardOutput = stdout
-        process.standardError = Pipe()
+        process.standardError = stderr
         do {
             try process.run()
         } catch {
             return .gitMissing   // env/git not launchable
         }
+        // Deadline: one wedged repo (hung filesystem, network mount) must not
+        // stall every local status behind it forever.
+        let killer = DispatchWorkItem { process.terminate() }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 8, execute: killer)
+        // Drain BOTH pipes (stderr in parallel — an unread pipe that fills up
+        // blocks git, which blocks the stdout read, which is a deadlock).
+        final class ErrBox: @unchecked Sendable { var data = Data() }
+        let errBox = ErrBox()
+        let drained = DispatchGroup()
+        drained.enter()
+        DispatchQueue.global(qos: .utility).async {
+            errBox.data = stderr.fileHandleForReading.readDataToEndOfFile()
+            drained.leave()
+        }
         let data = stdout.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
+        drained.wait()
+        killer.cancel()
+        if process.terminationReason == .uncaughtSignal {
+            return .timedOut
+        }
         let exit = process.terminationStatus
         let body = String(decoding: data, as: UTF8.self)
-        return probe(exit: exit, body: body)
+        let err = String(decoding: errBox.data, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return probe(exit: exit, body: body, stderr: err)
     }
     #endif
 }

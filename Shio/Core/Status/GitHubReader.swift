@@ -20,7 +20,10 @@ enum GitHubReader {
 
     // MARK: Remote (SSH)
 
-    static func prsRemote(config: SSHClient.Configuration, path: String) async -> [PullRequest] {
+    /// nil = couldn't determine (gh missing / not authed / host unreachable):
+    /// the caller keeps its last-known list rather than flickering chips out.
+    /// `[]` = gh answered and there really are zero open PRs.
+    static func prsRemote(config: SSHClient.Configuration, path: String) async -> [PullRequest]? {
         let q = SSHClient.shellQuotedPath(path)
         let script = "command -v gh >/dev/null 2>&1 || exit 0; cd \(q) 2>/dev/null && gh pr list --json \(fields) --limit 20 2>/dev/null || true"
         let client = SSHClient(configuration: config)
@@ -31,14 +34,14 @@ enum GitHubReader {
             return decode(out)
         } catch {
             await client.disconnect()
-            return []
+            return nil
         }
     }
 
     // MARK: Local (this Mac), via Process — macOS only
 
     #if os(macOS)
-    static func prsLocal(path: String) async -> [PullRequest] {
+    static func prsLocal(path: String) async -> [PullRequest]? {
         await withCheckedContinuation { cont in
             DispatchQueue.global(qos: .utility).async {
                 cont.resume(returning: runLocal(path: path))
@@ -46,7 +49,7 @@ enum GitHubReader {
         }
     }
 
-    private static func runLocal(path: String) -> [PullRequest] {
+    private static func runLocal(path: String) -> [PullRequest]? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["gh", "pr", "list", "--json", fields, "--limit", "20"]
@@ -54,7 +57,7 @@ enum GitHubReader {
         let stdout = Pipe()
         process.standardOutput = stdout
         process.standardError = Pipe()
-        do { try process.run() } catch { return [] }
+        do { try process.run() } catch { return nil }
         let data = stdout.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         return decode(String(decoding: data, as: UTF8.self))
@@ -63,9 +66,11 @@ enum GitHubReader {
 
     // MARK: Parse
 
-    private static func decode(_ raw: String) -> [PullRequest] {
+    /// nil unless the output is a decodable JSON array — "gh isn't installed"
+    /// and "no PRs" must not collapse into the same answer.
+    private static func decode(_ raw: String) -> [PullRequest]? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("["), let data = trimmed.data(using: .utf8) else { return [] }
-        return (try? JSONDecoder().decode([PullRequest].self, from: data)) ?? []
+        guard trimmed.hasPrefix("["), let data = trimmed.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode([PullRequest].self, from: data)
     }
 }

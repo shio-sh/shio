@@ -124,7 +124,7 @@ final class ProjectStatusStore {
     }
 
     private func runPRs(_ targets: [Target]) async {
-        await withTaskGroup(of: (String, [PullRequest]).self) { group in
+        await withTaskGroup(of: (String, [PullRequest]?).self) { group in
             let cap = 4
             var pending = targets
             var running = 0
@@ -137,19 +137,21 @@ final class ProjectStatusStore {
             while running > 0 {
                 guard let (key, list) = await group.next() else { break }
                 running -= 1
-                if !Task.isCancelled { prs[key] = list }
+                // nil = indeterminate (gh missing / unreachable) — keep the
+                // last-known list instead of flickering the PR chips out.
+                if !Task.isCancelled, let list { prs[key] = list }
                 addNext()
             }
         }
     }
 
-    private static func fetchPRs(_ t: Target) async -> [PullRequest] {
+    private static func fetchPRs(_ t: Target) async -> [PullRequest]? {
         switch t.location {
         case .local:
             #if os(macOS)
             return await GitHubReader.prsLocal(path: t.path)
             #else
-            return []
+            return nil
             #endif
         case .remote(let config):
             return await GitHubReader.prsRemote(config: config, path: t.path)
