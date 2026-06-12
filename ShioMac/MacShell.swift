@@ -48,7 +48,7 @@ struct MacShell: View {
             // collapsed, it floats beside the lights on their centerline.
             if model.sidebarCollapsed {
                 MacRailToggleButton(model: model)
-                    .padding(.leading, 80)
+                    .padding(.leading, 100)
                     .padding(.top, 12)
             }
 

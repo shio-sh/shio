@@ -10,8 +10,8 @@ import SwiftUI
 enum MacChrome {
     static let headerHeight: CGFloat = 48
     /// Leading clearance a canvas header needs when the rail is collapsed —
-    /// the traffic lights + the fixed sidebar toggle live in that strip.
-    static let lightsClearance: CGFloat = 122
+    /// the traffic lights + the floating sidebar toggle live in that strip.
+    static let lightsClearance: CGFloat = 142
 }
 
 private struct ShioHeaderInsetKey: EnvironmentKey {

@@ -16,12 +16,16 @@ struct MacRail: View {
             // Clearance for the traffic lights band above the switcher row.
             Color.clear.frame(height: 50)
 
+            // ONE trailing axis: the toggle's glyph, the section-header +s and
+            // the row meta all right-align 20pt off the rail edge, whatever
+            // the copy on the left is doing. (The 28pt hover box is wider
+            // than its glyph — hence the asymmetric inset.)
             HStack(spacing: 2) {
                 switcher
                 MacRailToggleButton(model: model)
             }
             .padding(.leading, 10)
-            .padding(.trailing, 8)
+            .padding(.trailing, 16)
 
             Rectangle().fill(ShioTheme.line)
                 .frame(height: 1)
@@ -194,7 +198,7 @@ struct MacRail: View {
                     Image(systemName: "plus")
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(ShioTheme.textTertiary)
-                        .frame(width: 18, height: 18)
+                        .frame(width: 18, height: 18, alignment: .trailing)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -331,7 +335,7 @@ private struct ShellRailRow: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(ShioTheme.textTertiary)
-                            .frame(width: 16, height: 16)
+                            .frame(width: 16, height: 16, alignment: .trailing)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
