@@ -126,19 +126,33 @@ private struct MacProjectDashboard: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 glanceBar
-                // Conversations spans the left; skills + memory stack beside it.
+                // Conversations spans the left; skills (+ memory, when it has
+                // anything to say — the empty-states law) stack beside it.
                 BentoRow(ratios: [1.35, 1]) {
                     conversationsCard
                     VStack(spacing: 14) {
                         skillsCard
-                        memoryCard
+                        if project.notes?.isEmpty == false {
+                            memoryCard   // stretches — bottoms align with conversations
+                        } else {
+                            Spacer(minLength: 0)
+                        }
                     }
                 }
                 .padding(.bottom, 14)
                 // Machines + integrations share the bottom row — bottoms ALIGN.
-                BentoRow(ratios: [1.35, 1]) {
-                    machinesCard
-                    integrationsCard
+                // No machines (no repos yet) → the card is non-existent, not a
+                // placeholder; integrations keeps its grid slot.
+                if ProjectRows.machines(for: project).isEmpty {
+                    BentoRow(ratios: [1.35, 1]) {
+                        Color.clear
+                        integrationsCard
+                    }
+                } else {
+                    BentoRow(ratios: [1.35, 1]) {
+                        machinesCard
+                        integrationsCard
+                    }
                 }
             }
             .padding(.horizontal, 26)
@@ -264,29 +278,23 @@ private struct MacProjectDashboard: View {
 
     private var memoryCard: some View {
         BentoCard(title: "memory & context") {
-            cardRow(glyph: "✎", name: "Notes",
-                    meta: (project.notes?.isEmpty == false) ? "edited" : "empty")
+            cardRow(glyph: "✎", name: "Notes", meta: "edited")
         }
     }
 
     private var machinesCard: some View {
         BentoCard(title: "machines with this project") {
-            let machines = ProjectRows.machines(for: project)
-            if machines.isEmpty {
-                cardHint("No machines yet — they appear with your repos.")
-            } else {
-                ForEach(machines) { m in
-                    HStack(spacing: 10) {
-                        ShioStatusDot(status: m.reachable ? .success : .neutral, filled: m.reachable)
-                        Text(m.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
-                        Spacer()
-                        Text(m.detail)
-                            .font(.system(size: 11.5, design: .monospaced))
-                            .foregroundStyle(ShioTheme.textTertiary)
-                            .lineLimit(1).truncationMode(.middle)
-                    }
-                    .padding(.horizontal, 8).padding(.vertical, 8)
+            ForEach(ProjectRows.machines(for: project)) { m in
+                HStack(spacing: 10) {
+                    ShioStatusDot(status: m.reachable ? .success : .neutral, filled: m.reachable)
+                    Text(m.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
+                    Spacer()
+                    Text(m.detail)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(ShioTheme.textTertiary)
+                        .lineLimit(1).truncationMode(.middle)
                 }
+                .padding(.horizontal, 8).padding(.vertical, 8)
             }
         }
     }

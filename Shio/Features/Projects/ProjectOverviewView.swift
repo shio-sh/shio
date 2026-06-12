@@ -50,13 +50,12 @@ struct ProjectOverviewView: View {
                     SkillsLibraryView()
                 } label: {
                     moduleRow(icon: "wrench.and.screwdriver", name: "Skills",
-                              detail: skillsCount == 0 ? "none" : "\(skillsCount) active", chevron: true)
+                              detail: skillsCount == 0 ? "add" : "\(skillsCount) active", chevron: true)
                 }.buttonStyle(.plain)
                 Button { showingNotes = true } label: {
                     moduleRow(icon: "doc.text", name: "Memory & context",
-                              detail: (project.notes?.isEmpty == false) ? "notes" : "empty", chevron: true)
+                              detail: (project.notes?.isEmpty == false) ? "notes" : "add", chevron: true)
                 }.buttonStyle(.plain)
-                moduleRow(icon: "circle.lefthalf.filled", name: "Integrations", detail: "soon")
             }
             .padding(.vertical, ShioSpace.sm)
         }
