@@ -294,15 +294,34 @@ final class SSHClient: @unchecked Sendable {
         try await child.triggerUserOutboundEvent(shellReq)
     }
 
+    /// Result of a headless exec with integrity info the bare string can't
+    /// carry: stdout and stderr separately, the remote exit status (nil when
+    /// the channel closed without reporting one), and whether the timeout cut
+    /// the command off. Callers that mutate remote state (GitWriter, skills)
+    /// use this to distinguish "succeeded" from "produced some output".
+    struct ExecResult: Sendable {
+        var stdout: String
+        var stderr: String
+        var exitStatus: Int?
+        var timedOut: Bool
+    }
+
     /// Run a single command on the host (no PTY) and return its stdout. Opens
     /// its own exec channel, collects stdout to EOF, and closes. Used for
-    /// headless work — cross-machine file search (`find`/`fd`), the Run-command
-    /// Shortcut. A timeout closes the channel so a hung command returns what it
-    /// produced rather than blocking forever.
+    /// best-effort headless reads — cross-machine file search (`find`/`fd`),
+    /// status probes. A timeout closes the channel so a hung command returns
+    /// what it produced rather than blocking forever; use `execWithStatus`
+    /// when "timed out" or "failed" must not read as success.
     func exec(_ command: String, timeout: TimeAmount = .seconds(20)) async throws -> String {
+        try await execWithStatus(command, timeout: timeout).stdout
+    }
+
+    /// `exec` with the full result: separate stderr, the command's exit
+    /// status, and an explicit timed-out marker.
+    func execWithStatus(_ command: String, timeout: TimeAmount = .seconds(20)) async throws -> ExecResult {
         guard let parent = channel else { throw SSHError.notConnected }
 
-        let resultPromise = parent.eventLoop.makePromise(of: Data.self)
+        let resultPromise = parent.eventLoop.makePromise(of: ExecResult.self)
         let collector = ExecCollector(promise: resultPromise)
 
         let chPromise = parent.eventLoop.makePromise(of: (any Channel).self)
@@ -316,9 +335,12 @@ final class SSHClient: @unchecked Sendable {
         }.get()
         let child = try await chPromise.futureResult.get()
 
-        // Timeout closes the channel → EOF → the collector succeeds with
-        // whatever stdout arrived (no double-resolve of the promise).
+        // Timeout marks the result, then closes the channel → EOF → the
+        // collector resolves with whatever arrived (no double-resolve). The
+        // task runs on the same event loop as the handler, so the flag write
+        // is race-free.
         let timeoutTask = parent.eventLoop.scheduleTask(in: timeout) {
+            collector.markTimedOut()
             child.close(promise: nil)
         }
         resultPromise.futureResult.whenComplete { _ in timeoutTask.cancel() }
@@ -326,8 +348,7 @@ final class SSHClient: @unchecked Sendable {
         let execReq = SSHChannelRequestEvent.ExecRequest(command: command, wantReply: true)
         try await child.triggerUserOutboundEvent(execReq)
 
-        let data = try await resultPromise.futureResult.get()
-        return String(decoding: data, as: UTF8.self)
+        return try await resultPromise.futureResult.get()
     }
 
     /// Whether the underlying transport is still up. iOS kills sockets during
@@ -623,27 +644,53 @@ private final class ShellDataHandler: ChannelInboundHandler, @unchecked Sendable
     }
 }
 
-/// Collects an exec channel's stdout until EOF/close, then resolves a promise.
-/// stderr is dropped (callers want the command's output, not its warnings).
+/// Collects an exec channel's stdout + stderr and the command's exit status
+/// until EOF/close, then resolves a promise with the full `ExecResult`. All
+/// state is touched only on the channel's event loop.
 private final class ExecCollector: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = SSHChannelData
 
-    private var buffer = Data()
-    private let promise: EventLoopPromise<Data>
+    private var stdout = Data()
+    private var stderr = Data()
+    private var exitStatus: Int?
+    private var timedOut = false
+    private let promise: EventLoopPromise<SSHClient.ExecResult>
     private var resolved = false
 
-    init(promise: EventLoopPromise<Data>) { self.promise = promise }
+    init(promise: EventLoopPromise<SSHClient.ExecResult>) { self.promise = promise }
+
+    /// Called by the exec timeout (scheduled on this channel's event loop)
+    /// just before it force-closes the channel.
+    func markTimedOut() { timedOut = true }
 
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let channelData = self.unwrapInboundIn(data)
-        guard channelData.type == .channel else { return }   // stdout only
         guard case .byteBuffer(var buf) = channelData.data,
               let bytes = buf.readBytes(length: buf.readableBytes) else { return }
-        buffer.append(contentsOf: bytes)
+        switch channelData.type {
+        case .channel: stdout.append(contentsOf: bytes)
+        case .stdErr:  stderr.append(contentsOf: bytes)
+        default:       break
+        }
+    }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if let status = event as? SSHChannelRequestEvent.ExitStatus {
+            exitStatus = status.exitStatus
+        }
+        context.fireUserInboundEventTriggered(event)
     }
 
     func channelInactive(context: ChannelHandlerContext) {
-        if !resolved { resolved = true; promise.succeed(buffer) }
+        if !resolved {
+            resolved = true
+            promise.succeed(SSHClient.ExecResult(
+                stdout: String(decoding: stdout, as: UTF8.self),
+                stderr: String(decoding: stderr, as: UTF8.self),
+                exitStatus: exitStatus,
+                timedOut: timedOut
+            ))
+        }
     }
 
     func errorCaught(context: ChannelHandlerContext, error: any Error) {
