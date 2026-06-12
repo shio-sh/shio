@@ -295,8 +295,15 @@ final class SessionViewModel {
     func reconnectIfNeeded() {
         guard !userInitiatedStop else { return }
         switch state {
-        case .connected, .connecting:
+        case .connecting:
             return
+        case .connected:
+            // After a suspension, state can still say .connected while iOS
+            // already killed the socket — verify the transport and recover
+            // instead of leaving the user on a dead screen.
+            if client?.isTransportActive != true {
+                forceReconnect()
+            }
         case .idle, .reconnecting, .disconnected:
             reconnectAttempt = 0
             reconnectTask?.cancel()
@@ -356,11 +363,28 @@ final class SessionViewModel {
                 self.handleUnexpectedDisconnect(reason: error?.localizedDescription)
             }
         }
+        // Retire the previous client for real — when only the shell channel
+        // died, its parent SSH/TCP connection would otherwise leak. Detach
+        // the callbacks first so its teardown can't echo into this attempt.
+        if let stale = self.client {
+            stale.onOutput = nil
+            stale.onDisconnect = nil
+            Task { await stale.disconnect() }
+        }
         self.client = client
 
         do {
             try await client.connect()
             try await client.requestShell()
+            // The user may have closed the session while the connect was in
+            // flight — don't resurrect it under them.
+            if userInitiatedStop || Task.isCancelled {
+                client.onOutput = nil
+                client.onDisconnect = nil
+                Task { await client.disconnect() }
+                state = .idle
+                return
+            }
             state = .connected
             if !isReconnect {
                 Haptics.notifySuccess()
@@ -386,43 +410,41 @@ final class SessionViewModel {
                 client.write(TmuxResume.resumeCommand(named: tmuxSessionName, startDir: startDirectory, cloneURL: cloneURL))
             }
         } catch {
-            // Connect itself failed. Either kick the backoff (if a retry
-            // is still in our budget) or surface the error.
-            if !userInitiatedStop, reconnectAttempt < maxReconnects {
-                handleUnexpectedDisconnect(reason: error.localizedDescription)
+            // Connect itself failed.
+            if userInitiatedStop {
+                state = .idle
+            } else if Self.isPermanentFailure(error) {
+                // Auth/key/host-key problems need the user, not a retry loop —
+                // backing off ~31s would only bury the actionable error.
+                giveUp(reason: error.localizedDescription)
             } else {
-                state = .disconnected(reason: error.localizedDescription)
+                handleUnexpectedDisconnect(reason: error.localizedDescription, fromFailedRetry: true)
             }
         }
     }
 
-    private func handleUnexpectedDisconnect(reason: String?) {
-        // Already retrying? Don't pile on a duplicate task.
-        if case .reconnecting = state { return }
+    /// Failures the user has to fix (a rejected key, a changed host key, a
+    /// missing or locked local key) — retrying can't change the outcome.
+    private static func isPermanentFailure(_ error: any Error) -> Bool {
+        guard let ssh = error as? SSHClient.SSHError else { return false }
+        switch ssh {
+        case .authenticationFailed, .hostKeyChanged, .sshKeyMissing,
+             .noAuthenticationConfigured, .noUsableKey, .passphraseRequired,
+             .keychainUnavailable, .keychainFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func handleUnexpectedDisconnect(reason: String?, fromFailedRetry: Bool = false) {
+        // A live shell dropping while a retry is already scheduled must not
+        // pile on a duplicate task — but a *failed retry itself* (state is
+        // .reconnecting by definition then) has to continue the chain, or
+        // the loop dies after one attempt with a permanent spinner.
+        if !fromFailedRetry, case .reconnecting = state { return }
         guard reconnectAttempt < maxReconnects else {
-            state = .disconnected(reason: reason)
-            Haptics.notifyError()
-            // Two-stage cleanup of the Live Activity: update it once to
-            // "disconnected" so the user sees that state briefly, then
-            // schedule an explicit end so the activity disappears
-            // rather than sitting on the lock screen indefinitely with
-            // a stale claim. The 25s gap matches the
-            // disconnectedStaleSeconds window so iOS would gray it out
-            // around the same time anyway — but explicit end is more
-            // honest than relying on iOS to do it.
-            if let activeID = ownerSessionID {
-                Task {
-                    await LiveActivityController.shared.update(
-                        sessionID: activeID,
-                        connectionState: "disconnected"
-                    )
-                    try? await Task.sleep(nanoseconds: 25_000_000_000)
-                    await LiveActivityController.shared.end(
-                        sessionID: activeID,
-                        finalState: "disconnected"
-                    )
-                }
-            }
+            giveUp(reason: reason)
             return
         }
         state = .reconnecting
@@ -435,6 +457,34 @@ final class SessionViewModel {
             }
         }
         kickReconnect(immediate: false)
+    }
+
+    /// Out of retries (or the failure is permanent): surface the disconnected
+    /// overlay with the reason and wind down the Live Activity.
+    private func giveUp(reason: String?) {
+        state = .disconnected(reason: reason)
+        Haptics.notifyError()
+        // Two-stage cleanup of the Live Activity: update it once to
+        // "disconnected" so the user sees that state briefly, then
+        // schedule an explicit end so the activity disappears
+        // rather than sitting on the lock screen indefinitely with
+        // a stale claim. The 25s gap matches the
+        // disconnectedStaleSeconds window so iOS would gray it out
+        // around the same time anyway — but explicit end is more
+        // honest than relying on iOS to do it.
+        if let activeID = ownerSessionID {
+            Task {
+                await LiveActivityController.shared.update(
+                    sessionID: activeID,
+                    connectionState: "disconnected"
+                )
+                try? await Task.sleep(nanoseconds: 25_000_000_000)
+                await LiveActivityController.shared.end(
+                    sessionID: activeID,
+                    finalState: "disconnected"
+                )
+            }
+        }
     }
 
     private func kickReconnect(immediate: Bool) {

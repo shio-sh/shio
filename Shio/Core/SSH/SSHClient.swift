@@ -330,6 +330,11 @@ final class SSHClient: @unchecked Sendable {
         return String(decoding: data, as: UTF8.self)
     }
 
+    /// Whether the underlying transport is still up. iOS kills sockets during
+    /// suspension while the caller's state may still say "connected" — the
+    /// foreground reconnect check uses this to detect the lie.
+    var isTransportActive: Bool { channel?.isActive ?? false }
+
     func write(_ data: Data) {
         guard let child = childChannel else { return }
         var buf = child.allocator.buffer(capacity: data.count)
