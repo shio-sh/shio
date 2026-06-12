@@ -115,7 +115,11 @@ struct MacFilesPane: View {
     }
 
     private func runRemoteSearch() {
-        let targets = machines.map { (name: $0.name, config: $0.makeClientConfiguration()) }
+        // Spotlight already covers this Mac — SSHing into ourselves would
+        // just fail (or hit Remote Login) for no gain.
+        let targets = machines
+            .filter { !MacSelfHost.isThisMac($0) }
+            .map { (name: $0.name, config: $0.makeClientConfiguration()) }
         remote.search(query, targets: targets)
     }
 }

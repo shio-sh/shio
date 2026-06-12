@@ -119,19 +119,26 @@ extension Host {
     /// side effect of trying to connect):
     ///
     /// - `password != nil` → password auth.
-    /// - `password == nil` and Shio has a generated key → `.shioKey`.
-    /// - `password == nil` and no key yet → `.unconfigured`. SSHClient
-    ///   surfaces a clear `sshKeyMissing` error pointing the user at
-    ///   Settings → SSH Key, instead of attempting publickey auth with
-    ///   a freshly minted key the Mac has never seen.
+    /// - macOS → `.systemKeys`: offer the user's existing `~/.ssh` identities
+    ///   first (the keys their servers already trust — same model as the Mac
+    ///   terminal in MacSSHSession), with the Shio key as fallback. The Mac
+    ///   never generates a Shio key of its own, so `.shioKey` there would
+    ///   fail for every typical Mac user.
+    /// - iOS and Shio has a generated key → `.shioKey`.
+    /// - iOS and no key yet → `.unconfigured`. SSHClient surfaces a clear
+    ///   `sshKeyMissing` error pointing the user at Settings → SSH Key,
+    ///   instead of attempting publickey auth with a freshly minted key the
+    ///   Mac has never seen.
     func makeClientConfiguration(password: String? = nil) -> SSHClient.Configuration {
         let auth: SSHClient.Authentication
         if let password {
             auth = .password(password)
-        } else if KeyManager.hasKey() {
-            auth = .shioKey
         } else {
-            auth = .unconfigured
+            #if os(macOS)
+            auth = .systemKeys
+            #else
+            auth = KeyManager.hasKey() ? .shioKey : .unconfigured
+            #endif
         }
         return SSHClient.Configuration(
             host: hostname,

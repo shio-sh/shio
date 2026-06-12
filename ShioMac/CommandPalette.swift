@@ -184,8 +184,9 @@ struct CommandPalette: View {
             })
         }
 
-        // Connect a machine
-        for machine in machines {
+        // Connect a machine. This Mac is excluded — "connecting" to it would
+        // SSH into ourselves; the local shell has its own entry points.
+        for machine in machines where !MacSelfHost.isThisMac(machine) {
             c.append(.init(title: "Connect: \(machine.name)",
                            subtitle: "\(machine.username)@\(machine.hostname)",
                            symbol: "desktopcomputer") {
