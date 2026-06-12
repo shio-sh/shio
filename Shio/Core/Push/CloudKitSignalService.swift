@@ -30,9 +30,16 @@ final class CloudKitSignalService {
     /// approve/deny from the lock screen; the Mac polls + injects the keystroke.
     static let actionRecordType = "Action"
     private let subscriptionID = "shio-signal-subscription"
-    // Bumped to .v2 so existing installs re-register the subscription with the
-    // approve/deny notification category (#33).
-    private let didSubscribeKey = "shio.cloudkit.subscribed.v2"
+    // The latch is scoped to the CloudKit environment: a Debug build talks to
+    // Development, TestFlight/Release to Production. One shared boolean would
+    // mark "subscribed" during Dev testing and then silently skip creating
+    // the Production subscription on the very device used to verify the flow.
+    // (.v3 also re-registers existing installs with the per-agent banner.)
+    #if DEBUG
+    private let didSubscribeKey = "shio.cloudkit.subscribed.v3.dev"
+    #else
+    private let didSubscribeKey = "shio.cloudkit.subscribed.v3.prod"
+    #endif
     /// Notification category that carries the lock-screen Approve / Deny actions.
     static let needsYouCategory = "AGENT_NEEDS_YOU"
 
@@ -59,6 +66,14 @@ final class CloudKitSignalService {
             options: [.firesOnRecordCreation]
         )
         let info = CKSubscription.NotificationInfo()
+        // Show the Mac's per-agent copy ("Claude Code needs you" / "shio is
+        // waiting on you.") instead of a blind static line — the localization
+        // key doubles as the format string and CloudKit substitutes the
+        // record's fields in. The static alertBody stays as the fallback.
+        info.titleLocalizationKey = "%1$@"
+        info.titleLocalizationArgs = ["title"]
+        info.alertLocalizationKey = "%1$@"
+        info.alertLocalizationArgs = ["body"]
         info.alertBody = "A session needs you. Tap to jump back in."
         info.soundName = "default"
         info.shouldSendContentAvailable = false

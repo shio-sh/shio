@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 /// Settings screen. Minimal by design — anything dangerous lives behind
 /// Pro Mode (one-time disclosure).
@@ -201,9 +202,24 @@ struct SettingsView: View {
         // REQUEST permission (prompts the first time), then register — not just
         // registerIfAuthorized, which silently skips when status is notDetermined.
         await PushService.shared.requestAuthorizationAndRegister()
-        // The APNs token arrives async via the delegate callback, so it may be
-        // nil on this first tap right after granting — tap again to confirm.
-        let token = PushService.shared.deviceToken
+        // Denied is its own diagnosis — without permission there's no banner
+        // no matter what else is right, and "capability missing" would lie.
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard settings.authorizationStatus == .authorized
+            || settings.authorizationStatus == .provisional else {
+            testPushResult = "Notifications are denied for Shio. Enable them in Settings → Apps → Shio → Notifications, then try again."
+            return
+        }
+        // Re-ensure the CloudKit subscription in THIS environment (the latch
+        // is per-environment; a fresh install or account switch lands here).
+        await CloudKitSignalService.shared.ensureSubscription()
+        // The APNs token arrives via an async delegate callback — give it a
+        // moment instead of mis-diagnosing a missing capability on first tap.
+        var token = PushService.shared.deviceToken
+        for _ in 0..<10 where token == nil {
+            try? await Task.sleep(nanoseconds: 300_000_000)
+            token = PushService.shared.deviceToken
+        }
         do {
             try await CloudKitSignalService.shared.sendTestSignal()
             if let token {
