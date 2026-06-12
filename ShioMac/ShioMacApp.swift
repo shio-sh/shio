@@ -49,6 +49,10 @@ struct ShioMacApp: App {
                     withAnimation(.easeOut(duration: 0.15)) { model.sidebarCollapsed.toggle() }
                 }
                 .keyboardShortcut("\\", modifiers: .command)
+                Button(model.inspectorOpen ? "Hide Inspector" : "Show Inspector") {
+                    model.inspectorOpen.toggle()
+                }
+                .keyboardShortcut("i", modifiers: .command)
                 Divider()
                 Button("Dashboard") { model.canvas = .dashboard }
                     .keyboardShortcut("p", modifiers: [.command, .shift])
@@ -149,6 +153,12 @@ final class MacTerminalModel {
     }
     /// The switcher's ▾ dropdown — overlays the rail, never pushes it.
     var showingProjectMenu = false
+
+    /// The GLANCE inspector — OPEN by default (closing it is focus mode).
+    /// ⌘I and every header's ▤ toggle it, lit state synced.
+    var inspectorOpen: Bool = (UserDefaults.standard.object(forKey: "shio.mac.inspectorOpen") as? Bool) ?? true {
+        didSet { UserDefaults.standard.set(inspectorOpen, forKey: "shio.mac.inspectorOpen") }
+    }
 
     /// Which canvas fills the center. Switching clears any active search (and
     /// ends a terminal scrollback search so highlights don't linger).

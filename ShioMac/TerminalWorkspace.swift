@@ -109,6 +109,9 @@ struct TerminalWorkspaceView: View {
             MacHeaderIconButton(glyph: "◫", help: "Split right (⌘D)") {
                 model.splitFocused(.horizontal)
             }
+            MacHeaderIconButton(glyph: "▤", help: "Inspector (⌘I)", on: model.inspectorOpen) {
+                model.inspectorOpen.toggle()
+            }
         }
     }
 

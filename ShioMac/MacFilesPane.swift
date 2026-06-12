@@ -22,7 +22,12 @@ struct MacFilesPane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            MacCanvasHeader(title: "Files")
+            MacCanvasHeader(title: "Files") {
+            } trailing: {
+                MacHeaderIconButton(glyph: "▤", help: "Inspector (⌘I)", on: model.inspectorOpen) {
+                    model.inspectorOpen.toggle()
+                }
+            }
             HStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 2) {

@@ -37,6 +37,9 @@ struct MacMachinesView: View {
             } trailing: {
                 ShioButton("Pair iPhone", .secondary, compact: true) { model.showingPairing = true }
                 ShioButton("Add machine", .primary, compact: true) { model.showingAddHost = true }
+                MacHeaderIconButton(glyph: "▤", help: "Inspector (⌘I)", on: model.inspectorOpen) {
+                    model.inspectorOpen.toggle()
+                }
             }
             HStack(spacing: 0) {
                 machineList

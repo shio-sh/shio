@@ -63,6 +63,9 @@ struct MacDashboardCanvas: View {
             ShioButton("New repo", .primary, compact: true) {
                 model.addRepoToProject = project
             }
+            MacHeaderIconButton(glyph: "▤", help: "Inspector (⌘I)", on: model.inspectorOpen) {
+                model.inspectorOpen.toggle()
+            }
         }
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity)

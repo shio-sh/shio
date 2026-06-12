@@ -33,6 +33,10 @@ struct MacShell: View {
                     MacSidebarDivider()
                 }
                 center
+                if model.inspectorOpen {
+                    MacSidebarDivider()
+                    MacInspector(model: model)
+                }
             }
 
             // The rail toggle never moves — Slack/Notion practice: one spot,
