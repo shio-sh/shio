@@ -99,7 +99,7 @@ struct SkillsLibraryView: View {
         .contextMenu {
             Button("Edit") { editing = skill }
             Button("Remove", role: .destructive) {
-                SkillMaterializer.shared.removeGlobalLocally(dirName: skill.dirName)
+                SkillMaterializer.shared.retire(skill, isLocalHost: skillsIsLocalHost)
                 context.delete(skill); try? context.save()
             }
         }
@@ -174,17 +174,44 @@ struct SkillEditor: View {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { return }
         if let skill {
+            let oldDir = skill.dirName
             skill.name = n; skill.skillDescription = desc; skill.content = content
+            if skill.dirName != oldDir {
+                // The rename leaves the old dir behind on every machine —
+                // tombstone it so the sweeps catch up, and clear this Mac now.
+                SkillMaterializer.addTombstone(oldDir)
+                if skill.isGlobal {
+                    SkillMaterializer.shared.removeGlobalLocally(dirName: oldDir)
+                }
+            }
         } else {
             context.insert(Skill(name: n, skillDescription: desc, content: content, project: project))
         }
         try? context.save()
         SkillMaterializer.shared.scheduleGlobalSync()
+        // A project-scoped skill lives in its checkouts, not the global store —
+        // push the edit (or the rename's sweep) to the active one now.
+        if let p = (skill?.project ?? project) {
+            SkillMaterializer.shared.materialize(project: p, isLocalHost: skillsIsLocalHost)
+        }
         dismiss()
     }
 
     private func delete() {
-        if let skill { context.delete(skill); try? context.save() }
+        if let skill {
+            SkillMaterializer.shared.retire(skill, isLocalHost: skillsIsLocalHost)
+            context.delete(skill); try? context.save()
+        }
         dismiss()
     }
+}
+
+/// The platform's "this is my own machine" test, for the shared skills
+/// surfaces (Mac: the self host; iOS: every host is remote).
+func skillsIsLocalHost(_ host: Host) -> Bool {
+    #if os(macOS)
+    MacSelfHost.isThisMac(host)
+    #else
+    false
+    #endif
 }

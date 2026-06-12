@@ -260,6 +260,12 @@ final class MacTerminalModel {
         repo.lastOpenedAt = .now
         checkout?.lastOpenedAt = .now
         repo.project?.lastOpenedAt = .now
+        // Ground the exact checkout being opened — the store-wide "active"
+        // one can belong to another repo or the previously used machine.
+        if let project = repo.project {
+            SkillMaterializer.shared.materialize(project: project, checkout: checkout,
+                                                 isLocalHost: MacSelfHost.isThisMac)
+        }
         let tmuxName = "shio-\(TmuxResume.scrubName(repo.name))"
         if let host, !MacSelfHost.isThisMac(host) {
             let resume = TmuxResume.resumeCommand(named: tmuxName, startDir: path, cloneURL: repo.cloneURL)
@@ -278,6 +284,8 @@ final class MacTerminalModel {
         let host = checkout?.host ?? project.host
         let path = checkout?.path ?? project.path
         checkout?.lastOpenedAt = .now
+        SkillMaterializer.shared.materialize(project: project, checkout: checkout,
+                                             isLocalHost: MacSelfHost.isThisMac)
         // This Mac (its own host) or a legacy host-less project → local
         // invisible-tmux. A project on another machine → SSH.
         if let host, !MacSelfHost.isThisMac(host) {

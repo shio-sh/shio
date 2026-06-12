@@ -105,24 +105,18 @@ struct ProjectsView: View {
         }
     }
 
+    // Skills materialize inside SessionStore.openOrCreate — it knows the
+    // exact checkout being opened, which this view doesn't.
     private func openRepo(_ repo: Repo) {
-        if let p = repo.project { materializeSkills(p) }
         if sessionStore.openOrCreate(repo: repo) != nil {
             showingTerminal = true
         }
     }
 
     private func open(_ project: Project) {
-        materializeSkills(project)
         if sessionStore.openOrCreate(project: project) != nil {
             showingTerminal = true
         }
-    }
-
-    /// Write the project's skills into its checkout's .claude/skills over SSH
-    /// (every host is remote on iOS) so the agent there picks them up.
-    private func materializeSkills(_ project: Project) {
-        SkillMaterializer.shared.materialize(project: project, isLocalHost: { _ in false })
     }
 
     /// Remove a project from Shio (the repo on the machine is left alone).

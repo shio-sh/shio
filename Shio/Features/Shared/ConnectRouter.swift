@@ -32,9 +32,7 @@ final class ConnectRouter {
         var opened: SessionStore.Session?
         if let tmux = userInfo["sessionId"] as? String,
            let (project, checkout) = checkout(forTmuxSession: tmux, on: host) {
-            // Same ground-then-open the project rows use (every host is
-            // remote on iOS).
-            SkillMaterializer.shared.materialize(project: project, isLocalHost: { _ in false })
+            // openOrCreate grounds the checkout's skills on the way in.
             opened = SessionStore.shared.openOrCreate(project: project, checkout: checkout)
         }
         if opened == nil {

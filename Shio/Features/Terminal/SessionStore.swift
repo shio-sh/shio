@@ -104,6 +104,14 @@ final class SessionStore {
     @discardableResult
     func openOrCreate(repo: Repo) -> Session? {
         guard let checkout = repo.activeCheckout, let host = checkout.host else { return nil }
+        // Ground the EXACT checkout being opened (the store-wide "active"
+        // one can still be the previous machine, or another repo entirely),
+        // on reattach too so edits made since creation still land. Every
+        // host is remote on iOS.
+        if let project = repo.project {
+            SkillMaterializer.shared.materialize(project: project, checkout: checkout,
+                                                 isLocalHost: { _ in false })
+        }
         if let existing = sessions.first(where: { $0.checkoutID == checkout.persistentModelID }) {
             activeSession = existing
             return existing
@@ -116,6 +124,8 @@ final class SessionStore {
     @discardableResult
     func openOrCreate(project: Project, checkout: ProjectCheckout) -> Session? {
         guard let host = checkout.host else { return nil }
+        SkillMaterializer.shared.materialize(project: project, checkout: checkout,
+                                             isLocalHost: { _ in false })
         if let existing = sessions.first(where: { $0.checkoutID == checkout.persistentModelID }) {
             activeSession = existing
             return existing

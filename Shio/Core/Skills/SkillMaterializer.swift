@@ -84,12 +84,51 @@ final class SkillMaterializer {
     }
 
     /// Remove a deleted skill's files locally (the record is gone, so the sync
-    /// can't reach it). Mac only.
+    /// can't reach it). Mac only. Honors the kill switch — when sync is off,
+    /// Shio touches the agents' folders for nothing, removals included.
     func removeGlobalLocally(dirName: String) {
         #if os(macOS)
+        guard Self.syncEnabled else { return }
         let item = Item(dir: dirName, body: "", enabled: false)
         Task.detached(priority: .utility) { Self.syncGlobalsLocal([item]) }
         #endif
+    }
+
+    // MARK: - Tombstones (deleted / renamed-away dirs)
+
+    /// Dirs whose skill was deleted or renamed away. Local cleanup happens
+    /// immediately, but a machine that's offline (or a checkout that isn't
+    /// open) at that moment still holds the old SKILL.md — so every later
+    /// materialize pass sweeps these dirs too. Per-device and capped; sweeping
+    /// an absent dir costs nothing. A dir reclaimed by a live skill is
+    /// filtered out at sweep time.
+    nonisolated private static let tombstoneKey = "shio.skills.tombstones"
+
+    nonisolated static func addTombstone(_ dir: String) {
+        guard !dir.isEmpty else { return }
+        var list = UserDefaults.standard.stringArray(forKey: tombstoneKey) ?? []
+        list.removeAll { $0 == dir }
+        list.append(dir)
+        if list.count > 64 { list.removeFirst(list.count - 64) }
+        UserDefaults.standard.set(list, forKey: tombstoneKey)
+    }
+
+    nonisolated static func tombstones(excluding live: Set<String> = []) -> [String] {
+        (UserDefaults.standard.stringArray(forKey: tombstoneKey) ?? [])
+            .filter { !live.contains($0) }
+    }
+
+    /// Call **before** deleting a skill record: tombstones its dir (so future
+    /// materialize passes sweep machines that are unreachable right now) and
+    /// removes what's reachable immediately.
+    func retire(_ skill: Skill, isLocalHost: (Host) -> Bool) {
+        Self.addTombstone(skill.dirName)
+        if skill.isGlobal {
+            removeGlobalLocally(dirName: skill.dirName)
+        } else if let project = skill.project {
+            skill.enabled = false   // materialize writes the removal for disabled skills
+            materialize(project: project, isLocalHost: isLocalHost)
+        }
     }
 
     // MARK: - On project open → materialize to its checkout (local or remote)
@@ -97,14 +136,20 @@ final class SkillMaterializer {
     /// Write the skills that apply to `project` — enabled globals (user-level,
     /// vendor-neutral) and this project's own (into the checkout's
     /// `.claude/skills`) — local or over SSH depending on where the checkout is.
-    func materialize(project: Project, isLocalHost: (Host) -> Bool) {
+    /// Pass `checkout` explicitly when opening one (the default is the
+    /// *currently* active checkout, which mid-tap is still the previous one —
+    /// and for multi-repo projects can belong to a different repo entirely).
+    func materialize(project: Project, checkout explicitCheckout: ProjectCheckout? = nil,
+                     isLocalHost: (Host) -> Bool) {
         guard Self.syncEnabled else { return }
-        guard let checkout = project.activeRepo?.activeCheckout ?? project.allCheckouts.first,
+        guard let checkout = explicitCheckout
+                ?? project.activeRepo?.activeCheckout ?? project.allCheckouts.first,
               !checkout.path.isEmpty else { return }
         let all = (try? ShioModelContainer.shared.mainContext.fetch(FetchDescriptor<Skill>())) ?? []
         let pid = project.persistentModelID
         let applicable = all.filter { $0.isGlobal || $0.project?.persistentModelID == pid }
-        guard !applicable.isEmpty else { return }
+        let stones = Self.tombstones(excluding: Set(all.map(\.dirName)))
+        guard !applicable.isEmpty || !stones.isEmpty else { return }
         let globals = applicable.filter(\.isGlobal).map { Self.item(for: $0) }
         let proj = applicable.filter { !$0.isGlobal }.map { Self.item(for: $0) }
         let projectBase = "\(checkout.path)/.claude/skills"
@@ -113,11 +158,13 @@ final class SkillMaterializer {
             let config = SSHClient.Configuration(
                 host: host.hostname, port: host.port, username: host.username,
                 authentication: .systemKeys, initialCols: 80, initialRows: 24)
-            Task { await Self.writeRemote(globals: globals, projectBase: projectBase, project: proj, config: config) }
+            Task { await Self.writeRemote(globals: globals, projectBase: projectBase, project: proj,
+                                          tombstones: stones, config: config) }
         } else {
             Task.detached(priority: .utility) {
                 Self.syncGlobalsLocal(globals)
                 let base = (projectBase as NSString).expandingTildeInPath
+                for stone in stones { Self.removeLocal(dir: "\(base)/\(stone)") }
                 for it in proj where it.enabled { Self.writeLocal(dir: "\(base)/\(it.dir)", body: it.body) }
                 for it in proj where !it.enabled { Self.removeLocal(dir: "\(base)/\(it.dir)") }
             }
@@ -136,12 +183,19 @@ final class SkillMaterializer {
     }
 
     /// Write/remove globals at the canonical store + symlink into each installed
-    /// tool. Never overwrites a real directory — only paths that are absent or
-    /// symlinks we own.
+    /// tool, then sweep tombstoned dirs. Never overwrites a real directory —
+    /// only paths that are absent, symlinks we own, or single-file skill dirs
+    /// we can adopt losslessly.
     nonisolated static func syncGlobalsLocal(_ items: [Item]) {
         let fm = FileManager.default
         let home = NSHomeDirectory()
         let canonicalBase = "\(home)/\(canonicalRel)"
+        for stone in tombstones(excluding: Set(items.map(\.dir))) {
+            try? fm.removeItem(atPath: "\(canonicalBase)/\(stone)")
+            for tool in fanoutTools {
+                removeOwnedLink("\(home)/\(tool.skills)/\(stone)", canonicalBase: canonicalBase)
+            }
+        }
         for it in items {
             let canonical = "\(canonicalBase)/\(it.dir)"
             if it.enabled {
@@ -149,23 +203,62 @@ final class SkillMaterializer {
                 for tool in fanoutTools where fm.fileExists(atPath: "\(home)/\(tool.config)") {
                     let skillsDir = "\(home)/\(tool.skills)"
                     try? fm.createDirectory(atPath: skillsDir, withIntermediateDirectories: true)
-                    linkLocal(link: "\(skillsDir)/\(it.dir)", to: canonical)
+                    adoptOrLink(link: "\(skillsDir)/\(it.dir)", to: canonical, canonicalBase: canonicalBase)
                 }
             } else {
                 try? fm.removeItem(atPath: canonical)
                 for tool in fanoutTools {
-                    let link = "\(home)/\(tool.skills)/\(it.dir)"
-                    if isSymlink(link) { try? fm.removeItem(atPath: link) }
+                    removeOwnedLink("\(home)/\(tool.skills)/\(it.dir)", canonicalBase: canonicalBase)
                 }
             }
         }
     }
 
-    private nonisolated static func linkLocal(link: String, to dest: String) {
+    /// Create/refresh the tool-dir symlink. Re-points only symlinks that
+    /// already point into the canonical store (a user's own symlink to
+    /// somewhere else is theirs). A *real* directory is adopted — replaced
+    /// with a symlink — only when it's unmistakably the same skill and the
+    /// swap loses nothing: a single SKILL.md (no scripts, no extra files)
+    /// whose frontmatter name matches the canonical copy's. This is what
+    /// makes an *imported* skill follow Shio edits — without adoption, the
+    /// agent keeps reading the stale original forever. Anything else is the
+    /// user's; never touched.
+    private nonisolated static func adoptOrLink(link: String, to dest: String, canonicalBase: String) {
         let fm = FileManager.default
-        if isSymlink(link) { try? fm.removeItem(atPath: link) }   // re-point our own symlink
-        else if fm.fileExists(atPath: link) { return }            // a REAL dir/file — never clobber
+        if isSymlink(link) {
+            guard ownsLink(link, canonicalBase: canonicalBase) else { return }
+            try? fm.removeItem(atPath: link)
+        } else if fm.fileExists(atPath: link) {
+            guard let entries = try? fm.contentsOfDirectory(atPath: link),
+                  entries.filter({ $0 != ".DS_Store" }) == ["SKILL.md"],
+                  let theirs = frontmatterName(at: "\(link)/SKILL.md"),
+                  theirs == frontmatterName(at: "\(dest)/SKILL.md")
+            else { return }   // a REAL dir we don't own — never clobber
+            try? fm.removeItem(atPath: link)
+        }
         try? fm.createSymbolicLink(atPath: link, withDestinationPath: dest)
+    }
+
+    /// Remove a tool-dir symlink only if it points into the canonical store.
+    private nonisolated static func removeOwnedLink(_ path: String, canonicalBase: String) {
+        if ownsLink(path, canonicalBase: canonicalBase) {
+            try? FileManager.default.removeItem(atPath: path)
+        }
+    }
+
+    private nonisolated static func ownsLink(_ path: String, canonicalBase: String) -> Bool {
+        guard isSymlink(path),
+              let dest = try? FileManager.default.destinationOfSymbolicLink(atPath: path)
+        else { return false }
+        return dest == canonicalBase || dest.hasPrefix(canonicalBase + "/")
+    }
+
+    private nonisolated static func frontmatterName(at path: String) -> String? {
+        guard let body = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
+        for line in body.split(separator: "\n").prefix(8) where line.hasPrefix("name:") {
+            return line.dropFirst("name:".count).trimmingCharacters(in: .whitespaces)
+        }
+        return nil
     }
 
     private nonisolated static func isSymlink(_ path: String) -> Bool {
@@ -175,27 +268,40 @@ final class SkillMaterializer {
     // MARK: - Remote (SSH), one round trip
 
     /// Materialize globals (canonical + symlink fan-out) and project skills on a
-    /// host in a single connection. Content is base64'd so arbitrary markdown
-    /// can't break the shell; symlinks only replace symlinks/absent paths.
+    /// host in a single connection, sweeping tombstoned dirs first. Content is
+    /// base64'd so arbitrary markdown can't break the shell; symlinks are only
+    /// created where nothing exists and only re-pointed/removed when they
+    /// already point into the canonical store (a user's own symlink is theirs).
     nonisolated static func writeRemote(globals: [Item], projectBase: String, project: [Item],
+                                        tombstones: [String] = [],
                                         config: SSHClient.Configuration) async {
         var lines: [String] = ["AG=\"$HOME/\(canonicalRel)\""]
+        let pb = q(projectBase)
+
+        /// Remove the canonical dir + any owned tool symlinks for `d`.
+        func removalLines(_ d: String) {
+            lines.append("rm -rf \"$AG/\(d)\"")
+            for tool in fanoutTools {
+                lines.append("T=\"$HOME/\(tool.skills)/\(d)\"; if [ -L \"$T\" ]; then case \"$(readlink \"$T\")\" in \"$AG\"*) rm -f \"$T\";; esac; fi")
+            }
+        }
+
+        for stone in tombstones {
+            removalLines(stone)
+            lines.append("rm -rf \(pb)/\(q(stone))")
+        }
         for it in globals {
             let d = it.dir
             if it.enabled {
                 let b64 = Data(it.body.utf8).base64EncodedString()
                 lines.append("mkdir -p \"$AG/\(d)\" && printf '%s' \(q(b64)) | base64 -d > \"$AG/\(d)/SKILL.md\"")
                 for tool in fanoutTools {
-                    lines.append("if [ -d \"$HOME/\(tool.config)\" ]; then mkdir -p \"$HOME/\(tool.skills)\"; T=\"$HOME/\(tool.skills)/\(d)\"; if [ -L \"$T\" ] || [ ! -e \"$T\" ]; then ln -sfn \"$AG/\(d)\" \"$T\"; fi; fi")
+                    lines.append("if [ -d \"$HOME/\(tool.config)\" ]; then mkdir -p \"$HOME/\(tool.skills)\"; T=\"$HOME/\(tool.skills)/\(d)\"; if [ -L \"$T\" ]; then case \"$(readlink \"$T\")\" in \"$AG\"*) ln -sfn \"$AG/\(d)\" \"$T\";; esac; elif [ ! -e \"$T\" ]; then ln -sfn \"$AG/\(d)\" \"$T\"; fi; fi")
                 }
             } else {
-                lines.append("rm -rf \"$AG/\(d)\"")
-                for tool in fanoutTools {
-                    lines.append("T=\"$HOME/\(tool.skills)/\(d)\"; [ -L \"$T\" ] && rm -f \"$T\"")
-                }
+                removalLines(d)
             }
         }
-        let pb = q(projectBase)
         for it in project {
             if it.enabled {
                 let b64 = Data(it.body.utf8).base64EncodedString()
