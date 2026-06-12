@@ -33,9 +33,21 @@ final class SkillMaterializer {
         UserDefaults.standard.object(forKey: syncEnabledKey) as? Bool ?? true
     }
 
-    /// Whether there's any enabled global skill that would be written to the
-    /// cross-app folders — used to decide whether to show the explainer.
-    func hasGlobalsToMaterialize() -> Bool { globalItems().contains(where: \.enabled) }
+    /// Set once the user has seen the cross-app explainer (MacShell's alert).
+    /// Until then no local sync runs — a library edit must not beat the
+    /// explainer to the first "data from other apps" prompt.
+    nonisolated static let crossAppExplainedKey = "shio.skills.crossAppExplained"
+    nonisolated static var crossAppExplained: Bool {
+        UserDefaults.standard.bool(forKey: crossAppExplainedKey)
+    }
+
+    /// Whether the launch sync has anything to do — something to write OR
+    /// something to remove. A disable/delete made on another device still has
+    /// to clean this Mac's folders, so "no enabled globals" isn't "no work".
+    func hasGlobalWork() -> Bool {
+        let items = globalItems()
+        return !items.isEmpty || !Self.tombstones(excluding: Set(items.map(\.dir))).isEmpty
+    }
 
     /// Tools we fan a global skill out to (relative to `$HOME`). The canonical
     /// store is `.agents/skills`; these are symlinked to it when installed.
@@ -77,7 +89,7 @@ final class SkillMaterializer {
     /// local agent dir — globals reach remotes when a project opens).
     func scheduleGlobalSync() {
         #if os(macOS)
-        guard Self.syncEnabled else { return }
+        guard Self.syncEnabled, Self.crossAppExplained else { return }
         let items = globalItems()
         Task.detached(priority: .utility) { Self.syncGlobalsLocal(items) }
         #endif
@@ -88,7 +100,7 @@ final class SkillMaterializer {
     /// Shio touches the agents' folders for nothing, removals included.
     func removeGlobalLocally(dirName: String) {
         #if os(macOS)
-        guard Self.syncEnabled else { return }
+        guard Self.syncEnabled, Self.crossAppExplained else { return }
         let item = Item(dir: dirName, body: "", enabled: false)
         Task.detached(priority: .utility) { Self.syncGlobalsLocal([item]) }
         #endif

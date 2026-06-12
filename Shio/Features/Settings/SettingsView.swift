@@ -16,6 +16,8 @@ struct SettingsView: View {
 
     @AppStorage("shio.key.useEnclave") private var useEnclaveKey: Bool = false
 
+    @AppStorage(SkillMaterializer.syncEnabledKey) private var skillSync: Bool = true
+
     @State private var showingProModeDisclosure = false
     @State private var testPushResult: String?
     @State private var sendingTestPush = false
@@ -97,6 +99,18 @@ struct SettingsView: View {
                         .foregroundStyle(ShioTheme.textTertiary)
                 } header: {
                     Text("Remote control")
+                }
+
+                Section {
+                    Toggle(isOn: $skillSync) {
+                        Label("Sync skills to your agents", systemImage: "wrench.and.screwdriver")
+                    }
+                    .tint(ShioTheme.accent)
+                    Text("Writes your skills into the folders the agents on your machines read (~/.claude, ~/.cursor, ~/.codex) when you open a project. Off = Shio never touches those folders.")
+                        .font(ShioFont.footnote)
+                        .foregroundStyle(ShioTheme.textTertiary)
+                } header: {
+                    Text("Skills")
                 }
 
                 if KeyManager.enclaveAvailable() {

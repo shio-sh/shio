@@ -56,6 +56,11 @@ struct MacShell: View {
         // Explain BEFORE the first cross-app write why macOS is about to ask to
         // "access data from other apps" — Shio is syncing your skills into the
         // agents' own folders. (The system prompt itself isn't customizable.)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // A disable/edit made on another device while this Mac app was
+            // running reconciles on the next activation, not the next launch.
+            maybeSyncSkills()
+        }
         .alert("Sync your skills to your coding agents?", isPresented: $showSkillsExplainer) {
             Button("Sync skills") { skillsExplained = true; SkillMaterializer.shared.scheduleGlobalSync() }
             Button("Don't sync", role: .cancel) { skillsExplained = true; skillSyncEnabled = false }
@@ -107,7 +112,9 @@ struct MacShell: View {
     /// there's something to write, and explain it the first time (so the macOS
     /// "data from other apps" prompt isn't a surprise).
     private func maybeSyncSkills() {
-        guard skillSyncEnabled, SkillMaterializer.shared.hasGlobalsToMaterialize() else { return }
+        // hasGlobalWork, not "has enabled globals": a disable/delete made on
+        // another device still has to clean THIS Mac's folders.
+        guard skillSyncEnabled, SkillMaterializer.shared.hasGlobalWork() else { return }
         if skillsExplained { SkillMaterializer.shared.scheduleGlobalSync() }
         else { showSkillsExplainer = true }
     }
