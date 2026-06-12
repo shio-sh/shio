@@ -1,67 +1,65 @@
 import SwiftUI
 import SwiftData
 
-/// The Shio organization shell on macOS: a NavigationSplitView with the
-/// Projects / Hosts / Agents / Files sidebar and a terminal/detail pane —
-/// parity with the iOS 4-tab IA, in the native Mac idiom.
-///
-/// This slice establishes the structure (so the Mac reads as Shio, not a bare
-/// terminal) backed by the shared SwiftData models. Opening project/host
-/// sessions, iCloud sync, Agents/Files content, and the proper chrome fill in
-/// next.
-/// Sidebar sections (top-level so `MacTerminalModel` can drive the selection).
-enum MacSection: String, CaseIterable, Identifiable {
-    case terminal = "Terminal"
-    case projects = "Projects"
-    case hosts = "Machines"
-    case files = "Files"
-    var id: String { rawValue }
-    var icon: String {
-        switch self {
-        case .terminal: return "terminal"
-        case .projects: return "folder.fill"
-        case .hosts: return "desktopcomputer"
-        case .files: return "tray.full.fill"
-        }
-    }
+/// What fills the center of the window. The rail is permanent (collapse aside);
+/// the canvas is what a rail row landed you on: the team's dashboard, a
+/// conversation's terminal, or the Machines/Files utilities.
+enum MacCanvas: Equatable {
+    case dashboard
+    case conversation
+    case machines
+    case files
 }
 
+/// The Shio window: ONE rail (project switcher + agents/shells/repos + utility
+/// rows), a center canvas, and window-level chrome — the traffic lights float
+/// natively, the ◧ rail toggle sits FIXED beside them (same spot open or
+/// collapsed, ⌘\), and the project switcher's menu overlays the rail rather
+/// than pushing it.
 struct MacShell: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
+    @Query private var projects: [Project]
     @AppStorage("shio.skills.crossAppExplained") private var skillsExplained = false
     @AppStorage(SkillMaterializer.syncEnabledKey) private var skillSyncEnabled = true
     @State private var showSkillsExplainer = false
 
     var body: some View {
-        // ONE sidebar: Shio's own (MacSidebarColumn, rendered inside each
-        // section view) carries the traffic lights, the sections nav, and the
-        // section's rows. The window has no titlebar; when the rail is
-        // collapsed, a quiet ▸ floats under the lights to bring it back.
-        detail
-            .overlay(alignment: .topLeading) {
-                if model.sidebarCollapsed {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            model.sidebarCollapsed = false
-                        }
-                    } label: {
-                        Text("▸")
-                            .font(.system(size: 13, design: .monospaced))
-                            .foregroundStyle(ShioTheme.textTertiary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(ShioTheme.hover, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Show the sidebar (⌃⌘S)")
-                    .padding(.leading, 84)   // clear of the traffic lights
-                    .padding(.top, 12)
+        ZStack(alignment: .topLeading) {
+            HStack(spacing: 0) {
+                if !model.sidebarCollapsed {
+                    MacRail(model: model)
+                    MacSidebarDivider()
                 }
+                center
             }
+
+            // The rail toggle never moves — Slack/Notion practice: one spot,
+            // always, beside the lights.
+            MacRailToggle(model: model)
+                .padding(.leading, 84)
+                .padding(.top, 13)
+
+            if model.showingProjectMenu, !model.sidebarCollapsed {
+                // Click-away catcher under the menu.
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.showingProjectMenu = false }
+                MacProjectMenu(model: model)
+                    .padding(.leading, 10)
+                    .padding(.top, 86)
+            }
+        }
+        .ignoresSafeArea(edges: .top)
         .sheet(isPresented: $model.showingAddHost) {
             MacAddHostForm(model: model)
+        }
+        .sheet(isPresented: $model.showingAddProject) {
+            MacAddProjectForm(model: model)
+        }
+        .sheet(item: $model.addRepoToProject) { project in
+            MacAddProjectForm(model: model, targetProject: project)
         }
         // Explain BEFORE the first cross-app write why macOS is about to ask to
         // "access data from other apps" — Shio is syncing your skills into the
@@ -90,10 +88,27 @@ struct MacShell: View {
             // single-host project. Idempotent + safe to run every launch.
             ProjectMigration.run(in: context)
             maybeSyncSkills()
+            // Restore last run's tabs so SHELLS/REPOS rows light up without
+            // having to visit the terminal first.
+            model.ensureRestored()
+            refreshStatus()
         }
-        // Watch local tmux sessions so a project row lights up when its agent
+        // Watch local tmux sessions so a repo row lights up when its agent
         // needs you — even though ghostty owns the local PTY.
         .task { MacProjectAgentMonitor.shared.start() }
+        // The rail is always on screen now — keep its git state warm app-wide.
+        // warmOnly so it never wakes a sleeping remote.
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(20))
+                if Task.isCancelled { break }
+                ProjectStatusStore.shared.refresh(ProjectStatusStore.targets(
+                    for: projects, isLocalHost: MacSelfHost.isThisMac, warmOnly: true))
+            }
+        }
+        .onChange(of: model.selectedProject?.persistentModelID) { _, _ in
+            refreshStatus()
+        }
         // Re-detect the reachable address whenever the app becomes active, so
         // turning Tailscale on/off (or a network change) updates the synced
         // address without needing to relaunch — cross-network self-heals.
@@ -103,13 +118,19 @@ struct MacShell: View {
     }
 
     @ViewBuilder
-    private var detail: some View {
-        switch model.section {
-        case .terminal: TerminalWorkspaceView(model: model)
-        case .projects: MacProjectsView(model: model)
-        case .hosts:    MacMachinesView(model: model)
-        case .files:    MacFilesPane(model: model)
+    private var center: some View {
+        switch model.canvas {
+        case .dashboard:    MacDashboardCanvas(model: model)
+        case .conversation: TerminalWorkspaceView(model: model)
+        case .machines:     MacMachinesView(model: model)
+        case .files:        MacFilesPane(model: model)
         }
+    }
+
+    private func refreshStatus() {
+        let targets = ProjectStatusStore.targets(for: projects, isLocalHost: MacSelfHost.isThisMac)
+        ProjectStatusStore.shared.refresh(targets)
+        ProjectStatusStore.shared.refreshPRs(targets)
     }
 
     /// Sync global skills into the agents' folders — but only when enabled and
@@ -122,7 +143,32 @@ struct MacShell: View {
         if skillsExplained { SkillMaterializer.shared.scheduleGlobalSync() }
         else { showSkillsExplainer = true }
     }
+}
 
+/// ◧ — the fixed rail toggle beside the traffic lights (⌘\).
+private struct MacRailToggle: View {
+    @Bindable var model: MacTerminalModel
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            model.showingProjectMenu = false
+            withAnimation(.easeOut(duration: 0.15)) { model.sidebarCollapsed.toggle() }
+        } label: {
+            Text(model.sidebarCollapsed ? "◨" : "◧")
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(hovering ? ShioTheme.textPrimary : ShioTheme.textTertiary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(hovering ? ShioTheme.hover : .clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(model.sidebarCollapsed ? "Show sidebar (⌘\\)" : "Hide sidebar (⌘\\)")
+    }
 }
 
 /// Reusable context-aware ⌘F filter field shown at the top of a list section.
@@ -157,7 +203,7 @@ struct SectionSearchField: View {
 }
 
 /// Add a machine and connect to it. One sheet: saves the `Host` for next time
-/// AND opens a session now. The password is optional — leave it empty to use
+/// AND opens a shell now. The password is optional — leave it empty to use
 /// your Shio key (once the host has it authorized); it's used for this first
 /// connect only and never stored. (Full pairing / Pro-mode options come with
 /// the host detail screen.)

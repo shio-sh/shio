@@ -1,147 +1,81 @@
 import SwiftUI
 import SwiftData
 
-/// Projects on the Mac — master/detail, the terminal-refined language. The
-/// projects list is a slim **rail** (switch projects + glance who-needs-you);
-/// the selected project's **dashboard is always the canvas** — no click-through.
-/// Open Projects and you're already in the depth.
-///
-/// Live now: the **repos** module (git state from `ProjectStatusStore`) and the
-/// **agents** module (local `MacProjectAgentMonitor`). Skills / memory & context
-/// / integrations are designed-but-stubbed shells that fill in across P5+.
-struct MacProjectsView: View {
+/// The dashboard canvas — the LANDING when you switch teams. The selected
+/// project's overview: a 48pt header (name + quiet counts + Rename/New repo),
+/// the glance strip, and the modules. The rail owns project switching; this
+/// canvas is pure depth. (The full bento grid lands with the next step.)
+struct MacDashboardCanvas: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
-    @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
-    @State private var agents = MacProjectAgentMonitor.shared
-    @State private var selected: Project?
-    @State private var addRepoTarget: Project?
-    private let status = ProjectStatusStore.shared
+    @State private var renaming = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            if !model.sidebarCollapsed {
-                MacSidebarColumn(model: model, title: "projects") {
-                    if projects.isEmpty {
-                        Text("No projects yet.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(ShioTheme.textTertiary)
-                            .padding(.horizontal, 9).padding(.vertical, 6)
-                    } else {
-                        ForEach(sorted) { project in
-                            railItem(project)
-                        }
-                    }
-                } actions: {
-                    addButton
+        Group {
+            if let project = model.selectedProject {
+                let rows = ProjectRows.rows(for: project)
+                VStack(spacing: 0) {
+                    head(project, glance: ProjectRows.glance(for: project, rows: rows))
+                    MacProjectDashboard(
+                        project: project,
+                        repos: rows,
+                        glance: ProjectRows.glance(for: project, rows: rows),
+                        liveAgents: rows.filter { $0.agent != .none },
+                        openRepo: { model.open(repo: $0) },
+                        addRepo: { model.addRepoToProject = project }
+                    )
+                    .id(project.persistentModelID)
                 }
-                MacSidebarDivider()
-            }
-            Group {
-                if projects.isEmpty { emptyState } else { dashboard }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(ShioTheme.background)
-        }
-        .sheet(isPresented: $model.showingAddProject) { MacAddProjectForm(model: model) }
-        .sheet(item: $addRepoTarget) { proj in MacAddProjectForm(model: model, targetProject: proj) }
-        .onAppear { ensureSelection(); refreshStatus() }
-        .onChange(of: projects.count) { _, _ in ensureSelection() }
-        // Cheap keep-fresh while Projects is on screen: this view only exists
-        // when the section is selected, so the timer pauses the moment you leave.
-        // warmOnly so it never wakes a sleeping remote.
-        .task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(20))
-                if Task.isCancelled { break }
-                status.refresh(ProjectStatusStore.targets(
-                    for: projects, isLocalHost: MacSelfHost.isThisMac, warmOnly: true))
+            } else {
+                emptyState
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(ShioTheme.background)
     }
 
-    // MARK: rail
+    // MARK: header (48pt — the alignment law)
 
-    private func railItem(_ project: Project) -> some View {
-        let activity = projectAgent(project)
-        let isSel = selected?.persistentModelID == project.persistentModelID
-        return Button { selected = project; refreshStatus() } label: {
-            HStack(spacing: 9) {
-                projectMark(project, active: isSel || activity != .none)
+    private func head(_ project: Project, glance: ProjectGlance) -> some View {
+        HStack(spacing: 10) {
+            if renaming {
+                TextField("Project name", text: Bindable(project).name)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(maxWidth: 220)
+                    .onSubmit { try? context.save(); renaming = false }
+            } else {
                 Text(project.name)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textPrimary)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(ShioTheme.textPrimary)
                     .lineLimit(1)
-                Spacer(minLength: 6)
-                railIndicator(activity)
             }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSel ? ShioTheme.accentBg : .clear)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .contextMenu {
-            Button("Add repo…") { addRepoTarget = project }
-            Divider()
-            Button("Remove from Shio", role: .destructive) { remove(project) }
-        }
-    }
-
-    private func projectMark(_ project: Project, active: Bool) -> some View {
-        Text(String(project.name.first ?? "•").uppercased())
-            .font(.system(size: 11, weight: .medium, design: .monospaced))
-            .foregroundStyle(active ? ShioTheme.accent : ShioTheme.textTertiary)
-            .frame(width: 18, height: 18)
-            .background(
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(active ? ShioTheme.accentBg : ShioTheme.hover)
-            )
-    }
-
-    @ViewBuilder private func railIndicator(_ activity: AgentActivity) -> some View {
-        switch activity {
-        case .running:  ShioBrailleSpinner(status: .info, size: 11)
-        case .waiting:  Text("⚑").font(.system(size: 11)).foregroundStyle(ShioTheme.warning)
-        case .finished: ShioStatusDot(status: .success)
-        case .none:     EmptyView()
-        }
-    }
-
-    private var addButton: some View {
-        Button { model.showingAddProject = true } label: {
-            Image(systemName: "plus").font(.system(size: 12, weight: .medium))
+            Text(headSub(project, glance: glance))
+                .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(ShioTheme.textTertiary)
+                .lineLimit(1)
+            Spacer(minLength: 10)
+            ShioButton(renaming ? "Done" : "Rename", .secondary, compact: true) {
+                if renaming { try? context.save() }
+                renaming.toggle()
+            }
+            ShioButton("New repo", .primary, compact: true) {
+                model.addRepoToProject = project
+            }
         }
-        .buttonStyle(.plain)
-        .help("Add a project")
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity)
+        .frame(height: MacChrome.headerHeight)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(ShioTheme.line).frame(height: 1)
+        }
     }
 
-    // MARK: dashboard
-
-    @ViewBuilder private var dashboard: some View {
-        if let project = selected ?? sorted.first {
-            MacProjectDashboard(
-                project: project,
-                repos: repoRows(project),
-                glance: glance(project),
-                liveAgents: liveAgents(project),
-                openRepo: { repo in
-                    // Skills materialize inside model.open — it knows the
-                    // exact checkout being opened.
-                    model.open(repo: repo)
-                },
-                openTerminal: { open(project) },
-                addRepo: { addRepoTarget = project }
-            )
-            .id(project.persistentModelID)
-        } else {
-            Color.clear
-        }
+    private func headSub(_ project: Project, glance: ProjectGlance) -> String {
+        guard glance.repoCount > 0 else { return "no repos yet" }
+        let machines = max(1, Set(project.allCheckouts.map { $0.host?.persistentModelID }).count)
+        return "\(glance.repoCount) repo\(glance.repoCount == 1 ? "" : "s")"
+            + " · \(machines) machine\(machines == 1 ? "" : "s")"
     }
 
     private var emptyState: some View {
@@ -161,148 +95,9 @@ struct MacProjectsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ShioTheme.background)
     }
-
-    // MARK: selection + data
-
-    /// Needs-you first, then running, then most-recently-opened.
-    private var sorted: [Project] {
-        projects.sorted { a, b in
-            let ra = rank(a), rb = rank(b)
-            if ra != rb { return ra < rb }
-            return (a.lastOpenedAt ?? .distantPast) > (b.lastOpenedAt ?? .distantPast)
-        }
-    }
-    private func rank(_ p: Project) -> Int {
-        switch projectAgent(p) {
-        case .waiting: return 0
-        case .running: return 1
-        default:       return 2
-        }
-    }
-
-    private func ensureSelection() {
-        if let sel = selected, projects.contains(where: { $0.persistentModelID == sel.persistentModelID }) { return }
-        selected = sorted.first
-    }
-
-    private func remove(_ project: Project) {
-        if selected?.persistentModelID == project.persistentModelID { selected = nil }
-        ModelCascade.delete(project: project, context: context, isLocalHost: MacSelfHost.isThisMac)
-        try? context.save()
-        ensureSelection()
-    }
-
-    private func open(_ project: Project) {
-        project.lastOpenedAt = .now
-        try? context.save()
-        // Skills materialize inside model.open, scoped to the exact checkout.
-        model.open(project: project)
-    }
-
-    private func refreshStatus() {
-        let targets = ProjectStatusStore.targets(for: projects, isLocalHost: MacSelfHost.isThisMac)
-        status.refresh(targets)
-        status.refreshPRs(targets)
-    }
-
-    private func repoRows(_ project: Project) -> [RepoRowVM] {
-        project.sortedRepos.map { repo in
-            RepoRowVM(id: repo.persistentModelID, repo: repo, name: repo.name,
-                      machines: machinesText(repo), git: gitProbe(repo),
-                      agent: localAgentActivity(repo),
-                      agentName: agentSnapshot(repo)?.agentName,
-                      agentDetail: agentSnapshot(repo)?.detail,
-                      prs: prList(repo))
-        }
-    }
-
-    private func prList(_ repo: Repo) -> [PullRequest] {
-        guard let c = repo.activeCheckout else { return [] }
-        return status.prList(forHost: c.host, path: c.path)
-    }
-
-    private func gitProbe(_ repo: Repo) -> GitProbe? {
-        guard let c = repo.activeCheckout else { return nil }
-        return status.status(forHost: c.host, path: c.path)?.probe
-    }
-
-    private func machinesText(_ repo: Repo) -> String {
-        let names = (repo.checkouts ?? []).map { c -> String in
-            guard let h = c.host else { return "this mac" }
-            return MacSelfHost.isThisMac(h) ? "this mac" : h.name
-        }
-        var seen = Set<String>(); var unique: [String] = []
-        for n in names where !seen.contains(n) { seen.insert(n); unique.append(n) }
-        return unique.isEmpty ? "this mac" : unique.joined(separator: " · ")
-    }
-
-    private func agentSnapshot(_ repo: Repo) -> AgentSnapshot? {
-        let checkouts = repo.checkouts ?? []
-        let hasLocal = checkouts.isEmpty || checkouts.contains { $0.host.map(MacSelfHost.isThisMac) ?? true }
-        // Local agents (this Mac's tmux) win; otherwise a remote agent detected
-        // during the status fetch on any of the repo's machines.
-        if hasLocal, let local = agents.snapshot(forProjectNamed: repo.name) { return local }
-        for c in checkouts {
-            if let h = c.host, !MacSelfHost.isThisMac(h),
-               let remote = status.remoteAgent(host: h, repoName: repo.name) {
-                return remote
-            }
-        }
-        return nil
-    }
-
-    private func localAgentActivity(_ repo: Repo) -> AgentActivity {
-        agentSnapshot(repo)?.activity ?? .none
-    }
-
-    private func projectAgent(_ project: Project) -> AgentActivity {
-        let acts = project.sortedRepos.map { localAgentActivity($0) }
-        if acts.contains(.waiting) { return .waiting }
-        if acts.contains(.running) { return .running }
-        if acts.contains(.finished) { return .finished }
-        return .none
-    }
-
-    private func liveAgents(_ project: Project) -> [RepoRowVM] {
-        repoRows(project).filter { $0.agent != .none }
-    }
-
-    /// The one-line glance summary across the project's repos.
-    private func glance(_ project: Project) -> ProjectGlance {
-        let rows = repoRows(project)
-        let changes = rows.reduce(0) { $0 + (GitLineFormatter.make($1.git).dirty) }
-        let working = rows.filter { $0.agent == .running }.count
-        let needs   = rows.filter { $0.agent == .waiting }.count
-        let prCount = rows.reduce(0) { $0 + $1.prs.filter { $0.state == "OPEN" }.count }
-        return ProjectGlance(changes: changes, working: working, needsYou: needs,
-                             prs: prCount, repoCount: rows.count, age: shioShortAge(project.lastOpenedAt))
-    }
 }
 
-/// Display data for one repo row inside the dashboard.
-struct RepoRowVM: Identifiable {
-    let id: PersistentIdentifier
-    let repo: Repo
-    let name: String
-    let machines: String
-    let git: GitProbe?
-    let agent: AgentActivity
-    var agentName: String? = nil
-    var agentDetail: String? = nil
-    var prs: [PullRequest] = []
-}
-
-/// The aggregate one-liner shown under the project title.
-struct ProjectGlance {
-    var changes: Int
-    var working: Int
-    var needsYou: Int
-    var prs: Int
-    var repoCount: Int
-    var age: String
-}
-
-// MARK: - Dashboard
+// MARK: - Dashboard body
 
 private struct MacProjectDashboard: View {
     @Bindable var project: Project
@@ -310,11 +105,9 @@ private struct MacProjectDashboard: View {
     let glance: ProjectGlance
     let liveAgents: [RepoRowVM]
     let openRepo: (Repo) -> Void
-    let openTerminal: () -> Void
     let addRepo: () -> Void
     @Environment(\.modelContext) private var context
     @Query(sort: \Skill.createdAt) private var allSkills: [Skill]
-    @State private var renaming = false
     @State private var addingSkill = false
     @State private var editingSkill: Skill?
     @State private var commitTarget: RepoRowVM?
@@ -327,7 +120,6 @@ private struct MacProjectDashboard: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                header
                 glanceBar
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 30),
                                     GridItem(.flexible(), spacing: 30)],
@@ -365,36 +157,7 @@ private struct MacProjectDashboard: View {
         }
     }
 
-    // MARK: header + glance
-
-    private var header: some View {
-        HStack(spacing: 11) {
-            Text(String(project.name.first ?? "•").uppercased())
-                .font(.system(size: 13, weight: .medium, design: .monospaced))
-                .foregroundStyle(ShioTheme.accent)
-                .frame(width: 24, height: 24)
-                .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(ShioTheme.accentBg))
-            if renaming {
-                TextField("Project name", text: $project.name)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 19, weight: .semibold))
-                    .onSubmit { try? context.save(); renaming = false }
-            } else {
-                Text(project.name).font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(ShioTheme.textPrimary)
-            }
-            Text("\(glance.repoCount) repo\(glance.repoCount == 1 ? "" : "s")\(glance.age.isEmpty ? "" : " · \(glance.age)")")
-                .font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary)
-            Spacer()
-            ShioButton(renaming ? "Done" : "Rename", .secondary, compact: true) {
-                if renaming { try? context.save() }
-                renaming.toggle()
-            }
-            ShioButton("Open terminal", .ghost, icon: "terminal", compact: true) { openTerminal() }
-                .keyboardShortcut("t", modifiers: .command)
-        }
-        .padding(.bottom, 12)
-    }
+    // MARK: glance
 
     private var glanceBar: some View {
         HStack(spacing: 18) {

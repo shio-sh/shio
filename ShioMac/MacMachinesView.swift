@@ -32,35 +32,50 @@ struct MacMachinesView: View {
     private var remotes: [Host] { hosts.filter { !MacSelfHost.isThisMac($0) } }
 
     var body: some View {
-        HStack(spacing: 0) {
-            if !model.sidebarCollapsed {
-                MacSidebarColumn(model: model, title: "machines") {
-                    machineItem(.thisMac, name: "This Mac", sub: Self.localSubtitle, reach: .ok)
-                    if !remotes.isEmpty {
-                        ForEach(remotes) { host in
-                            machineItem(.host(host.persistentModelID),
-                                        name: host.name,
-                                        sub: "\(host.username)@\(host.hostname) · \(host.kind.rawValue)",
-                                        reach: reach(host))
-                            .contextMenu {
-                                Button("Remove from Shio", role: .destructive) { remove(host) }
-                            }
-                        }
-                    }
-                } actions: {
-                    railActions
-                }
-                MacSidebarDivider()
+        VStack(spacing: 0) {
+            MacCanvasHeader(title: "Machines", sub: subline) {
+            } trailing: {
+                ShioButton("Pair iPhone", .secondary, compact: true) { model.showingPairing = true }
+                ShioButton("Add machine", .primary, compact: true) { model.showingAddHost = true }
             }
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(ShioTheme.background)
+            HStack(spacing: 0) {
+                machineList
+                Rectangle().fill(ShioTheme.line).frame(width: 1)
+                detail
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
+        .background(ShioTheme.background)
         .sheet(isPresented: $model.showingPairing) { MacPairingView() }
         .onChange(of: hosts.count) { _, _ in ensureSelection() }
     }
 
-    // MARK: rail
+    // MARK: machine list (in-canvas, quiet)
+
+    private var subline: String {
+        let n = 1 + remotes.count
+        return "\(n) machine\(n == 1 ? "" : "s")"
+    }
+
+    private var machineList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                machineItem(.thisMac, name: "This Mac", sub: Self.localSubtitle, reach: .ok)
+                ForEach(remotes) { host in
+                    machineItem(.host(host.persistentModelID),
+                                name: host.name,
+                                sub: "\(host.username)@\(host.hostname) · \(host.kind.rawValue)",
+                                reach: reach(host))
+                    .contextMenu {
+                        Button("Remove from Shio", role: .destructive) { remove(host) }
+                    }
+                }
+            }
+            .padding(8)
+        }
+        .frame(width: 232)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
 
     private func machineItem(_ id: SelectedMachine, name: String, sub: String, reach: Reach) -> some View {
         let isSel = selected == id
@@ -83,17 +98,6 @@ struct MacMachinesView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    private var railActions: some View {
-        HStack(spacing: 8) {
-            Button { model.showingPairing = true } label: {
-                Image(systemName: "qrcode").font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary)
-            }.buttonStyle(.plain).help("Pair your iPhone")
-            Button { model.showingAddHost = true } label: {
-                Image(systemName: "plus").font(.system(size: 12, weight: .medium)).foregroundStyle(ShioTheme.textTertiary)
-            }.buttonStyle(.plain).help("Add a machine")
-        }
     }
 
     // MARK: detail

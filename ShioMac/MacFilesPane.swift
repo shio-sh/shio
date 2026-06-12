@@ -21,35 +21,42 @@ struct MacFilesPane: View {
     private var remoteHosts: [Host] { machines.dedupedByIdentity.filter { !MacSelfHost.isThisMac($0) } }
 
     var body: some View {
-        HStack(spacing: 0) {
-            if !model.sidebarCollapsed {
-                MacSidebarColumn(model: model, title: "files") {
-                    machineRow(.thisMac, icon: "laptopcomputer", name: "This Mac",
-                               sub: FileManager.default.homeDirectoryForCurrentUser.path)
-                    ForEach(remoteHosts) { host in
-                        machineRow(.host(host.persistentModelID), icon: "desktopcomputer",
-                                   name: host.name, sub: "\(host.username)@\(host.hostname)")
+        VStack(spacing: 0) {
+            MacCanvasHeader(title: "Files")
+            HStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        machineRow(.thisMac, icon: "laptopcomputer", name: "This Mac",
+                                   sub: FileManager.default.homeDirectoryForCurrentUser.path)
+                        ForEach(remoteHosts) { host in
+                            machineRow(.host(host.persistentModelID), icon: "desktopcomputer",
+                                       name: host.name, sub: "\(host.username)@\(host.hostname)")
+                        }
                     }
+                    .padding(8)
                 }
-                MacSidebarDivider()
-            }
-            NavigationStack {
-                VStack(spacing: 0) {
-                    if model.showingSearch {
-                        SectionSearchField(model: model,
-                                           placeholder: "Search files across all machines (⏎ to include remote)",
-                                           onSubmit: runRemoteSearch)
+                .frame(width: 232)
+                .frame(maxHeight: .infinity, alignment: .top)
+                Rectangle().fill(ShioTheme.line).frame(width: 1)
+                NavigationStack {
+                    VStack(spacing: 0) {
+                        if model.showingSearch {
+                            SectionSearchField(model: model,
+                                               placeholder: "Search files across all machines (⏎ to include remote)",
+                                               onSubmit: runRemoteSearch)
+                        }
+                        if searching {
+                            searchResults
+                        } else {
+                            browser
+                        }
                     }
-                    if searching {
-                        searchResults
-                    } else {
-                        browser
-                    }
+                    .background(ShioTheme.background)
                 }
-                .background(ShioTheme.background)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(ShioTheme.background)
         .onChange(of: model.searchQuery) { _, q in spotlight.search(q) }
         .onChange(of: model.showingSearch) { _, on in if !on { spotlight.stop(); remote.cancel() } }
     }

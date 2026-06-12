@@ -148,29 +148,30 @@ struct CommandPalette: View {
         var c: [ShioCommand] = []
 
         // Terminal
-        c.append(.init(title: "New Tab", symbol: "plus.square", shortcut: "⌘T") { model.newLocalTab() })
+        c.append(.init(title: "New Shell", symbol: "plus.square", shortcut: "⌘T") { model.newLocalTab() })
         c.append(.init(title: "Split Right", symbol: "rectangle.split.2x1", shortcut: "⌘D") { model.splitFocused(.horizontal) })
         c.append(.init(title: "Split Down", symbol: "rectangle.split.1x2", shortcut: "⇧⌘D") { model.splitFocused(.vertical) })
-        c.append(.init(title: "Close Pane or Tab", symbol: "xmark.square", shortcut: "⌘W") { model.closeSelectedTab() })
+        c.append(.init(title: "Close Pane or Conversation", symbol: "xmark.square", shortcut: "⌘W") { model.closeSelectedTab() })
         c.append(.init(title: "Clear Terminal", symbol: "clear", shortcut: "⌃L") {
             NSApp.sendAction(#selector(GhosttyMacSurface.terminalClearScreen(_:)), to: nil, from: nil)
         })
         c.append(.init(title: "Open Terminal on This Mac", symbol: "laptopcomputer") { model.newLocalTab() })
 
         // Navigate
-        for section in MacSection.allCases {
-            c.append(.init(title: "Go to \(section.rawValue)", symbol: section.icon) { model.section = section })
-        }
+        c.append(.init(title: "Go to Dashboard", symbol: "square.grid.2x2", shortcut: "⇧⌘P") { model.canvas = .dashboard })
+        c.append(.init(title: "Go to Terminal", symbol: "terminal", shortcut: "⇧⌘T") { model.showTerminal() })
+        c.append(.init(title: "Go to Machines", symbol: "desktopcomputer", shortcut: "⇧⌘M") { model.canvas = .machines })
+        c.append(.init(title: "Go to Files", symbol: "tray.full.fill", shortcut: "⇧⌘F") { model.canvas = .files })
 
         // Create
         c.append(.init(title: "Add Machine…", symbol: "desktopcomputer", shortcut: "⇧⌘K") {
-            model.section = .hosts; model.showingAddHost = true
+            model.showingAddHost = true
         })
         c.append(.init(title: "Add Project…", symbol: "folder.badge.plus") {
-            model.section = .projects; model.showingAddProject = true
+            model.showingAddProject = true
         })
         c.append(.init(title: "Pair iPhone…", symbol: "qrcode") {
-            model.section = .hosts; model.showingPairing = true
+            model.canvas = .machines; model.showingPairing = true
         })
 
         // Open a project

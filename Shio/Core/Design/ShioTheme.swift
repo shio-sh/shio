@@ -26,7 +26,7 @@ enum ShioTheme {
     // MARK: surfaces
     static let background = Color(light: boneDiluted,        dark: ink800)
     static let surface    = Color(light: .white,            dark: ink700)
-    static let rail       = Color(light: Color(hex: 0xFBF6EA), dark: Color(hex: 0x0A0A0C))
+    static let rail       = Color(light: Color(hex: 0xEFE8D6), dark: Color(hex: 0x0A0A0C))
 
     // MARK: text
     static let textPrimary   = Color(light: ink800,            dark: ink100)
