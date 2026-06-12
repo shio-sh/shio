@@ -112,6 +112,12 @@ struct MacInspector: View {
                     }
                 }
             }
+            if PowerKeeper.shared.isHolding {
+                Text("keeping this mac awake")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
+                    .padding(.top, 6)
+            }
         }
     }
 

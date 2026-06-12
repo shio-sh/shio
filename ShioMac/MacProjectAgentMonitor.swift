@@ -94,8 +94,24 @@ final class MacProjectAgentMonitor {
             let result = await MacProjectAgentMonitor.scan(tmux: tmux)
             self.fireAwaySignals(for: result)
             self.byTmux = result
+            // Keep the Mac awake while sleep would break a promise: a live
+            // agent (the away chain dies frozen) or an SSH login (remote
+            // typing isn't "user activity" to macOS).
+            let agentsLive = result.values.contains {
+                $0.activity == .running || $0.activity == .waiting
+            }
+            let remote = await MacProjectAgentMonitor.remoteLoginPresent()
+            PowerKeeper.shared.update(agentsActive: agentsLive, remoteClientPresent: remote)
             await self.injectPendingActions(tmux: tmux)
         }
+    }
+
+    /// Any SSH login on this Mac right now? utmpx entries carry the remote
+    /// host in parens — local terminals (console, ghostty tabs) don't.
+    nonisolated private static func remoteLoginPresent() async -> Bool {
+        await Task.detached(priority: .utility) {
+            run("/usr/bin/who", []).contains("(")
+        }.value
     }
 
     /// Pull any approve/deny `Action`s the phone wrote (#33) and inject the

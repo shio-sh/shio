@@ -37,6 +37,8 @@ struct MacSettingsView: View {
     private var takeover: Bool = false
     @AppStorage(MacSettings.menubarWatcherKey) private var menubarWatcher: Bool = false
     @AppStorage(SkillMaterializer.syncEnabledKey) private var skillSync: Bool = true
+    @AppStorage(PowerKeeper.enabledKey) private var keepAwake: Bool = true
+    @AppStorage(PowerKeeper.batteryKey) private var keepAwakeOnBattery: Bool = false
     @State private var showingSkills = false
     @State private var pinging = false
     @State private var pingResult: String?
@@ -56,6 +58,17 @@ struct MacSettingsView: View {
                 TextField("Default shell", text: $shell, prompt: Text(ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"))
                     .font(.system(.body, design: .monospaced))
             }
+            Section("Power") {
+                Toggle("Keep this Mac awake while agents run", isOn: $keepAwake)
+                Text("Holds off system sleep only while an agent is working or waiting, or a device is attached over SSH — released the moment they finish. The display still sleeps; sleep would freeze the agent and silence the needs-you push.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                Toggle("Also on battery", isOn: $keepAwakeOnBattery)
+                    .disabled(!keepAwake)
+                Text("Off = only while plugged in. A closed lid on battery sleeps regardless — macOS doesn't allow holding clamshell sleep.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            .onChange(of: keepAwake) { _, _ in PowerKeeper.shared.reevaluate() }
+            .onChange(of: keepAwakeOnBattery) { _, _ in PowerKeeper.shared.reevaluate() }
             Section("Remote control") {
                 Toggle("Take over on connect", isOn: $takeover)
                 Text("Mirror (default): every device sees the live terminal and shares control. Take over: connecting detaches the others so you have sole control.")

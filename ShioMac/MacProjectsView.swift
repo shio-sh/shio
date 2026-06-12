@@ -211,6 +211,12 @@ private struct MacProjectDashboard: View {
                 Text("all quiet").font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
             }
             Spacer()
+            // Honest about held sleep — invisibly preventing it erodes trust.
+            if PowerKeeper.shared.isHolding {
+                Text("keeping this mac awake")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
+            }
             if glance.prs > 0 {
                 Text("\(glance.prs) PR\(glance.prs == 1 ? "" : "s") open")
                     .font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
