@@ -26,7 +26,7 @@ enum GitHubReader {
         let client = SSHClient(configuration: config)
         do {
             try await client.connect()
-            let out = try await client.exec(script, timeout: .seconds(8))
+            let out = try await client.exec(posixScript: script, timeout: .seconds(8))
             await client.disconnect()
             return decode(out)
         } catch {

@@ -316,6 +316,26 @@ final class SSHClient: @unchecked Sendable {
         try await execWithStatus(command, timeout: timeout).stdout
     }
 
+    /// Run a POSIX script on the host regardless of the user's login shell.
+    /// SSH exec hands the command line to that shell — fish or csh would choke
+    /// on POSIX syntax *silently* (every probe reads as timed out, skills
+    /// never materialize) — so the script travels as base64 (safe in every
+    /// shell's quoting rules) and is piped into `sh`. `--decode` rather than
+    /// `-d` so it decodes on BSD/macOS of any vintage and GNU alike.
+    func exec(posixScript: String, timeout: TimeAmount = .seconds(20)) async throws -> String {
+        try await exec(Self.posixWrapper(posixScript), timeout: timeout)
+    }
+
+    /// `exec(posixScript:)` with the full `ExecResult` (the pipe's exit
+    /// status is `sh`'s — i.e. the script's own).
+    func execWithStatus(posixScript: String, timeout: TimeAmount = .seconds(20)) async throws -> ExecResult {
+        try await execWithStatus(Self.posixWrapper(posixScript), timeout: timeout)
+    }
+
+    private static func posixWrapper(_ script: String) -> String {
+        "printf '%s' \(Data(script.utf8).base64EncodedString()) | base64 --decode | sh"
+    }
+
     /// `exec` with the full result: separate stderr, the command's exit
     /// status, and an explicit timed-out marker.
     func execWithStatus(_ command: String, timeout: TimeAmount = .seconds(20)) async throws -> ExecResult {

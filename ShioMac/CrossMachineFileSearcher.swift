@@ -61,7 +61,7 @@ final class CrossMachineFileSearcher {
         let client = SSHClient(configuration: config)
         do {
             try await client.connect()
-            let output = try await client.exec(command)
+            let output = try await client.exec(posixScript: command)
             await client.disconnect()
             let hits = output
                 .split(separator: "\n")

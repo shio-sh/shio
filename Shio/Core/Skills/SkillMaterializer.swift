@@ -294,7 +294,7 @@ final class SkillMaterializer {
             let d = it.dir
             if it.enabled {
                 let b64 = Data(it.body.utf8).base64EncodedString()
-                lines.append("mkdir -p \"$AG/\(d)\" && printf '%s' \(q(b64)) | base64 -d > \"$AG/\(d)/SKILL.md\"")
+                lines.append("mkdir -p \"$AG/\(d)\" && printf '%s' \(q(b64)) | base64 --decode > \"$AG/\(d)/SKILL.md\"")
                 for tool in fanoutTools {
                     lines.append("if [ -d \"$HOME/\(tool.config)\" ]; then mkdir -p \"$HOME/\(tool.skills)\"; T=\"$HOME/\(tool.skills)/\(d)\"; if [ -L \"$T\" ]; then case \"$(readlink \"$T\")\" in \"$AG\"*) ln -sfn \"$AG/\(d)\" \"$T\";; esac; elif [ ! -e \"$T\" ]; then ln -sfn \"$AG/\(d)\" \"$T\"; fi; fi")
                 }
@@ -305,7 +305,7 @@ final class SkillMaterializer {
         for it in project {
             if it.enabled {
                 let b64 = Data(it.body.utf8).base64EncodedString()
-                lines.append("mkdir -p \(pb)/\(q(it.dir)) && printf '%s' \(q(b64)) | base64 -d > \(pb)/\(q(it.dir))/SKILL.md")
+                lines.append("mkdir -p \(pb)/\(q(it.dir)) && printf '%s' \(q(b64)) | base64 --decode > \(pb)/\(q(it.dir))/SKILL.md")
             } else {
                 lines.append("rm -rf \(pb)/\(q(it.dir))")
             }
@@ -315,7 +315,7 @@ final class SkillMaterializer {
         let client = SSHClient(configuration: config)
         do {
             try await client.connect()
-            _ = try? await client.exec(script, timeout: .seconds(12))
+            _ = try? await client.exec(posixScript: script, timeout: .seconds(12))
             await client.disconnect()
         } catch {
             await client.disconnect()

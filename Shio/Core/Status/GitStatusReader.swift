@@ -41,7 +41,7 @@ enum GitStatusReader {
         let client = SSHClient(configuration: config)
         do {
             try await client.connect()
-            let out = try await client.exec(remoteScript(paths: paths), timeout: .seconds(8))
+            let out = try await client.exec(posixScript: remoteScript(paths: paths), timeout: .seconds(8))
             await client.disconnect()
             let agents = parseAgents(combined: out)
             if out.contains(noGitMarker) {

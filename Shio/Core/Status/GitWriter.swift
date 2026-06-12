@@ -28,7 +28,7 @@ enum GitWriter {
             let client = SSHClient(configuration: config)
             do {
                 try await client.connect()
-                let result = try await client.execWithStatus(cmd, timeout: .seconds(40))
+                let result = try await client.execWithStatus(posixScript: cmd, timeout: .seconds(40))
                 await client.disconnect()
                 return interpret(stdout: result.stdout, stderr: result.stderr,
                                  exitStatus: result.exitStatus, timedOut: result.timedOut)
