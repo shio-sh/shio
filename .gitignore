@@ -73,3 +73,6 @@ fastlane/test_output/
 build/
 *.ipa
 *.dmg
+
+# bundled tmux fallback (scripts/bundle-tmux.sh recreates it)
+ShioMac/Resources/tmux/

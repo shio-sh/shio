@@ -231,6 +231,14 @@ targets:
       - path: ShioMac
         excludes:
           - "**/.DS_Store"
+          - "Resources/tmux"
+      # Bundled tmux fallback (scripts/bundle-tmux.sh; gitignored, optional so
+      # fresh clones still generate). The user's own tmux always wins — this
+      # only exists so a Mac with no tmux still gets standing conversations.
+      - path: ShioMac/Resources/tmux
+        type: folder
+        buildPhase: resources
+        optional: true
       # Shared platform-agnostic core, added directory-by-directory as the Mac
       # layer is built (keeps the macOS target green vs. importing iOS-only
       # files). All of these are UIKit-free (NIO / CryptoKit / Foundation).

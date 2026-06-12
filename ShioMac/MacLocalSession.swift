@@ -24,14 +24,17 @@ enum MacLocalLaunch {
         let tmuxName = "shio-\(TmuxResume.scrubName(name))"
         let shell = MacSettings.defaultShell
 
-        // 1. If created from a git URL, clone once (only when the dir is
+        // 1. Append the BUNDLED tmux dir to the END of PATH (after the login
+        //    profile ran) — the user's own tmux always wins; ours only exists
+        //    when the Mac has none at all.
+        // 2. If created from a git URL, clone once (only when the dir is
         //    missing) — mirrors the SSH path's clone-on-first-open.
-        // 2. tmux if present → attach/create the invisible session (mouse mode
+        // 3. tmux if present → attach/create the invisible session (mouse mode
         //    on, scoped, for scrollback parity), opened in the repo dir; else a
         //    plain login shell there. `exec` so the terminal closes cleanly.
         // Everything rides $SHIO_* env vars (double quotes only, no single
         // quotes) so the path survives spaces and the outer single-quoting.
-        let script = #"[ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR"; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR" \; set mouse on \; setw -g window-size latest || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
+        let script = #"[ -z "$SHIO_BUNDLED_TMUX" ] || PATH="$PATH:$SHIO_BUNDLED_TMUX"; [ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR"; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR" \; set mouse on \; setw -g window-size latest || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
         let command = "\(shell) -lc '\(script)'"
 
         // Start in the repo's *parent* so the cwd is valid even before a clone
@@ -45,6 +48,7 @@ enum MacLocalLaunch {
                 "SHIO_SHELL": shell,
                 "SHIO_DIR": path,
                 "SHIO_CLONE": cloneURL ?? "",
+                "SHIO_BUNDLED_TMUX": BundledTmux.binDir ?? "",
             ]
         )
     }

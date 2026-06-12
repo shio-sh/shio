@@ -19,8 +19,13 @@ final class MacProjectAgentMonitor {
     private(set) var byTmux: [String: AgentSnapshot] = [:]
 
     private var timer: Timer?
-    private let tmux: String? = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"]
-        .first { FileManager.default.isExecutableFile(atPath: $0) }
+    /// The user's tmux first (their server, their protocol); the bundled
+    /// fallback last — same precedence as the session bootstrap.
+    private let tmux: String? = {
+        var candidates = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"]
+        if let bundled = BundledTmux.binaryPath { candidates.append(bundled) }
+        return candidates.first { FileManager.default.isExecutableFile(atPath: $0) }
+    }()
 
     private init() {}
 
