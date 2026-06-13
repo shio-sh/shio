@@ -28,6 +28,10 @@ final class LibGhosttySurfaceView: UIView {
     /// it Swift-side because libghostty doesn't expose a getter and we
     /// want to refuse pinch-out at the floor without a round-trip.
     private var currentFontSize: Int = mobileDefaultFontSize
+    /// Where the live pinch wants the font size to land. The actual libghostty
+    /// change walks toward it one step per runloop (see `applyPinchDelta`).
+    private var targetFontSize: Int = mobileDefaultFontSize
+    private var fontApplyScheduled = false
 
     nonisolated(unsafe) private var surface: ghostty_surface_t?
 
@@ -249,29 +253,53 @@ final class LibGhosttySurfaceView: UIView {
     ///   - Pinch OUT (shrink): capped at `mobileDefaultFontSize`, the
     ///     mobile baseline. Users can't zoom below the default state.
     func applyPinchDelta(_ accumulator: inout CGFloat) {
-        guard let surface = self.surface else { return }
+        // Translate the live accumulator into a TARGET font size only — never
+        // touch libghostty here. Rebuilding the font grid + Metal glyph atlas
+        // synchronously inside the gesture callback (and the `while` could do
+        // it several times per frame) races the in-flight renderer and
+        // crashes. The change is coalesced onto the next runloop instead.
         while accumulator >= 1.15 {
-            guard currentFontSize < Self.maxFontSize else {
+            guard targetFontSize < Self.maxFontSize else {
                 accumulator = 1.0   // clamp so we don't store overflow
                 break
             }
-            "increase_font_size:1".withCString { cstr in
-                _ = ghostty_surface_binding_action(surface, cstr, UInt(strlen(cstr)))
-            }
-            currentFontSize += 1
+            targetFontSize += 1
             accumulator /= 1.15
         }
         while accumulator <= 1.0 / 1.15 {
-            guard currentFontSize > Self.mobileDefaultFontSize else {
+            guard targetFontSize > Self.mobileDefaultFontSize else {
                 accumulator = 1.0
                 break
             }
-            "decrease_font_size:1".withCString { cstr in
-                _ = ghostty_surface_binding_action(surface, cstr, UInt(strlen(cstr)))
-            }
-            currentFontSize -= 1
+            targetFontSize -= 1
             accumulator *= 1.15
         }
+        scheduleFontApply()
+    }
+
+    /// Coalesce font-size changes off the gesture stack: at most one libghostty
+    /// rebuild per runloop, walking `currentFontSize` toward `targetFontSize`.
+    private func scheduleFontApply() {
+        guard !fontApplyScheduled, currentFontSize != targetFontSize else { return }
+        fontApplyScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.fontApplyScheduled = false
+            self.applyFontStep()
+        }
+    }
+
+    private func applyFontStep() {
+        guard let surface = self.surface, currentFontSize != targetFontSize else { return }
+        let up = targetFontSize > currentFontSize
+        let action = up ? "increase_font_size:1" : "decrease_font_size:1"
+        action.withCString { cstr in
+            _ = ghostty_surface_binding_action(surface, cstr, UInt(strlen(cstr)))
+        }
+        currentFontSize += up ? 1 : -1
+        // More to go? Take the next step on a later runloop, so two rebuilds
+        // never land in the same frame.
+        if currentFontSize != targetFontSize { scheduleFontApply() }
     }
 }
 
