@@ -103,33 +103,47 @@ jobs:
       - name: Build, sign, notarize
         run: fastlane mac release
 
-      - name: Package notarized app
+      - name: Build + notarize the DMG
         id: pkg
         run: |
           set -euo pipefail
           PLIST=build/mac/Shio.app/Contents/Info.plist
           VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
           BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
-          ASSET="Shio-${VERSION}.zip"
-          # ditto preserves the bundle + the stapled notarization ticket.
-          ditto -c -k --sequesterRsrc --keepParent build/mac/Shio.app "$ASSET"
+          # The branded DMG the landing page serves — Shio keycap + Applications
+          # drop on assets/dmg.png. (This step is what we used to do by hand.)
+          brew list create-dmg >/dev/null 2>&1 || brew install create-dmg
+          ./scripts/make-dmg.sh build/mac/Shio.app Shio.dmg
+          # Notarize the DMG container too (the app inside is already notarized +
+          # stapled) so the download itself is Gatekeeper-clean, then staple it.
+          xcrun notarytool submit Shio.dmg \
+            --key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" --wait
+          xcrun stapler staple Shio.dmg
+          xcrun stapler validate Shio.dmg
           {
             echo "version=$VERSION"
             echo "build=$BUILD"
-            echo "asset=$ASSET"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Publish GitHub Release
+      - name: Publish GitHub Release + deploy to mac-latest
         env:
           GH_TOKEN: ${{ github.token }}
           PRERELEASE: ${{ inputs.prerelease }}
         run: |
           set -euo pipefail
+          REPO="${{ github.repository }}"
           TAG="mac-v${{ steps.pkg.outputs.version }}-${{ steps.pkg.outputs.build }}"
           FLAGS=()
           [ "$PRERELEASE" = "true" ] && FLAGS+=(--prerelease)
-          gh release create "$TAG" "${{ steps.pkg.outputs.asset }}" \
-            --repo "${{ github.repository }}" \
+          # 1) Immutable dated release, for history.
+          gh release create "$TAG" "Shio.dmg" --repo "$REPO" \
             --title "Shio for Mac ${{ steps.pkg.outputs.version }} (${{ steps.pkg.outputs.build }})" \
-            --notes "Notarized Developer ID build. Download, unzip, and drag Shio to Applications." \
+            --notes "Notarized Developer ID build. Open the DMG and drag Shio to Applications." \
             "${FLAGS[@]}"
+          # 2) Move the LIVE download. shio.sh/mac links to a FIXED URL —
+          #    releases/download/mac-latest/Shio.dmg — so deploying = clobbering
+          #    that asset. THIS is the step the workflow was missing.
+          gh release view mac-latest --repo "$REPO" >/dev/null 2>&1 \
+            || gh release create mac-latest --repo "$REPO" --latest \
+                 --title "Shio for Mac (latest)" --notes "The current Shio for Mac build."
+          gh release upload mac-latest "Shio.dmg" --repo "$REPO" --clobber

@@ -34,7 +34,9 @@ Builds Release with **Hardened Runtime**, signs **Developer ID**, notarizes, sta
 
 ## Mac → GitHub CI release (`.github/workflows/release-mac.yml`)
 
-The same `fastlane mac release` recipe, run on a `macos-15` runner, publishing the notarized `.zip` as a **GitHub Release** (manual trigger: Actions → *Release Mac* → Run). shio.sh links the latest asset.
+One manual trigger (Actions → *Release Mac* → Run) goes live. The runner runs the same `fastlane mac release` recipe, then: builds the **branded DMG** (`scripts/make-dmg.sh` + `assets/dmg.png` — the Shio keycap + an Applications drop), **notarizes + staples the DMG**, publishes an immutable **dated** GitHub Release for history, and **clobbers `mac-latest/Shio.dmg`** — the FIXED URL `shio.sh/mac` links to (`releases/download/mac-latest/Shio.dmg`). That last clobber is the deploy; it used to be a manual step run by hand and was never in the workflow until now.
+
+> **Apple Silicon only for now.** The bundled tmux is the runner's arch (arm64); an Intel Mac falls back to the user's own tmux. A universal tmux (cross-build tmux + libevent/ncurses/utf8proc) is the follow-up.
 
 **One-time: five repo secrets** (Settings → Secrets and variables → Actions). Three are already set from `fastlane/.env` (`ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`). The remaining two are your signing cert — export it (Touch ID prompt), then set both:
 ```sh
