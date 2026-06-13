@@ -2,23 +2,30 @@ import SwiftUI
 import SwiftData
 
 /// Inside a project on iPhone — the Mac rail's AGENTS/SHELLS/REPOS, decomposed
-/// for a phone. Its conversations (repos, each a standing terminal) with agent
-/// presence, a needs-you bar up top, and its shells. The Slack-style switcher
-/// lives in the header (tap the name ▾) so you can hop projects without going
-/// back Home. ⓘ opens the project's grounding (skills · memory). The grounding
-/// "dashboard" is demoted behind ⓘ — conversations are the main event.
+/// for a phone: a needs-you bar, the repos (each a standing terminal) with
+/// agent presence, the project's shells, and its grounding (skills · memory ·
+/// rename) shown inline. The Slack-style switcher is the only thing in the
+/// header (tap the name ▾) — no back button; the Home tab returns you to the
+/// overview (his calls).
 struct ProjectView: View {
     @State private var project: Project
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
     @Environment(\.modelContext) private var context
+    @Query(sort: \Skill.createdAt) private var allSkills: [Skill]
     @State private var showingSwitcher = false
-    @State private var showingGrounding = false
     @State private var showingAddRepo = false
     @State private var showingAddProject = false
     @State private var showingTerminal = false
+    @State private var showingNotes = false
+    @State private var showingRename = false
+    @State private var renameText = ""
     @State private var noCheckoutName: String?
     private let sessionStore = SessionStore.shared
     private let status = ProjectStatusStore.shared
+
+    private var skillsCount: Int {
+        allSkills.filter { ($0.isGlobal && $0.enabled) || $0.project?.persistentModelID == project.persistentModelID }.count
+    }
 
     init(project: Project) {
         _project = State(initialValue: project)
@@ -37,9 +44,9 @@ struct ProjectView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(needsYou) { item in needsYouBar(item) }
 
-                    sectionHeader("conversations", add: { showingAddRepo = true })
+                    sectionHeader("repos", add: { showingAddRepo = true })
                     if project.sortedRepos.isEmpty {
-                        quietHint("No conversations yet — add a repo.")
+                        quietHint("No repos yet — add one.")
                     } else {
                         ForEach(project.sortedRepos) { repo in conversationRow(repo) }
                     }
@@ -48,6 +55,8 @@ struct ProjectView: View {
                         sectionHeader("shells")
                         ForEach(machines) { host in shellRow(host) }
                     }
+
+                    groundingSection
                 }
                 .padding(.bottom, 16)
             }
@@ -55,6 +64,9 @@ struct ProjectView: View {
 
             if showingSwitcher { switcherOverlay }
         }
+        // No back button — the switcher is the pure way between projects; the
+        // Home tab returns you to the overview (his call).
+        .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -72,14 +84,16 @@ struct ProjectView: View {
                 }
                 .accessibilityLabel("Switch project")
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showingGrounding = true } label: {
-                    Image(systemName: "info.circle").foregroundStyle(ShioTheme.textPrimary)
-                }
-                .accessibilityLabel("Project details")
-            }
         }
-        .sheet(isPresented: $showingGrounding) { ProjectGroundingSheet(project: project) }
+        .sheet(isPresented: $showingNotes) { notesSheet }
+        .alert("Rename project", isPresented: $showingRename) {
+            TextField("Name", text: $renameText)
+            Button("Save") {
+                let n = renameText.trimmingCharacters(in: .whitespaces)
+                if !n.isEmpty { project.name = n; try? context.save() }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .sheet(isPresented: $showingAddRepo) { AddProjectSheet(targetProject: project) }
         .sheet(isPresented: $showingAddProject) { AddProjectSheet() }
         .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
@@ -204,6 +218,56 @@ struct ProjectView: View {
         .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1).padding(.leading, 16) }
     }
 
+    // MARK: grounding (shown inline — his call, not behind ⓘ)
+
+    @ViewBuilder private var groundingSection: some View {
+        sectionHeader("grounding")
+        NavigationLink { SkillsLibraryView() } label: {
+            moduleRow(icon: "wrench.and.screwdriver", name: "Skills",
+                      detail: skillsCount == 0 ? "add" : "\(skillsCount) active")
+        }
+        .buttonStyle(.plain)
+        Button { showingNotes = true } label: {
+            moduleRow(icon: "doc.text", name: "Memory & context",
+                      detail: (project.notes?.isEmpty == false) ? "notes" : "add")
+        }
+        .buttonStyle(.plain)
+        Button { renameText = project.name; showingRename = true } label: {
+            moduleRow(icon: "pencil", name: "Rename project", detail: "")
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func moduleRow(icon: String, name: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon).font(.system(size: 14)).foregroundStyle(ShioTheme.textSecondary).frame(width: 18)
+            Text(name).font(.system(size: 14.5)).foregroundStyle(ShioTheme.textPrimary)
+            Spacer()
+            if !detail.isEmpty {
+                Text(detail).font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary)
+            }
+            Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(ShioTheme.textTertiary)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 13).frame(minHeight: 44)
+        .contentShape(Rectangle())
+        .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1).padding(.leading, 16) }
+    }
+
+    private var notesSheet: some View {
+        NavigationStack {
+            TextEditor(text: Binding(
+                get: { project.notes ?? "" },
+                set: { project.notes = $0; try? context.save() }))
+                .font(ShioFont.Mono.inline)
+                .foregroundStyle(ShioTheme.textPrimary)
+                .scrollContentBackground(.hidden)
+                .padding(ShioSpace.md)
+                .background(ShioTheme.background)
+                .navigationTitle("Memory & context")
+                .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
     // MARK: switcher overlay
 
     private var switcherOverlay: some View {
@@ -322,92 +386,5 @@ struct ProjectView: View {
         let targets = ProjectStatusStore.targets(for: [project], isLocalHost: { _ in false })
         status.refresh(targets)
         status.refreshPRs(targets)
-    }
-}
-
-// MARK: - Grounding sheet (ⓘ)
-
-/// The project's grounding, demoted behind ⓘ — skills, memory & context, and
-/// integrations. The old per-project "dashboard," now a details screen.
-private struct ProjectGroundingSheet: View {
-    @Bindable var project: Project
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var context
-    @Query(sort: \Skill.createdAt) private var allSkills: [Skill]
-    @State private var showingNotes = false
-    @State private var showingRename = false
-    @State private var renameText = ""
-
-    private var skillsCount: Int {
-        allSkills.filter { ($0.isGlobal && $0.enabled) || $0.project?.persistentModelID == project.persistentModelID }.count
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    NavigationLink { SkillsLibraryView() } label: {
-                        row(icon: "wrench.and.screwdriver", name: "Skills",
-                            detail: skillsCount == 0 ? "add" : "\(skillsCount) active")
-                    }
-                    Button { showingNotes = true } label: {
-                        row(icon: "doc.text", name: "Memory & context",
-                            detail: (project.notes?.isEmpty == false) ? "notes" : "add")
-                    }
-                    .buttonStyle(.plain)
-                }
-                Section {
-                    Button { renameText = project.name; showingRename = true } label: {
-                        row(icon: "pencil", name: "Rename project", detail: "")
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(ShioTheme.background)
-            .navigationTitle(project.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-            .sheet(isPresented: $showingNotes) { notesSheet }
-            .alert("Rename project", isPresented: $showingRename) {
-                TextField("Name", text: $renameText)
-                Button("Save") {
-                    let n = renameText.trimmingCharacters(in: .whitespaces)
-                    if !n.isEmpty { project.name = n; try? context.save() }
-                }
-                Button("Cancel", role: .cancel) {}
-            }
-        }
-    }
-
-    private func row(icon: String, name: String, detail: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 14)).foregroundStyle(ShioTheme.textSecondary).frame(width: 20)
-            Text(name).font(.system(size: 15)).foregroundStyle(ShioTheme.textPrimary)
-            Spacer()
-            if !detail.isEmpty {
-                Text(detail).font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary)
-            }
-        }
-        .listRowBackground(ShioTheme.surface)
-    }
-
-    private var notesSheet: some View {
-        NavigationStack {
-            TextEditor(text: Binding(
-                get: { project.notes ?? "" },
-                set: { project.notes = $0; try? context.save() }))
-                .font(ShioFont.Mono.inline)
-                .foregroundStyle(ShioTheme.textPrimary)
-                .scrollContentBackground(.hidden)
-                .padding(ShioSpace.md)
-                .background(ShioTheme.background)
-                .navigationTitle("Memory & context")
-                .navigationBarTitleDisplayMode(.inline)
-        }
     }
 }

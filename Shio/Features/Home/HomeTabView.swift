@@ -330,6 +330,6 @@ private struct ProjectOverviewCard: View {
     }
     private var idleSummary: String {
         let n = repoCount
-        return "\(n) conversation\(n == 1 ? "" : "s") · \(machines) · all quiet"
+        return "\(n) repo\(n == 1 ? "" : "s") · \(machines) · all quiet"
     }
 }
