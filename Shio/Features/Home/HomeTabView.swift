@@ -11,9 +11,7 @@ struct HomeTabView: View {
     @Environment(\.modelContext) private var context
     @State private var showingSettings = false
     @State private var isAddingProject = false
-    @State private var showingTerminal = false
     @State private var selectedProject: Project?
-    @State private var noCheckoutName: String?
     private let sessionStore = SessionStore.shared
     private let agents = AgentStateStore.shared
     private let status = ProjectStatusStore.shared
@@ -87,17 +85,10 @@ struct HomeTabView: View {
                 }
             }
             .navigationDestination(item: $selectedProject) { proj in
-                ProjectOverviewView(project: proj, openRepo: openRepo, openProject: { open(proj) })
+                ProjectView(project: proj)
             }
             .sheet(isPresented: $showingSettings) { NavigationStack { SettingsView() } }
             .sheet(isPresented: $isAddingProject) { AddProjectSheet() }
-            .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
-            .alert("No machine for this project", isPresented: Binding(
-                get: { noCheckoutName != nil }, set: { if !$0 { noCheckoutName = nil } })) {
-                Button("OK") { noCheckoutName = nil }
-            } message: {
-                Text("“\(noCheckoutName ?? "")” has no checkout on a reachable machine yet. Add one from the project's dashboard (Repos → Open on), or re-add the machine it lived on.")
-            }
             .onAppear { refreshStatus() }
             // Cheap keep-fresh while the overview is on screen: needs-you cards
             // appear/clear without a manual pull. warmOnly so it never wakes a
@@ -110,24 +101,6 @@ struct HomeTabView: View {
                         for: projects, isLocalHost: { _ in false }, warmOnly: true))
                 }
             }
-        }
-    }
-
-    // Skills materialize inside SessionStore.openOrCreate — it knows the
-    // exact checkout being opened, which this view doesn't.
-    private func openRepo(_ repo: Repo) {
-        if sessionStore.openOrCreate(repo: repo) != nil {
-            showingTerminal = true
-        } else {
-            noCheckoutName = repo.name
-        }
-    }
-
-    private func open(_ project: Project) {
-        if sessionStore.openOrCreate(project: project) != nil {
-            showingTerminal = true
-        } else {
-            noCheckoutName = project.name
         }
     }
 
