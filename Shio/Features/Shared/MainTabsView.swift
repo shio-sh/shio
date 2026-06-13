@@ -17,7 +17,7 @@ struct MainTabsView: View {
             Tab("Home", systemImage: "house") {
                 HomeTabView()
             }
-            Tab("Agents", systemImage: "flag") {
+            Tab("Agents", systemImage: "wand.and.sparkles.inverse") {
                 ActivityTabView()
             }
             .badge(needsYou)
