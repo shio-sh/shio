@@ -19,6 +19,18 @@ enum ShioModelContainer {
     nonisolated(unsafe) static var loadFailureReason: String?
 
     static let shared: ModelContainer = {
+        // Demo/screenshot build: ephemeral in-memory store, CloudKit OFF. Demo
+        // data can never touch or sync into a real account, and the real
+        // on-disk store stays untouched. `DemoSeed` fills it from the app's
+        // launch task. NEVER reached in a shipping build (no SHIO_DEMO env).
+        if DemoMode.isActive {
+            let demoConfig = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+            if let container = try? ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, Skill.self, configurations: demoConfig) {
+                Logger(subsystem: "sh.shio.app", category: "modelcontainer").info("ModelContainer: DEMO MODE (in-memory, CloudKit off)")
+                return container
+            }
+        }
+
         // 0. Pre-create `Library/Application Support` inside the App Group
         //    container if it doesn't exist. iOS doesn't pre-populate the
         //    subdirectory tree of a freshly-provisioned App Group, so the

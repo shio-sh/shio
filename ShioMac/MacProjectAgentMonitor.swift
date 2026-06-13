@@ -31,6 +31,7 @@ final class MacProjectAgentMonitor {
 
     /// Begin polling (idempotent). No-op if tmux isn't installed.
     func start() {
+        if DemoMode.isActive { return }   // demo presence is seeded; don't poll/overwrite
         guard timer == nil, tmux != nil else { return }
         // Once per run: clear out yesterday's Signal records so the user's
         // private database doesn't grow one record per needs-you forever.

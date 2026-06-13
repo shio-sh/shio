@@ -13,6 +13,12 @@ struct ShioApp: App {
                 .tint(ShioTheme.textPrimary)
                 .task {
                     Haptics.prepare()
+                    guard !DemoMode.isActive else {
+                        // Screenshot build: seed easter-egg data, skip the real
+                        // migration / push / CloudKit startup entirely.
+                        DemoSeed.run()
+                        return
+                    }
                     // Project-first migration: backfill a ProjectCheckout for each
                     // legacy single-host project. Idempotent + safe every launch.
                     ProjectMigration.run(in: ShioModelContainer.shared.mainContext)

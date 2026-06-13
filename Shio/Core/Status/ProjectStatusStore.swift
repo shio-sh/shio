@@ -42,6 +42,7 @@ final class ProjectStatusStore {
         .appendingPathComponent("git-status-cache.json")
 
     private func loadDiskCache() {
+        if DemoMode.isActive { return }   // never load a real cache into the demo store
         guard let url = Self.cacheURL,
               let data = try? Data(contentsOf: url),
               let decoded = try? JSONDecoder().decode([String: Cached].self, from: data)
@@ -106,6 +107,21 @@ final class ProjectStatusStore {
         return indexed.first { $0.activity == .waiting } ?? indexed.first
     }
 
+    // MARK: - Demo seeding (screenshot build only; see DemoMode / DemoSeed)
+    /// Set a checkout's git status directly (keyed exactly like a live probe).
+    func demoSetStatus(host: Host?, path: String, _ probe: GitProbe) {
+        statuses[StatusKey.make(host: host, path: path)] = Cached(probe: probe, fetchedAt: Date())
+    }
+    /// Set a remote agent for a repo on a host (keyed like a live scan would).
+    func demoSetAgent(host: Host, repoName: String, _ snap: AgentSnapshot) {
+        let base = "shio-\(TmuxResume.scrubName(repoName))"
+        remoteAgents["\(host.persistentModelID)", default: [:]][base] = snap
+    }
+    /// Set the open PRs for a checkout.
+    func demoSetPRs(host: Host?, path: String, _ list: [PullRequest]) {
+        prs[StatusKey.make(host: host, path: path)] = list
+    }
+
     /// Open PRs per checkout (via the machine's `gh`), keyed like `statuses`.
     private(set) var prs: [String: [PullRequest]] = [:]
     private var prTask: Task<Void, Never>?
@@ -118,6 +134,7 @@ final class ProjectStatusStore {
     /// Separate from the git refresh — `gh` is slower, so it never blocks the
     /// status fan-out. Cheap and advisory; failures just yield no PRs.
     func refreshPRs(_ targets: [Target]) {
+        if DemoMode.isActive { return }   // demo PRs are seeded, never probed
         prTask?.cancel()
         guard !targets.isEmpty else { return }
         prTask = Task { [weak self] in await self?.runPRs(targets) }
@@ -162,6 +179,7 @@ final class ProjectStatusStore {
     /// (their in-flight result is on the way); everything else fans out
     /// concurrently with whatever is running.
     func refresh(_ targets: [Target]) {
+        if DemoMode.isActive { return }   // demo statuses/agents are seeded, never probed
         let fresh = targets.filter { !inFlightKeys.contains($0.key) }
         guard !fresh.isEmpty else { return }
         for t in fresh { inFlightKeys.insert(t.key) }

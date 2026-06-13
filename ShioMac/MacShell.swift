@@ -101,6 +101,12 @@ struct MacShell: View {
         // Register This Mac as a synced Machine so its local projects are
         // reachable (continuity) and it appears on the user's other devices.
         .task {
+            guard !DemoMode.isActive else {
+                // Screenshot build: seed easter-egg data, skip self-host /
+                // migration / skills / live status.
+                DemoSeed.run()
+                return
+            }
             MacSelfHost.ensure(in: context)
             // Project-first migration: backfill a ProjectCheckout per legacy
             // single-host project. Idempotent + safe to run every launch.

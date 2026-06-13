@@ -248,6 +248,8 @@ targets:
       - path: Shio/Core/Profiles
       - path: Shio/Core/Agents
       - path: Shio/Core/Status
+      # Screenshot/demo seeding (DemoSeed) — gated at runtime by SHIO_DEMO.
+      - path: Shio/Core/Demo
       - path: Shio/Core/Skills
       - path: Shio/Core/Util
       - path: Shio/Core/Design
@@ -358,3 +360,27 @@ schemes:
       config: Debug
     archive:
       config: Release
+
+  # ── Demo / screenshot schemes ──────────────────────────────────────────────
+  # Same targets + Debug config, but SHIO_DEMO=1 flips the app into an
+  # in-memory, CloudKit-OFF store seeded with easter-egg data (DemoSeed) so we
+  # can take real App Store screenshots on a Mac / iPhone. The real on-disk
+  # store, CloudKit account, and git cache are never touched.
+  Shio Demo:
+    build:
+      targets:
+        Shio: all
+    run:
+      config: Debug
+      environmentVariables:
+        IDEPreferLogStreaming: "YES"
+        SHIO_DEMO: "1"
+  ShioMac Demo:
+    build:
+      targets:
+        ShioMac: all
+    run:
+      config: Debug
+      environmentVariables:
+        OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
+        SHIO_DEMO: "1"
