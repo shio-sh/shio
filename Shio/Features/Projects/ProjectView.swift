@@ -327,7 +327,7 @@ struct ProjectView: View {
             withAnimation(.easeOut(duration: 0.12)) { showingSwitcher = false }
         } label: {
             HStack(spacing: 11) {
-                projectMark(p, size: 24, muted: !current)
+                projectMark(p, size: 24)
                 Text(p.name).font(.system(size: 14.5)).foregroundStyle(ShioTheme.textPrimary).lineLimit(1)
                 Spacer(minLength: 6)
                 if act.contains(.waiting) {
@@ -347,13 +347,14 @@ struct ProjectView: View {
 
     // MARK: shared bits
 
-    private func projectMark(_ p: Project, size: CGFloat, muted: Bool = false) -> some View {
-        Text(String(p.name.first ?? "•").uppercased())
-            .font(.system(size: size * 0.5, weight: .medium, design: .monospaced))
-            .foregroundStyle(muted ? ShioTheme.textTertiary : ShioTheme.accent)
+    private func projectMark(_ p: Project, size: CGFloat) -> some View {
+        let tint = ProjectIdentity.color(for: p.name)
+        return Text(String(p.name.first ?? "•").uppercased())
+            .font(.system(size: size * 0.46, weight: .medium, design: .monospaced))
+            .foregroundStyle(tint)
             .frame(width: size, height: size)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(muted ? ShioTheme.hover : ShioTheme.accentBg))
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(ProjectIdentity.wash(for: p.name)))
     }
 
     @ViewBuilder private func presenceGlyph(_ a: AgentActivity) -> some View {

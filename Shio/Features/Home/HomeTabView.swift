@@ -45,12 +45,8 @@ struct HomeTabView: View {
                                 ProjectOverviewCard(
                                     project: project,
                                     activity: agentActivity(for: project),
-                                    agentName: agentSnapshot(for: project)?.agentName,
-                                    agentDetail: agentSnapshot(for: project)?.detail,
                                     changes: totalChanges(project),
-                                    repoCount: project.sortedRepos.count,
-                                    machines: machinesSummary(project),
-                                    peek: channelPeek(project),
+                                    isMostRecent: project.persistentModelID == projects.first?.persistentModelID,
                                     open: { selectedProject = project }
                                 )
                                 .contextMenu {
@@ -158,14 +154,6 @@ struct HomeTabView: View {
         agentSnapshot(for: project)?.activity ?? .none
     }
 
-    /// One entry per repo whose conversation is live — the card's status peek.
-    /// Empty when nothing's running (the card shows the quiet summary instead).
-    private func channelPeek(_ project: Project) -> [ChannelPeek] {
-        project.sortedRepos.compactMap { repo in
-            guard let p = ActivityFeed.presence(for: repo), p.snap.activity != .none else { return nil }
-            return ChannelPeek(name: repo.name, activity: p.snap.activity)
-        }
-    }
 
     private var emptyState: some View {
         VStack(spacing: ShioSpace.lg) {
@@ -188,148 +176,206 @@ struct HomeTabView: View {
     }
 }
 
-// MARK: - Overview card
 
-/// One repo's live presence, shown in a card's peek row.
-struct ChannelPeek: Identifiable {
-    let name: String
-    let activity: AgentActivity
-    var id: String { name }
-}
+// MARK: - Overview card (A resting · B active)
 
-/// One project in the overview — an outline card (warn-tinted when it needs
-/// you) with the loudest status line and, when agents are live, a peek of
-/// which conversations are running. Echoes the Mac dashboard's bento.
+/// One project in the overview. At rest it's a calm whisper card — the
+/// identity-tinted mark, the name, and one faint terminal line (the project's
+/// git state); the most-recent project carries a live blinking cursor. The
+/// moment an agent is live it expands into a hero: the repos inline with
+/// presence, plus a needs-you bar you can answer in place. (His call: A
+/// resting + B active.)
 private struct ProjectOverviewCard: View {
     let project: Project
     let activity: AgentActivity
-    let agentName: String?
-    let agentDetail: String?
     let changes: Int
-    let repoCount: Int
-    let machines: String
-    let peek: [ChannelPeek]
+    let isMostRecent: Bool
     let open: () -> Void
+    private let status = ProjectStatusStore.shared
 
     private var needsYou: Bool { activity == .waiting }
+    private var isLive: Bool { activity == .running || activity == .waiting }
+    private var waitingItem: ActivityItem? {
+        ActivityFeed.items(projects: [project]).first { $0.activity == .waiting }
+    }
 
     var body: some View {
-        Button(action: open) {
-            VStack(alignment: .leading, spacing: 0) {
-                top
-                statusLine.padding(.leading, 37).padding(.top, 8)
-                if !peek.isEmpty { peekRow.padding(.leading, 37).padding(.top, 9) }
+        VStack(alignment: .leading, spacing: 0) {
+            header.padding(.horizontal, 14).padding(.top, 13)
+            if isLive {
+                if let item = waitingItem {
+                    needbar(item).padding(.horizontal, 14).padding(.top, 10)
+                }
+                Rectangle().fill(ShioTheme.line).frame(height: 1).padding(.top, 11)
+                ForEach(project.sortedRepos) { repo in heroRepoRow(repo) }
+                foot.padding(.horizontal, 14).padding(.top, 9).padding(.bottom, 12)
+            } else {
+                whisper.padding(.horizontal, 14).padding(.top, 8).padding(.bottom, 12)
             }
-            .padding(EdgeInsets(top: 13, leading: 14, bottom: 11, trailing: 14))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(needsYou ? ShioTheme.warningBg : .clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(needsYou ? ShioTheme.warning.opacity(0.4) : ShioTheme.line2, lineWidth: 1)
-            )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .fill(needsYou ? ShioTheme.warningBg.opacity(0.5) : .clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .strokeBorder(needsYou ? ShioTheme.warning.opacity(0.4) : ShioTheme.line2, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { open() }
         .padding(.horizontal, 14)
     }
 
-    private var top: some View {
-        HStack(spacing: 11) {
+    // MARK: header (shared)
+
+    private var header: some View {
+        HStack(spacing: 12) {
             mark
             Text(project.name)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(ShioTheme.textPrimary)
                 .lineLimit(1)
             Spacer(minLength: 8)
             let age = shioShortAge(project.lastOpenedAt)
             if !age.isEmpty {
-                Text(age).font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary).monospacedDigit()
+                Text(age).font(.system(size: 11.5)).foregroundStyle(ShioTheme.textTertiary).monospacedDigit()
             }
             if changes > 0 {
                 HStack(spacing: 4) {
                     ShioStatusDot(status: .warning, size: 6)
                     Text("\(changes)").font(.system(size: 11.5, design: .monospaced)).foregroundStyle(ShioTheme.warning)
                 }
-                .padding(.leading, 4)
+                .padding(.leading, 7)
             }
         }
     }
 
     private var mark: some View {
-        Text(needsYou ? "●" : String(project.name.first ?? "•").uppercased())
-            .font(.system(size: needsYou ? 12 : 12, weight: .medium, design: .monospaced))
-            .foregroundStyle(needsYou ? ShioTheme.warning : (activity == .running ? ShioTheme.accent : ShioTheme.textTertiary))
-            .frame(width: 26, height: 26)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(needsYou ? .clear : (activity == .running ? ShioTheme.accentBg : ShioTheme.hover))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(needsYou ? ShioTheme.warning.opacity(0.4) : .clear, lineWidth: 1)
-            )
+        let tint = ProjectIdentity.color(for: project.name)
+        return Text(String(project.name.first ?? "•").uppercased())
+            .font(.system(size: 13, weight: .medium, design: .monospaced))
+            .foregroundStyle(tint)
+            .frame(width: 30, height: 30)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(ProjectIdentity.wash(for: project.name)))
     }
 
-    @ViewBuilder private var statusLine: some View {
-        switch activity {
-        case .waiting:
-            HStack(spacing: 5) {
-                Text("⚑").font(.system(size: 12))
-                Text(detailText).lineLimit(1).truncationMode(.tail)
-            }
-            .font(.system(size: 12.5))
-            .foregroundStyle(ShioTheme.warning)
-        case .running:
-            HStack(spacing: 6) {
-                ShioBrailleSpinner(status: .info, size: 11)
-                Text("\(agentName ?? "Agent") working\(detailSuffix)")
-                    .lineLimit(1).truncationMode(.tail)
-            }
-            .font(.system(size: 12.5))
-            .foregroundStyle(ShioTheme.info)
-        default:
-            Text(idleSummary)
-                .font(.system(size: 11.5, design: .monospaced))
+    // MARK: resting whisper (A)
+
+    private var whisper: some View {
+        HStack(spacing: 0) {
+            Text(whisperText)
+                .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(ShioTheme.textTertiary)
+                .lineLimit(1).truncationMode(.middle)
+            if isMostRecent { ShioCardCursor() }
+        }
+        .padding(.leading, 42)
+    }
+
+    private var whisperText: String {
+        let repo = project.sortedRepos.first
+        let probe = repo?.activeCheckout.flatMap { status.status(forHost: $0.host, path: $0.path)?.probe }
+        let m = GitLineFormatter.make(probe)
+        if project.sortedRepos.isEmpty { return "⎇ no repos yet" }
+        if changes > 0 { return "⎇ \(m.branch) · \(changes) uncommitted" }
+        if m.hasTracking { return "⎇ \(m.branch) · clean" }
+        return "⎇ \(m.branch)"
+    }
+
+    // MARK: active hero (B)
+
+    private func needbar(_ item: ActivityItem) -> some View {
+        HStack(spacing: 8) {
+            Text("⚑").font(.system(size: 12)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
+            Text(item.detail.map { "\(item.agentName) · \"\($0)\"" } ?? "\(item.agentName) needs you")
+                .font(.system(size: 11.5)).foregroundStyle(ShioTheme.warning).lineLimit(1)
+            Spacer(minLength: 6)
+            ShioMiniButton(title: "Approve", status: .success) { Haptics.medium(); ActivityFeed.reply(item, key: "y") }
+            ShioMiniButton(title: "Deny", status: .danger) { Haptics.medium(); ActivityFeed.reply(item, key: "n") }
+        }
+        .padding(.vertical, 9).padding(.horizontal, 11)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(ShioTheme.warningBg))
+        .overlay(alignment: .leading) { Rectangle().fill(ShioTheme.warning).frame(width: 2) }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func heroRepoRow(_ repo: Repo) -> some View {
+        let presence = ActivityFeed.presence(for: repo)
+        let act = presence?.snap.activity ?? .none
+        let m = GitLineFormatter.make(gitProbe(repo))
+        let pr = repo.activeCheckout.flatMap { c in
+            status.prList(forHost: c.host, path: c.path).first { $0.state == "OPEN" }
+        }
+        return HStack(spacing: 10) {
+            presenceGlyph(act).frame(width: 14)
+            Text(repo.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary).lineLimit(1)
+            Group {
+                switch act {
+                case .running: Text(presence?.snap.detail ?? "working").foregroundStyle(ShioTheme.info)
+                case .waiting: Text("waiting on you").foregroundStyle(ShioTheme.warning)
+                default:       Text(m.branch).foregroundStyle(ShioTheme.textTertiary)
+                }
+            }
+            .font(.system(size: 11, design: .monospaced)).lineLimit(1).truncationMode(.tail)
+            Spacer(minLength: 6)
+            HStack(spacing: 8) {
+                if m.dirty > 0 {
+                    HStack(spacing: 3) { ShioStatusDot(status: .warning, size: 5); Text("\(m.dirty)").foregroundStyle(ShioTheme.warning) }
+                } else if m.hasTracking {
+                    Text("✓").foregroundStyle(ShioTheme.success)
+                }
+                if let pr { Text("PR #\(pr.number)").foregroundStyle(ShioTheme.textTertiary) }
+            }
+            .font(.system(size: 10.5, design: .monospaced)).monospacedDigit()
+        }
+        .padding(.horizontal, 14).padding(.vertical, 9)
+    }
+
+    private var foot: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "desktopcomputer").font(.system(size: 10)).foregroundStyle(ShioTheme.textTertiary)
+            let n = project.sortedRepos.count
+            Text("\(machinesText) · \(n) repo\(n == 1 ? "" : "s")")
+                .font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
                 .lineLimit(1).truncationMode(.middle)
         }
     }
 
-    private var peekRow: some View {
-        HStack(spacing: 14) {
-            ForEach(peek.prefix(4)) { ch in
-                HStack(spacing: 5) {
-                    presenceGlyph(ch.activity)
-                    Text(ch.name).foregroundStyle(ShioTheme.textSecondary).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .font(.system(size: 11.5))
+    private var machinesText: String {
+        let names = project.allCheckouts.compactMap { $0.host?.name }
+        var seen = Set<String>(); var out: [String] = []
+        for nm in names where !seen.contains(nm) { seen.insert(nm); out.append(nm) }
+        return out.isEmpty ? "this mac" : out.joined(separator: " · ")
     }
 
     @ViewBuilder private func presenceGlyph(_ a: AgentActivity) -> some View {
         switch a {
-        case .waiting:  Text("⚑").font(.system(size: 11)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-        case .running:  ShioBrailleSpinner(status: .info, size: 10)
-        case .finished: Text("✓").font(.system(size: 10.5, design: .monospaced)).foregroundStyle(ShioTheme.success)
-        case .none:     Text("⎇").font(.system(size: 10.5, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
+        case .waiting:  Text("⚑").font(.system(size: 11.5)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
+        case .running:  ShioBrailleSpinner(status: .info, size: 11)
+        case .finished: Text("✓").font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.success)
+        case .none:     Text("⎇").font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
         }
     }
 
-    private var detailText: String {
-        if let d = agentDetail, !d.isEmpty { return "\(agentName ?? "Agent") needs you · \"\(d)\"" }
-        return "\(agentName ?? "An agent") needs you"
+    private func gitProbe(_ repo: Repo) -> GitProbe? {
+        guard let c = repo.activeCheckout else { return nil }
+        return status.status(forHost: c.host, path: c.path)?.probe
     }
-    private var detailSuffix: String {
-        if let d = agentDetail, !d.isEmpty { return " · \(d)" }
-        return ""
-    }
-    private var idleSummary: String {
-        let n = repoCount
-        return "\(n) repo\(n == 1 ? "" : "s") · \(machines) · all quiet"
+}
+
+/// The one live cursor on the overview — a hard blink (the sanctioned motion),
+/// stateless so it pauses off-screen. Trails the most-recent project's whisper.
+private struct ShioCardCursor: View {
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 0.55)) { ctx in
+            let on = Int(ctx.date.timeIntervalSinceReferenceDate / 0.55) % 2 == 0
+            Rectangle()
+                .fill(ShioTheme.textTertiary)
+                .frame(width: 6, height: 12)
+                .opacity(on ? 0.9 : 0)
+                .padding(.leading, 4)
+        }
     }
 }
