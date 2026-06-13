@@ -10,38 +10,33 @@ struct ActivityTabView: View {
     @State private var noCheckoutName: String?
     private let sessionStore = SessionStore.shared
 
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Agents")
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundStyle(ShioTheme.textPrimary)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 10)
+    private var items: [ActivityItem] { ActivityFeed.items(projects: projects) }
 
-            let items = ActivityFeed.items(projects: projects)
-            if items.isEmpty {
-                quietState
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(items) { item in
-                            FeedRow(item: item, jump: { jump(item) })
+    var body: some View {
+        NavigationStack {
+            Group {
+                if items.isEmpty {
+                    quietState
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(items) { item in
+                                FeedRow(item: item, jump: { jump(item) })
+                            }
                         }
                     }
                 }
             }
-        }
-        .background(ShioTheme.background)
-        .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
-        .alert("No machine for this repo", isPresented: Binding(
-            get: { noCheckoutName != nil }, set: { if !$0 { noCheckoutName = nil } })) {
-            Button("OK") { noCheckoutName = nil }
-        } message: {
-            Text("“\(noCheckoutName ?? "")” has no checkout on a reachable machine yet.")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(ShioTheme.background)
+            .shioNavTitle("Agents")
+            .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
+            .alert("No machine for this repo", isPresented: Binding(
+                get: { noCheckoutName != nil }, set: { if !$0 { noCheckoutName = nil } })) {
+                Button("OK") { noCheckoutName = nil }
+            } message: {
+                Text("“\(noCheckoutName ?? "")” has no checkout on a reachable machine yet.")
+            }
         }
     }
 
