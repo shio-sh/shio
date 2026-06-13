@@ -94,6 +94,16 @@ platform :mac do
   desc "Build, Developer-ID-sign, and notarize the Mac app → build/mac (DIRECT download, not the App Store)"
   lane :release do
     key = asc_key
+    # Bundle tmux so Shio works on a Mac that never installed one — the
+    # out-of-the-box promise. bundle-tmux.sh relocates the host's tmux + dylibs
+    # into ShioMac/Resources/tmux (the build copies them in); they're
+    # Developer-ID re-signed after the build, below, so notarization accepts
+    # them (ad-hoc signatures are rejected). NOTE: the runner's arch only —
+    # Apple Silicon here; a universal tmux for Intel is a follow-up.
+    Dir.chdir("..") do
+      sh("brew list tmux >/dev/null 2>&1 || brew install tmux")
+      sh("./scripts/bundle-tmux.sh")
+    end
     # Hardened Runtime is REQUIRED for notarization. ⚠️ It can also disable the
     # ObjC fork-safety opt-out the local terminal relies on — TEST the terminal
     # in this build before shipping (see DISTRIBUTION.md).
@@ -115,6 +125,15 @@ platform :mac do
       export_options: { signingStyle: "automatic" },
       xcargs: "CURRENT_PROJECT_VERSION=#{build_number} ENABLE_HARDENED_RUNTIME=YES#{xcode_asc_auth}"
     )
+    # Xcode signs the app + its frameworks but NOT a CLI dropped in Resources,
+    # so the bundled tmux is still ad-hoc-signed → notarization would reject it.
+    # Re-sign tmux + its dylibs with the Developer ID identity (the hash of the
+    # cert that just signed the app) and re-seal the bundle.
+    identity = sh("security find-identity -v -p codesigning | grep -m1 'Developer ID Application' | awk '{print $2}'").strip
+    if identity.empty?
+      UI.user_error!("No 'Developer ID Application' identity in the keychain — can't sign the bundled tmux.")
+    end
+    sh("cd .. && ./scripts/sign-bundled-tmux.sh build/mac/Shio.app #{identity}")
     notarize(
       package: "build/mac/Shio.app",
       api_key: key,
