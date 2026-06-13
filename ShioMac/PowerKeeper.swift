@@ -27,9 +27,11 @@ final class PowerKeeper {
     /// (invisibly preventing sleep erodes trust when discovered).
     private(set) var isHolding = false
 
-    private var agentsActive = false
-    private var remoteClientPresent = false
-    private var activity: NSObjectProtocol?
+    // Internal plumbing — only `isHolding` is observed; tracking these would
+    // also force `any` into the @Observable-generated source.
+    @ObservationIgnored private var agentsActive = false
+    @ObservationIgnored private var remoteClientPresent = false
+    @ObservationIgnored private var activity: (any NSObjectProtocol)?
 
     private init() {}
 
