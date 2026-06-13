@@ -64,6 +64,16 @@ struct HomeTabView: View {
                     }
                 }
             }
+            // A faint 塩 fills the void below the cards (behind content, so a
+            // long list simply covers it) — warmth, not noise.
+            .background(alignment: .bottom) {
+                Text("塩")
+                    .font(.system(size: 84))
+                    .foregroundStyle(ShioTheme.textPrimary)
+                    .opacity(0.04)
+                    .padding(.bottom, 28)
+                    .allowsHitTesting(false)
+            }
             .background(ShioTheme.background)
             .shioNavTitle("shio")
             .toolbar {
