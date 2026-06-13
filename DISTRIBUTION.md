@@ -34,7 +34,7 @@ Builds Release with **Hardened Runtime**, signs **Developer ID**, notarizes, sta
 
 ## Mac → GitHub CI release (`.github/workflows/release-mac.yml`)
 
-One manual trigger (Actions → *Release Mac* → Run) goes live. The runner runs the same `fastlane mac release` recipe, then: builds the **branded DMG** (`scripts/make-dmg.sh` + `assets/dmg.png` — the Shio keycap + an Applications drop), **notarizes + staples the DMG**, publishes an immutable **dated** GitHub Release for history, and **clobbers `mac-latest/Shio.dmg`** — the FIXED URL `shio.sh/mac` links to (`releases/download/mac-latest/Shio.dmg`). That last clobber is the deploy; it used to be a manual step run by hand and was never in the workflow until now.
+One manual trigger (Actions → *Release Mac* → Run) goes live. The runner runs the same `fastlane mac release` recipe, then: builds the **branded DMG** (`scripts/make-dmg.sh` + `assets/dmg.png` — the Shio keycap + an Applications drop), **notarizes + staples the DMG**, publishes an immutable **dated** GitHub Release for history, and **recreates the `mac-latest` release** — the FIXED URL `shio.sh/mac` links to (`releases/download/mac-latest/Shio.dmg`). That recreate is the deploy. It *deletes + recreates* `mac-latest` rather than just clobbering the asset: a clobber keeps the old publish date, so the repo front page would read "Latest · N days ago" and look stale — recreating stamps the release today. (Earlier it was a manual hand-run step missing from the workflow entirely.)
 
 > **Apple Silicon only for now.** The bundled tmux is the runner's arch (arm64); an Intel Mac falls back to the user's own tmux. A universal tmux (cross-build tmux + libevent/ncurses/utf8proc) is the follow-up.
 

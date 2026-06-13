@@ -140,10 +140,13 @@ jobs:
             --title "Shio for Mac ${{ steps.pkg.outputs.version }} (${{ steps.pkg.outputs.build }})" \
             --notes "Notarized Developer ID build. Open the DMG and drag Shio to Applications." \
             "${FLAGS[@]}"
-          # 2) Move the LIVE download. shio.sh/mac links to a FIXED URL —
-          #    releases/download/mac-latest/Shio.dmg — so deploying = clobbering
-          #    that asset. THIS is the step the workflow was missing.
-          gh release view mac-latest --repo "$REPO" >/dev/null 2>&1 \
-            || gh release create mac-latest --repo "$REPO" --latest \
-                 --title "Shio for Mac (latest)" --notes "The current Shio for Mac build."
-          gh release upload mac-latest "Shio.dmg" --repo "$REPO" --clobber
+          # 2) Deploy the LIVE download. shio.sh/mac links to a FIXED URL —
+          #    releases/download/mac-latest/Shio.dmg. RECREATE the release each
+          #    run (don't just clobber the asset): clobbering keeps the old
+          #    publish date, so the repo front page shows "Latest · N days ago"
+          #    and reads as stale/abandoned. Delete + recreate stamps it today.
+          #    The brief (~seconds) 404 window during the swap is fine for a beta.
+          gh release delete mac-latest --repo "$REPO" --yes --cleanup-tag 2>/dev/null || true
+          gh release create mac-latest "Shio.dmg" --repo "$REPO" --latest --target "$GITHUB_SHA" \
+            --title "Shio for Mac" \
+            --notes "The current Shio for Mac build — notarized Developer ID, direct download."
