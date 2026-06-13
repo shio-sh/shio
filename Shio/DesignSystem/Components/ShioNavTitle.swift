@@ -10,6 +10,11 @@ extension View {
     func shioNavTitle(_ name: String, size: CGFloat = 26) -> some View {
         self
             .navigationBarTitleDisplayMode(.inline)
+            // Flat dark nav bar to match the Mac's chrome — no translucent
+            // system material lightening the top edge (the design system is
+            // one set of ShioTheme tones across both platforms).
+            .toolbarBackground(ShioTheme.background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack(spacing: 0) {
                     Text("~/")

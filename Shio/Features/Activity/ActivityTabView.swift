@@ -5,12 +5,36 @@ import SwiftData
 /// from the row), is working, or just finished, across every team and machine.
 /// Linear's Inbox, for your agents.
 struct ActivityTabView: View {
+    /// Triage filter — the inbox pattern. Also the Agents tab's top-right
+    /// control, which aligns its title with the other tabs.
+    private enum Filter: String, CaseIterable, Identifiable {
+        case all = "All", needsYou = "Needs you", working = "Working", finished = "Finished"
+        var id: String { rawValue }
+        var systemImage: String {
+            switch self {
+            case .all: return "tray.full"
+            case .needsYou: return "flag"
+            case .working: return "circle.dotted"
+            case .finished: return "checkmark.circle"
+            }
+        }
+    }
+
     @Query(sort: \Project.name) private var projects: [Project]
     @State private var showingTerminal = false
     @State private var noCheckoutName: String?
+    @State private var filter: Filter = .all
     private let sessionStore = SessionStore.shared
 
-    private var items: [ActivityItem] { ActivityFeed.items(projects: projects) }
+    private var items: [ActivityItem] {
+        let all = ActivityFeed.items(projects: projects)
+        switch filter {
+        case .all:      return all
+        case .needsYou: return all.filter { $0.activity == .waiting }
+        case .working:  return all.filter { $0.activity == .running }
+        case .finished: return all.filter { $0.activity == .finished }
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -30,6 +54,23 @@ struct ActivityTabView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(ShioTheme.background)
             .shioNavTitle("Agents")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Filter", selection: $filter) {
+                            ForEach(Filter.allCases) { f in
+                                Label(f.rawValue, systemImage: f.systemImage).tag(f)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: filter == .all
+                              ? "line.3.horizontal.decrease.circle"
+                              : "line.3.horizontal.decrease.circle.fill")
+                            .foregroundStyle(ShioTheme.textPrimary)
+                    }
+                    .accessibilityLabel("Filter agents")
+                }
+            }
             .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
             .alert("No machine for this repo", isPresented: Binding(
                 get: { noCheckoutName != nil }, set: { if !$0 { noCheckoutName = nil } })) {

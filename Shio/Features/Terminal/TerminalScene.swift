@@ -210,7 +210,10 @@ struct TerminalScene: View {
         }
         .padding(.horizontal, ShioSpace.sm)
         .frame(height: 48)
-        .background(.ultraThinMaterial)
+        // Flat dark to match the Mac chead — no translucent material lightening
+        // the top edge. Hairline separates it from the terminal, like the Mac.
+        .background(ShioTheme.background)
+        .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1) }
     }
 
     /// Presence on this conversation — ⚑ needs-you / ⠋ working / ⎇ repo at
