@@ -13,7 +13,7 @@ struct ActivityTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Activity")
+                Text("Agents")
                     .font(.system(size: 19, weight: .bold))
                     .foregroundStyle(ShioTheme.textPrimary)
                 Spacer()
