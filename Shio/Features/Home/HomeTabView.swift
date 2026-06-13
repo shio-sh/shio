@@ -75,7 +75,7 @@ struct HomeTabView: View {
         }
         return VStack(spacing: 0) {
             header(project)
-            glanceLine(project, items: items)
+            Rectangle().fill(ShioTheme.line).frame(height: 1)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     // Empty-states law: AGENTS only exists while presence is live.
@@ -105,24 +105,8 @@ struct HomeTabView: View {
 
     private func header(_ project: Project) -> some View {
         HStack(spacing: 9) {
-            Button { dashboardProject = project } label: {
-                HStack(spacing: 9) {
-                    Text(String(project.name.first ?? "•").uppercased())
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
-                        .foregroundStyle(ShioTheme.accent)
-                        .frame(width: 22, height: 22)
-                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(ShioTheme.accentBg))
-                    Text(project.name)
-                        .font(.system(size: 19, weight: .bold))
-                        .foregroundStyle(ShioTheme.textPrimary)
-                        .lineLimit(1)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open \(project.name)'s dashboard")
-
+            // Name + caret are ONE switcher control (Slack-style: tap the team
+            // to switch) — one big target instead of two tiny adjacent ones.
             Menu {
                 ForEach(projects) { p in
                     Button {
@@ -140,31 +124,44 @@ struct HomeTabView: View {
                     Label("New project…", systemImage: "plus")
                 }
             } label: {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(ShioTheme.textTertiary)
-                    .frame(width: 30, height: 30)
-                    .contentShape(Rectangle())
+                HStack(spacing: 9) {
+                    Text(String(project.name.first ?? "•").uppercased())
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(ShioTheme.accent)
+                        .frame(width: 22, height: 22)
+                        .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(ShioTheme.accentBg))
+                    Text(project.name)
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(ShioTheme.textPrimary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(ShioTheme.textTertiary)
+                }
+                .frame(height: 44)
+                .contentShape(Rectangle())
             }
             .accessibilityLabel("Switch project")
 
-            Spacer()
+            Spacer(minLength: 8)
 
-            Button { isAddingProject = true } label: {
-                Image(systemName: "plus")
+            // Open this team's dashboard.
+            Button { dashboardProject = project } label: {
+                Image(systemName: "rectangle.grid.2x2")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(ShioTheme.textSecondary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Add project")
+            .accessibilityLabel("Open \(project.name)'s dashboard")
 
             settingsButton
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 6)
+        .padding(.leading, 16)
+        .padding(.trailing, 6)
+        .padding(.vertical, 2)
     }
 
     /// The one Settings entry point (Settings left More with it) — on Home,
@@ -172,51 +169,13 @@ struct HomeTabView: View {
     private var settingsButton: some View {
         Button { showingSettings = true } label: {
             Image(systemName: "gearshape")
-                .font(.system(size: 15, weight: .medium))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(ShioTheme.textSecondary)
-                .frame(width: 32, height: 32)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Settings")
-    }
-
-    private func glanceLine(_ project: Project, items: [ActivityItem]) -> some View {
-        let changes = project.sortedRepos.reduce(0) { $0 + dirtyCount($1) }
-        let working = items.filter { $0.activity == .running }.count
-        let needs = items.filter { $0.activity == .waiting }.count
-        return Group {
-            if changes > 0 || working > 0 || needs > 0 {
-                HStack(spacing: 12) {
-                    if changes > 0 {
-                        HStack(spacing: 5) {
-                            ShioStatusDot(status: .warning)
-                            Text("\(changes) changes").foregroundStyle(ShioTheme.warning)
-                        }
-                    }
-                    if working > 0 {
-                        HStack(spacing: 5) {
-                            ShioBrailleSpinner(status: .info, size: 10)
-                            Text("\(working) working").foregroundStyle(ShioTheme.info)
-                        }
-                    }
-                    if needs > 0 {
-                        Text("⚑ \(needs) needs you")
-                            .foregroundStyle(ShioTheme.warning)
-                            .shioNeedsPulse()
-                    }
-                    Spacer()
-                }
-                .font(.system(size: 11.5, design: .monospaced))
-                .monospacedDigit()
-                .padding(.horizontal, 16)
-                .padding(.bottom, 10)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .bottom) {
-            Rectangle().fill(ShioTheme.line).frame(height: 1)
-        }
     }
 
     // MARK: rows
