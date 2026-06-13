@@ -12,6 +12,7 @@ struct HomeTabView: View {
     @AppStorage("shio.ios.project") private var selectedName: String = ""
     @State private var isAddingProject = false
     @State private var showingTerminal = false
+    @State private var showingSettings = false
     @State private var dashboardProject: Project?
     @State private var noCheckoutName: String?
     private let status = ProjectStatusStore.shared
@@ -39,6 +40,7 @@ struct HomeTabView: View {
             }
         }
         .sheet(isPresented: $isAddingProject) { AddProjectSheet() }
+        .sheet(isPresented: $showingSettings) { NavigationStack { SettingsView() } }
         .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
         .alert("No machine for this repo", isPresented: Binding(
             get: { noCheckoutName != nil }, set: { if !$0 { noCheckoutName = nil } })) {
@@ -157,10 +159,26 @@ struct HomeTabView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Add project")
+
+            settingsButton
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 6)
+    }
+
+    /// The one Settings entry point (Settings left More with it) — on Home,
+    /// the "you" anchor.
+    private var settingsButton: some View {
+        Button { showingSettings = true } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(ShioTheme.textSecondary)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Settings")
     }
 
     private func glanceLine(_ project: Project, items: [ActivityItem]) -> some View {
@@ -394,5 +412,9 @@ struct HomeTabView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ShioTheme.background)
+        // Settings stays reachable even before the first project exists.
+        .overlay(alignment: .topTrailing) {
+            settingsButton.padding(.horizontal, 16).padding(.top, 8)
+        }
     }
 }
