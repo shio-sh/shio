@@ -40,51 +40,38 @@ struct ProjectView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(needsYou) { item in needsYouBar(item) }
+            VStack(spacing: 0) {
+                switcherHeader
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(needsYou) { item in needsYouBar(item) }
 
-                    sectionHeader("repos", add: { showingAddRepo = true })
-                    if project.sortedRepos.isEmpty {
-                        quietHint("No repos yet — add one.")
-                    } else {
-                        ForEach(project.sortedRepos) { repo in conversationRow(repo) }
+                        sectionHeader("repos", add: { showingAddRepo = true })
+                        if project.sortedRepos.isEmpty {
+                            quietHint("No repos yet — add one.")
+                        } else {
+                            ForEach(project.sortedRepos) { repo in conversationRow(repo) }
+                        }
+
+                        if !machines.isEmpty {
+                            sectionHeader("shells")
+                            ForEach(machines) { host in shellRow(host) }
+                        }
+
+                        groundingSection
                     }
-
-                    if !machines.isEmpty {
-                        sectionHeader("shells")
-                        ForEach(machines) { host in shellRow(host) }
-                    }
-
-                    groundingSection
+                    .padding(.bottom, 16)
                 }
-                .padding(.bottom, 16)
             }
             .background(ShioTheme.background)
 
             if showingSwitcher { switcherOverlay }
         }
-        // No back button — the switcher is the pure way between projects; the
-        // Home tab returns you to the overview (his call).
+        // The Slack switcher is the whole header (top-left, like the touch2
+        // mock). No nav bar, no back button — the Home tab returns you to the
+        // overview (his calls).
         .navigationBarBackButtonHidden(true)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Button {
-                    withAnimation(.easeOut(duration: 0.15)) { showingSwitcher.toggle() }
-                } label: {
-                    HStack(spacing: 7) {
-                        projectMark(project, size: 22)
-                        Text(project.name).font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(ShioTheme.textPrimary)
-                        Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(ShioTheme.textTertiary)
-                            .rotationEffect(.degrees(showingSwitcher ? 180 : 0))
-                    }
-                }
-                .accessibilityLabel("Switch project")
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showingNotes) { notesSheet }
         .alert("Rename project", isPresented: $showingRename) {
             TextField("Name", text: $renameText)
@@ -112,6 +99,34 @@ struct ProjectView: View {
                 status.refresh(ProjectStatusStore.targets(for: [project], isLocalHost: { _ in false }, warmOnly: true))
             }
         }
+    }
+
+    // MARK: switcher header (top-left, the touch2 .ph-head)
+
+    private var switcherHeader: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { showingSwitcher.toggle() }
+        } label: {
+            HStack(spacing: 10) {
+                projectMark(project, size: 28)
+                Text(project.name)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(ShioTheme.textPrimary)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(ShioTheme.textTertiary)
+                    .rotationEffect(.degrees(showingSwitcher ? 180 : 0))
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Switch project")
+        .background(ShioTheme.background)
     }
 
     // MARK: needs-you
@@ -298,6 +313,7 @@ struct ProjectView: View {
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(ShioTheme.line2, lineWidth: 1))
             .shadow(color: .black.opacity(0.35), radius: 18, y: 7)
             .padding(.horizontal, 12)
+            .padding(.top, 52)   // drop just below the switcher header
         }
     }
 
