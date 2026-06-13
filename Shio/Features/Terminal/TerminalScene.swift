@@ -164,9 +164,11 @@ struct TerminalScene: View {
 
     // MARK: - Top chrome
 
+    /// The conversation's channel header — the Mac chead on a phone: presence
+    /// glyph (⚑/⠋/⎇/%) + repo name + "agent · tmux · machine" + ▤.
     @ViewBuilder
     private var topBar: some View {
-        HStack(spacing: ShioSpace.sm) {
+        HStack(spacing: 9) {
             Button {
                 dismiss()
             } label: {
@@ -178,17 +180,19 @@ struct TerminalScene: View {
             }
             .accessibilityLabel("Close terminal")
 
-            Spacer(minLength: 0)
+            presenceGlyph
 
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(statusColor)
-                    .frame(width: 6, height: 6)
+            VStack(alignment: .leading, spacing: 1) {
                 Text(store.activeSession?.displayName ?? "")
-                    .font(.system(.footnote, design: .monospaced))
-                    .foregroundStyle(ShioTheme.textSecondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(ShioTheme.textPrimary)
+                    .lineLimit(1).truncationMode(.middle)
+                if let sub = channelSub {
+                    Text(sub)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(ShioTheme.textTertiary)
+                        .lineLimit(1).truncationMode(.middle)
+                }
             }
 
             Spacer(minLength: 0)
@@ -205,8 +209,38 @@ struct TerminalScene: View {
             sessionsMenu
         }
         .padding(.horizontal, ShioSpace.sm)
-        .frame(height: 44)
+        .frame(height: 48)
         .background(.ultraThinMaterial)
+    }
+
+    /// Presence on this conversation — ⚑ needs-you / ⠋ working / ⎇ repo at
+    /// rest, or % for a loose shell. Mirrors the Mac conversation header.
+    @ViewBuilder
+    private var presenceGlyph: some View {
+        let isShell = store.activeSession?.projectID == nil
+        let activity = store.activeSession.flatMap { AgentStateStore.shared.snapshot(for: $0.id)?.activity }
+        if isShell {
+            Text("%").font(.system(size: 13, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
+        } else {
+            switch activity {
+            case .waiting:
+                Text("⚑").font(.system(size: 13)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
+            case .running:
+                ShioBrailleSpinner(status: .info, size: 13)
+            default:
+                Text("⎇").font(.system(size: 13, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
+            }
+        }
+    }
+
+    /// "Codex · tmux · this mac" — agent (if any), the standing transport, the
+    /// machine. Drops the agent for a shell.
+    private var channelSub: String? {
+        guard let session = store.activeSession else { return nil }
+        let agent = session.projectID == nil ? nil
+            : AgentStateStore.shared.snapshot(for: session.id)?.agentName
+        let machine = session.viewModel.hostName
+        return [agent, "tmux", machine].compactMap(\.self).joined(separator: " · ")
     }
 
     /// The right-side menu button. Lists all live terminals across machines
@@ -261,17 +295,6 @@ struct TerminalScene: View {
                 .contentShape(Rectangle())
         }
         .accessibilityLabel("Open terminals")
-    }
-
-    private var statusColor: Color {
-        guard let vm = viewModel else { return ShioTheme.textTertiary }
-        switch vm.state {
-        case .connected:    return ShioTheme.success
-        case .connecting:   return ShioTheme.warning
-        case .reconnecting: return ShioTheme.warning
-        case .idle:         return ShioTheme.textTertiary
-        case .disconnected: return ShioTheme.danger
-        }
     }
 
     /// Look up a Host by its SwiftData PersistentIdentifier. Used by the
