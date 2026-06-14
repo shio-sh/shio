@@ -329,6 +329,28 @@ final class SessionViewModel {
         state = isReconnect ? .reconnecting : .connecting
         tmuxFallbackTriggered = false
 
+        // Screenshot build: no SSH. Mark connected, play a canned Claude Code
+        // session into the surface, then publish the ⚑ "needs you" state so the
+        // channel header + Approve/Deny bar light up. (Typed input no-ops: the
+        // client is never created, so `client?.write` is harmless.)
+        if DemoMode.isActive {
+            state = .connected
+            guard !isReconnect else { return }
+            Haptics.notifySuccess()
+            let host = String(hostName.prefix { $0 != "." })
+            let user = configuration.username
+            let path = startDirectory ?? "~"
+            let repo = startDirectory.map { ($0 as NSString).lastPathComponent } ?? "shio-app"
+            let sid = ownerSessionID
+            Task { @MainActor [weak self] in
+                await DemoTerminal.play(repo: repo, host: host, user: user, path: path) { chunk in
+                    self?.terminal.write(chunk)
+                }
+                if let sid { AgentStateStore.shared.update(sessionID: sid, DemoTerminal.waiting) }
+            }
+            return
+        }
+
         let client = SSHClient(configuration: configuration)
         client.onOutput = { [weak self] data in
             // `DispatchQueue.main.async` is strictly FIFO, so output chunks

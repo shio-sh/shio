@@ -37,6 +37,10 @@ final class FilesViewModel {
 
     /// Connect, open SFTP, resolve the starting directory, and list it.
     func start() async {
+        if DemoMode.isActive {                    // screenshot build: canned tree, no SSH
+            try? await load("/Users/amrith")
+            return
+        }
         state = .connecting
         do {
             let client = SSHClient(configuration: configuration)
@@ -96,6 +100,7 @@ final class FilesViewModel {
 
     /// Read a file fully into memory (for preview / download).
     func read(_ file: SFTPFile) async throws -> Data {
+        if DemoMode.isActive { return DemoFiles.content(for: file.name) }
         guard let sftp else { throw SFTPClient.SFTPError.notReady }
         return try await sftp.readFile(join(path, file.name))
     }
@@ -108,6 +113,12 @@ final class FilesViewModel {
     // MARK: Internals
 
     private func load(_ p: String) async throws {
+        if DemoMode.isActive {                    // canned, navigable tree
+            entries = DemoFiles.tree(at: p)
+            path = p
+            state = .browsing
+            return
+        }
         guard let sftp else { throw SFTPClient.SFTPError.notReady }
         var list = try await sftp.listDirectory(p)
         list.sort { a, b in
