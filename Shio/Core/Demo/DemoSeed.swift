@@ -7,54 +7,54 @@ import SwiftData
 /// task.
 ///
 /// The set-dressing is Amrith's own world (Ekpani Labs): the projects are his
-/// real tools/spaces and the machines are personal easter eggs — `brahmi` (the
-/// Centella plant Ekpani is named for), `sando` (his shiba), and the literal
-/// "Pi in the closet" from Shio's own tagline. Edit freely; the live refreshers
-/// no-op in demo, so whatever's set here is exactly what shows.
+/// real tools/spaces and the machines are personal easter eggs — Brahmi (the
+/// Centella plant Ekpani is named for), Tulsi (holy basil, its companion herb),
+/// and Sando (his shiba). Edit freely; the live refreshers no-op in demo, so
+/// whatever's set here is exactly what shows.
 @MainActor
 enum DemoSeed {
     static func run() {
         let ctx = ShioModelContainer.shared.mainContext
         guard (try? ctx.fetchCount(FetchDescriptor<Project>())) == 0 else { return }   // idempotent
 
-        // ── Machines (easter eggs; all warm except the sleepy closet Pi) ────
-        let studio   = Host(name: "studio",    hostname: "studio.local",               username: "amrith", kind: .directSSH)
-        let brahmi   = Host(name: "brahmi",    hostname: "brahmi.tail9c2e.ts.net",      username: "amrith", kind: .tailscale)
-        let sando    = Host(name: "sando",     hostname: "sando.fly.dev",              username: "root",   kind: .directSSH)
-        let closetPi = Host(name: "closet-pi", hostname: "closet-pi.tail9c2e.ts.net",   username: "pi",     kind: .tailscale)
-        studio.lastConnectedAt   = .now
-        brahmi.lastConnectedAt   = .now
-        sando.lastConnectedAt    = .now
-        closetPi.lastConnectedAt = Date(timeIntervalSinceNow: -5 * 24 * 3600)   // asleep → hollow dot
-        [studio, brahmi, sando, closetPi].forEach(ctx.insert)
+        // ── Machines (easter eggs; all warm except the sleepy Pi) ───────────
+        let studio = Host(name: "Studio", hostname: "studio.local",          username: "amrith", kind: .directSSH)
+        let brahmi = Host(name: "Brahmi", hostname: "brahmi.tail9c2e.ts.net", username: "amrith", kind: .tailscale)
+        let sando  = Host(name: "Sando",  hostname: "sando.fly.dev",          username: "root",   kind: .directSSH)
+        let tulsi  = Host(name: "Tulsi",  hostname: "tulsi.tail9c2e.ts.net",  username: "pi",     kind: .tailscale)
+        studio.lastConnectedAt = .now
+        brahmi.lastConnectedAt = .now
+        sando.lastConnectedAt  = .now
+        tulsi.lastConnectedAt  = Date(timeIntervalSinceNow: -5 * 24 * 3600)   // asleep → hollow dot
+        [studio, brahmi, sando, tulsi].forEach(ctx.insert)
 
         // ── Projects = the Ekpani tools/spaces → repos → checkouts ──────────
-        let shio = Project(name: "shio", path: "~/shio/shio-app", host: studio); ctx.insert(shio)
+        let shio = Project(name: "Shio", path: "~/shio/shio-app", host: studio); ctx.insert(shio)
         shio.addRepo(name: "shio-app",    path: "~/shio/shio-app",    host: studio, cloneURL: "git@github.com:ekpani/shio.git", in: ctx)
         shio.addRepo(name: "landing",     path: "~/shio/landing",     host: studio, in: ctx)
         shio.addRepo(name: "beta-worker", path: "~/shio/beta-worker", host: studio, in: ctx)
 
-        let timebase = Project(name: "timebase", path: "~/timebase/app", host: brahmi); ctx.insert(timebase)
+        let timebase = Project(name: "Timebase", path: "~/timebase/app", host: brahmi); ctx.insert(timebase)
         timebase.addRepo(name: "timebase-app", path: "~/timebase/app", host: brahmi, in: ctx)
         timebase.addRepo(name: "api",          path: "~/timebase/api", host: brahmi, in: ctx)
 
-        // dhuni + biriyani live under samooh (both are "by Samooh").
-        let samooh = Project(name: "samooh", path: "~/samooh/web", host: sando); ctx.insert(samooh)
+        // dhuni + biriyani live under Samooh (both are "by Samooh").
+        let samooh = Project(name: "Samooh", path: "~/samooh/web", host: sando); ctx.insert(samooh)
         samooh.addRepo(name: "samooh-web", path: "~/samooh/web",      host: sando, in: ctx)
         samooh.addRepo(name: "dhuni",      path: "~/samooh/dhuni",    host: sando, in: ctx)
         samooh.addRepo(name: "biriyani",   path: "~/samooh/biriyani", host: sando, in: ctx)
 
-        let stem = Project(name: "stem", path: "~/stem/app", host: brahmi); ctx.insert(stem)
+        let stem = Project(name: "Stem", path: "~/stem/app", host: brahmi); ctx.insert(stem)
         stem.addRepo(name: "stem-app", path: "~/stem/app",     host: brahmi, in: ctx)
         stem.addRepo(name: "crawler",  path: "~/stem/crawler", host: brahmi, in: ctx)
 
-        let medivalent = Project(name: "medivalent", path: "~/medivalent/app", host: sando); ctx.insert(medivalent)
+        let medivalent = Project(name: "Medivalent", path: "~/medivalent/app", host: sando); ctx.insert(medivalent)
         medivalent.addRepo(name: "medivalent", path: "~/medivalent/app", host: sando, in: ctx)
 
-        // pasture, the predecessor, resting on the closet Pi.
-        let pasture = Project(name: "pasture", path: "~/pasture/app", host: closetPi); ctx.insert(pasture)
-        pasture.addRepo(name: "pasture-app", path: "~/pasture/app",    host: closetPi, in: ctx)
-        pasture.addRepo(name: "worker",      path: "~/pasture/worker", host: closetPi, in: ctx)
+        // Pasture, the predecessor, resting on the Pi.
+        let pasture = Project(name: "Pasture", path: "~/pasture/app", host: tulsi); ctx.insert(pasture)
+        pasture.addRepo(name: "pasture-app", path: "~/pasture/app",    host: tulsi, in: ctx)
+        pasture.addRepo(name: "worker",      path: "~/pasture/worker", host: tulsi, in: ctx)
 
         // Grounding: a couple of project skills for the inspector.
         ctx.insert(Skill(name: "House style", skillDescription: "match the surrounding code",
@@ -76,19 +76,19 @@ enum DemoSeed {
 
         // ── Git lines + agent presence + PRs (seeded; refresh no-ops in demo) ─
         let s = ProjectStatusStore.shared
-        s.demoSetStatus(host: studio,   path: "~/shio/shio-app",    clean())
-        s.demoSetStatus(host: studio,   path: "~/shio/landing",     clean())
-        s.demoSetStatus(host: studio,   path: "~/shio/beta-worker", clean())
-        s.demoSetStatus(host: brahmi,   path: "~/timebase/app",     clean())
-        s.demoSetStatus(host: brahmi,   path: "~/timebase/api",     dirty(2))
-        s.demoSetStatus(host: sando,    path: "~/samooh/web",       clean())
-        s.demoSetStatus(host: sando,    path: "~/samooh/dhuni",     clean())
-        s.demoSetStatus(host: sando,    path: "~/samooh/biriyani",  clean())
-        s.demoSetStatus(host: brahmi,   path: "~/stem/app",         clean())
-        s.demoSetStatus(host: brahmi,   path: "~/stem/crawler",     dirty(3))
-        s.demoSetStatus(host: sando,    path: "~/medivalent/app",   clean())
-        s.demoSetStatus(host: closetPi, path: "~/pasture/app",      clean())
-        s.demoSetStatus(host: closetPi, path: "~/pasture/worker",   dirty(1))
+        s.demoSetStatus(host: studio, path: "~/shio/shio-app",    clean())
+        s.demoSetStatus(host: studio, path: "~/shio/landing",     clean())
+        s.demoSetStatus(host: studio, path: "~/shio/beta-worker", clean())
+        s.demoSetStatus(host: brahmi, path: "~/timebase/app",     clean())
+        s.demoSetStatus(host: brahmi, path: "~/timebase/api",     dirty(2))
+        s.demoSetStatus(host: sando,  path: "~/samooh/web",       clean())
+        s.demoSetStatus(host: sando,  path: "~/samooh/dhuni",     clean())
+        s.demoSetStatus(host: sando,  path: "~/samooh/biriyani",  clean())
+        s.demoSetStatus(host: brahmi, path: "~/stem/app",         clean())
+        s.demoSetStatus(host: brahmi, path: "~/stem/crawler",     dirty(3))
+        s.demoSetStatus(host: sando,  path: "~/medivalent/app",   clean())
+        s.demoSetStatus(host: tulsi,  path: "~/pasture/app",      clean())
+        s.demoSetStatus(host: tulsi,  path: "~/pasture/worker",   dirty(1))
 
         s.demoSetAgent(host: studio, repoName: "shio-app",
                        AgentSnapshot(agentName: "Claude Code", activity: .waiting,  detail: "Apply the schema migration?"))
