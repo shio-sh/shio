@@ -12,6 +12,9 @@ struct HomeTabView: View {
     @State private var showingSettings = false
     @State private var isAddingProject = false
     @State private var selectedProject: Project?
+    /// Scroll viewport height, so the content can fill it and drop the 塩
+    /// watermark into the void at the bottom of the screen when the list is short.
+    @State private var overviewHeight: CGFloat = 0
     private let sessionStore = SessionStore.shared
     private let agents = AgentStateStore.shared
     private let status = ProjectStatusStore.shared
@@ -57,6 +60,27 @@ struct HomeTabView: View {
                             }
                         }
                         .padding(.vertical, 6)
+                        // Fill at least the viewport so a short list still pushes
+                        // the watermark down to the bottom of the screen.
+                        .frame(maxWidth: .infinity, minHeight: overviewHeight, alignment: .top)
+                        // A faint 塩 fills the void BELOW the last card — anchored
+                        // to the bottom of the content, so the cards are always
+                        // above it and it never peeks through the gaps between them.
+                        .background(alignment: .bottom) {
+                            Text("塩")
+                                .font(.system(size: 84))
+                                .foregroundStyle(ShioTheme.textPrimary)
+                                .opacity(0.04)
+                                .padding(.bottom, 28)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .background {
+                        GeometryReader { geo in
+                            Color.clear
+                                .onAppear { overviewHeight = geo.size.height }
+                                .onChange(of: geo.size.height) { _, h in overviewHeight = h }
+                        }
                     }
                     .refreshable {
                         refreshStatus()
