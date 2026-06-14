@@ -12,6 +12,14 @@ options:
   generateEmptyDirectories: true
   xcodeVersion: "16.0"
 
+# Demo is a debug-variant config that compiles in the DEMO_MODE flag (see the
+# per-target settings + the Demo schemes). Declaring configs explicitly means we
+# must list Debug/Release too, or XcodeGen drops them.
+configs:
+  Debug: debug
+  Release: release
+  Demo: debug
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -181,6 +189,11 @@ targets:
           APS_ENVIRONMENT: development
         Release:
           APS_ENVIRONMENT: production
+        # Screenshot build: DEMO_MODE bakes demo mode into the binary so it works
+        # untethered (home-screen launch), not just under the Xcode debugger.
+        Demo:
+          APS_ENVIRONMENT: development
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG DEMO_MODE
 
   ShioWidgets:
     type: app-extension
@@ -318,6 +331,10 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: VRNNS4H6XH
         CODE_SIGN_ENTITLEMENTS: ShioMac/ShioMac.entitlements
+      configs:
+        # Screenshot build — bake DEMO_MODE into the binary (see Shio target).
+        Demo:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG DEMO_MODE
 
 schemes:
   Shio:
@@ -371,7 +388,7 @@ schemes:
       targets:
         Shio: all
     run:
-      config: Debug
+      config: Demo                 # builds the DEMO_MODE flag into the binary
       environmentVariables:
         IDEPreferLogStreaming: "YES"
         SHIO_DEMO: "1"
@@ -380,7 +397,7 @@ schemes:
       targets:
         ShioMac: all
     run:
-      config: Debug
+      config: Demo
       environmentVariables:
         OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
         SHIO_DEMO: "1"
