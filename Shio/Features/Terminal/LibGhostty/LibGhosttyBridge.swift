@@ -100,7 +100,15 @@ final class LibGhosttyBridge: @unchecked Sendable {
         var configString = """
         background = #\(String(format: "%06X", bg))
         foreground = #\(String(format: "%06X", fg))
+        term = xterm-256color
         """
+        // ^ Pin TERM to xterm-256color. libghostty defaults to `xterm-ghostty`,
+        // whose terminfo entry only Ghostty.app installs — so on a Mac that
+        // never ran Ghostty, the local shell errors with "can't find terminfo
+        // database". 256color is present on every Mac, and matches what the SSH
+        // PTY already requests (SSHClient). macOS only matters (iOS surfaces are
+        // external / SSH-fed and never spawn a local shell), but it's harmless
+        // there.
         #if os(macOS)
         // Give the cell grid a gutter so text isn't jammed against the
         // surface edge (the default 2pt looks flush). libghostty fills the

@@ -76,8 +76,8 @@ struct ShioMacApp: App {
                 Button("Files") { model.canvas = .files }
                     .keyboardShortcut("f", modifiers: [.command, .shift])
             }
-            CommandMenu("Conversations") {
-                Button("Close Pane / Conversation") { model.closeSelectedTab() }
+            CommandMenu("Repos") {
+                Button("Close Pane") { model.closeSelectedTab() }
                     .keyboardShortcut("w", modifiers: .command)
                 Divider()
                 Button("Next") { model.selectAdjacentTab(1) }
