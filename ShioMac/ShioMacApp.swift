@@ -1,4 +1,5 @@
 import SwiftUI
+import Sparkle
 
 /// Shio for Mac — a native AppKit/SwiftUI app hosting libghostty (NOT Mac
 /// Catalyst). Shares the platform-agnostic core (SSH, profiles, keys, agents,
@@ -14,6 +15,11 @@ struct ShioMacApp: App {
     // RC3 away-watcher: keeps the agent monitor alive (and the away-signal
     // firing) when the window is closed, if the menu-bar watcher is enabled.
     @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var appDelegate
+    // Sparkle: in-app auto-update. `startingUpdater: true` begins the background
+    // update schedule at launch; the "Check for Updates…" menu item drives a
+    // manual check. Feed + key are in Info.plist (SUFeedURL / SUPublicEDKey).
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
     var body: some Scene {
         WindowGroup {
@@ -26,6 +32,12 @@ struct ShioMacApp: App {
         // (and no toolbar may ever exist — it eats the headers' clicks).
         .windowStyle(.hiddenTitleBar)
         .commands {
+            // "Check for Updates…" in the app menu, right under About Shio
+            // (the standard spot). Sparkle also checks automatically in the
+            // background — this is the manual trigger.
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(updater: updaterController.updater)
+            }
             // Copy/Paste come from SwiftUI's default Edit menu — those route
             // copy:/paste: to the focused GhosttyMacSurface via the responder
             // chain, so no custom Edit items are needed.

@@ -36,6 +36,13 @@ packages:
   swift-nio:
     url: https://github.com/apple/swift-nio
     from: 2.65.0
+  # In-app auto-update for the Mac app (notarized, non-MAS). The appcast it
+  # checks is published per-release to GitHub mac-latest; the EdDSA public key
+  # lives in ShioMac's Info.plist, the private key is the SPARKLE_ED_PRIVATE_KEY
+  # CI secret.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.9.3
 
 targets:
   Shio:
@@ -270,6 +277,9 @@ targets:
       - sdk: Carbon.framework
       - sdk: Metal.framework
       - sdk: QuartzCore.framework
+      # Sparkle: in-app auto-update. A dynamic framework — Xcode embeds + signs
+      # it into Shio.app/Contents/Frameworks automatically.
+      - package: Sparkle
       - package: swift-nio-ssh
         product: NIOSSH
       - package: swift-nio
@@ -291,6 +301,12 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.developer-tools
+        # Sparkle auto-update: feed = the per-release appcast on GitHub
+        # mac-latest; SUPublicEDKey pairs with the SPARKLE_ED_PRIVATE_KEY CI
+        # secret. Auto-checks on so it skips the first-run opt-in prompt.
+        SUFeedURL: https://github.com/shio-sh/shio/releases/download/mac-latest/appcast.xml
+        SUPublicEDKey: YHShgQXAMS90LaQFAnwXDHe7g+qTEHWI33WUHWo7ZL0=
+        SUEnableAutomaticChecks: true
         # Track the deployment target so the launch gate can't drift from the
         # binary's minos (hardcoding 26.0 here is what locked out Sequoia).
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"

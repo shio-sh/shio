@@ -55,7 +55,14 @@ base64 -i build/mac/Shio.app/Contents/embedded.provisionprofile \
   | gh secret set DEVID_PROFILE_BASE64 --repo shio-sh/shio
 ```
 
-(Sparkle for in-app auto-update is a later add — it points at a GitHub-Releases appcast, which is exactly what this workflow produces. See the landing/messaging work.)
+## In-app auto-update (Sparkle)
+
+The Mac app updates itself with **Sparkle 2** — a "Check for Updates…" item in the app menu plus silent background checks. No more manual DMG re-downloads.
+
+- **App side:** Sparkle is an SPM dependency on `ShioMac` (embedded + signed automatically). `Info.plist` carries `SUFeedURL` (→ `mac-latest/appcast.xml`), `SUPublicEDKey` (the EdDSA public key), and `SUEnableAutomaticChecks` (skips the first-run opt-in). The updater is an `SPUStandardUpdaterController` started at launch (`ShioMacApp.swift`); the menu command lives in `CheckForUpdatesView.swift`.
+- **Signing key:** one EdDSA keypair (Sparkle's `generate_keys`, stored in the login Keychain). Public key → Info.plist; private key → the **`SPARKLE_ED_PRIVATE_KEY`** repo secret. **Back this private key up** — losing it means you can't sign updates and have to ship a new public key. Re-export anytime with `generate_keys -x <file>`.
+- **Release side:** `release-mac.yml` EdDSA-signs the notarized DMG (`sign_update --ed-key-file -`, key from the secret via stdin) and writes `appcast.xml`, published to `mac-latest` beside `Shio.dmg`. Every `Release Mac` run therefore auto-pushes the update to all installs — the appcast's enclosure is the same fixed `mac-latest/Shio.dmg` URL the landing page serves.
+- **Signing interplay:** Sparkle's framework + its `Autoupdate` / `Updater.app` / XPC services are signed by gym (hardened runtime); `sign-bundled-tmux.sh` re-seals the outer app with `--preserve-metadata` (NOT `--deep`), so it doesn't clobber Sparkle's nested signatures. `codesign --verify --deep --strict` (run inside that script) is the gate.
 
 > ⚠️ **TEST FIRST — hardened-runtime + the local terminal.** Notarization requires Hardened Runtime, and the ObjC runtime ignores `OBJC_DISABLE_INITIALIZE_FORK_SAFETY` for hardened processes — the very opt-out the local terminal used to dodge the fork-safety abort when ghostty forks a shell. **Before distributing, open the notarized `build/mac/Shio.app`, start a local terminal tab, and confirm you get a working shell** (not a blank cursor). Ghostty.app ships notarized + hardened with a working terminal using the same libghostty, so it's very likely fine — but it MUST be verified on a hardened build, since our Debug builds are unhardened. If the shell doesn't spawn, the fix is in the libghostty spawn path (posix_spawn vs fork), not the env var.
 

@@ -125,6 +125,43 @@ jobs:
             echo "build=$BUILD"
           } >> "$GITHUB_OUTPUT"
 
+      # Sparkle in-app auto-update: EdDSA-sign the notarized DMG and write the
+      # appcast feed. The feed's enclosure points at the fixed mac-latest/Shio.dmg
+      # URL, and appcast.xml is published to mac-latest too (see below), so the
+      # app's SUFeedURL (mac-latest/appcast.xml) always sees the newest build.
+      - name: Sign update + build appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          curl -sL https://github.com/sparkle-project/Sparkle/releases/download/2.9.3/Sparkle-2.9.3.tar.xz -o /tmp/sparkle.tar.xz
+          mkdir -p /tmp/sparkle && tar -xf /tmp/sparkle.tar.xz -C /tmp/sparkle
+          # Key from the secret via stdin — it never touches disk.
+          SIG_LEN="$(echo "$SPARKLE_ED_PRIVATE_KEY" | /tmp/sparkle/bin/sign_update Shio.dmg --ed-key-file -)"
+          VERSION="${{ steps.pkg.outputs.version }}"
+          BUILD="${{ steps.pkg.outputs.build }}"
+          PUBDATE="$(date -u '+%a, %d %b %Y %H:%M:%S +0000')"
+          DMG_URL="https://github.com/${{ github.repository }}/releases/download/mac-latest/Shio.dmg"
+          {
+            echo '<?xml version="1.0" encoding="utf-8"?>'
+            echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">'
+            echo '  <channel>'
+            echo '    <title>Shio for Mac</title>'
+            echo '    <description>Updates for Shio, a terminal for the agent era.</description>'
+            echo '    <language>en</language>'
+            echo '    <item>'
+            echo "      <title>Shio ${VERSION}</title>"
+            echo "      <pubDate>${PUBDATE}</pubDate>"
+            echo "      <sparkle:version>${BUILD}</sparkle:version>"
+            echo "      <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>"
+            echo '      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>'
+            echo "      <enclosure url=\"${DMG_URL}\" ${SIG_LEN} type=\"application/octet-stream\" />"
+            echo '    </item>'
+            echo '  </channel>'
+            echo '</rss>'
+          } > appcast.xml
+          echo "--- appcast.xml ---"; cat appcast.xml
+
       - name: Publish GitHub Release + deploy to mac-latest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -147,6 +184,6 @@ jobs:
           #    and reads as stale/abandoned. Delete + recreate stamps it today.
           #    The brief (~seconds) 404 window during the swap is fine for a beta.
           gh release delete mac-latest --repo "$REPO" --yes --cleanup-tag 2>/dev/null || true
-          gh release create mac-latest "Shio.dmg" --repo "$REPO" --latest --target "$GITHUB_SHA" \
+          gh release create mac-latest "Shio.dmg" "appcast.xml" --repo "$REPO" --latest --target "$GITHUB_SHA" \
             --title "Shio for Mac" \
             --notes "The current Shio for Mac build — notarized Developer ID, direct download."
