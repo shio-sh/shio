@@ -29,5 +29,11 @@
 	</dict>
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/shio-sh/shio/releases/download/mac-latest/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>YHShgQXAMS90LaQFAnwXDHe7g+qTEHWI33WUHWo7ZL0=</string>
 </dict>
 </plist>
