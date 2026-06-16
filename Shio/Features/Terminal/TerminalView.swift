@@ -116,7 +116,7 @@ final class TerminalContainerView: UIView {
             recognizer.setTranslation(.zero, in: self)
             scrollAccumulatedPoints += translation.y
 
-            if controller.surfaceView.isAlternateScreenActive || controller.prefersWheelScroll {
+            if controller.surfaceView.isAlternateScreenActive {
                 // Alt-screen (Claude Code / vim under tmux): ghostty's own
                 // scrollback is empty here, so we synthesize SGR mouse-wheel
                 // events and send them upstream — tmux routes them to the

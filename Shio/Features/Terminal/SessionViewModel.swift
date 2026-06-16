@@ -123,10 +123,6 @@ final class SessionViewModel {
         self.startDirectory = startDirectory
         self.cloneURL = cloneURL
         self.terminal = LibGhosttyTerminalController()
-        // tmux sessions are always alt-screen with `mouse on`, so route the Page
-        // buttons / pan to the wheel-event path — it reaches tmux even when
-        // libghostty's alt-screen probe reads false over SSH (the scroll bug).
-        self.terminal.prefersWheelScroll = (persistenceMode == .tmuxAutoResume)
         wire()
         startPathMonitor()
     }
@@ -346,8 +342,6 @@ final class SessionViewModel {
                 if self.persistenceMode == .tmuxAutoResume, !self.tmuxFallbackTriggered,
                    let str, TmuxResume.looksLikeTmuxMissing(str) {
                     self.tmuxFallbackTriggered = true
-                    self.terminal.prefersWheelScroll = false   // plain shell: native scrollback works
-
                     let hint = [
                         "\r\n\u{1B}[33m[shio] tmux not found — running plain shell.\u{1B}[0m",
                         "\u{1B}[2m       Install on this Mac with: \u{1B}[0m\u{1B}[1mbrew install tmux\u{1B}[0m",
