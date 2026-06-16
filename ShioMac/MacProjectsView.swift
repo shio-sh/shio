@@ -456,6 +456,9 @@ private struct ChanRow: View {
     var onCommit: (() -> Void)? = nil
     var openOn: ((ProjectCheckout) -> Void)? = nil
     @State private var hovering = false
+    @State private var renaming = false
+    @State private var draft = ""
+    @Environment(\.modelContext) private var context
 
     private func machineLabel(_ c: ProjectCheckout) -> String {
         (c.host.map(MacSelfHost.isThisMac) ?? true) ? "This Mac" : (c.host?.name ?? "Unknown")
@@ -484,6 +487,7 @@ private struct ChanRow: View {
         .onTapGesture { open() }
         .onHover { hovering = $0 }
         .contextMenu {
+            Button("Rename…", systemImage: "pencil") { draft = row.repo.name; renaming = true }
             let checkouts = row.repo.checkouts ?? []
             if checkouts.count > 1, let openOn {
                 Menu("Open on") {
@@ -495,6 +499,14 @@ private struct ChanRow: View {
             if GitLineFormatter.make(row.git).dirty > 0, let onCommit {
                 Button("Commit & push…", systemImage: "arrow.up", action: onCommit)
             }
+        }
+        .alert("Rename repo", isPresented: $renaming) {
+            TextField("Name", text: $draft)
+            Button("Save") {
+                let n = draft.trimmingCharacters(in: .whitespaces)
+                if !n.isEmpty { row.repo.name = n; try? context.save() }
+            }
+            Button("Cancel", role: .cancel) {}
         }
     }
 

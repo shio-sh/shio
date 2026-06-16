@@ -19,6 +19,8 @@ struct ProjectView: View {
     @State private var showingNotes = false
     @State private var showingRename = false
     @State private var renameText = ""
+    @State private var repoToRename: Repo?
+    @State private var repoRenameText = ""
     @State private var noCheckoutName: String?
     private let sessionStore = SessionStore.shared
     private let status = ProjectStatusStore.shared
@@ -80,6 +82,16 @@ struct ProjectView: View {
                 if !n.isEmpty { project.name = n; try? context.save() }
             }
             Button("Cancel", role: .cancel) {}
+        }
+        .alert("Rename repo", isPresented: Binding(
+            get: { repoToRename != nil }, set: { if !$0 { repoToRename = nil } })) {
+            TextField("Name", text: $repoRenameText)
+            Button("Save") {
+                let n = repoRenameText.trimmingCharacters(in: .whitespaces)
+                if !n.isEmpty, let r = repoToRename { r.name = n; try? context.save() }
+                repoToRename = nil
+            }
+            Button("Cancel", role: .cancel) { repoToRename = nil }
         }
         .sheet(isPresented: $showingAddRepo) { AddProjectSheet(targetProject: project) }
         .sheet(isPresented: $showingAddProject) { AddProjectSheet() }
@@ -177,6 +189,11 @@ struct ProjectView: View {
         }
         .buttonStyle(.plain)
         .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1).padding(.leading, 16) }
+        .contextMenu {
+            Button { repoRenameText = repo.name; repoToRename = repo } label: {
+                Label("Rename", systemImage: "pencil")
+            }
+        }
     }
 
     @ViewBuilder private func sub(_ repo: Repo, presence: AgentSnapshot?) -> some View {
