@@ -84,7 +84,7 @@ extension Project {
     /// created (not just after the next launch's `ProjectMigration`). Legacy
     /// fields stay populated during the migration window so older clients sync.
     @discardableResult
-    static func create(name: String, path: String, host: Host?, cloneURL: String? = nil,
+    static func create(name: String, repoName: String? = nil, path: String, host: Host?, cloneURL: String? = nil,
                        in context: ModelContext) -> Project {
         let identity = cloneURL.flatMap { ProjectMigration.normalize(cloneURL: $0) } ?? UUID().uuidString
 
@@ -93,7 +93,9 @@ extension Project {
         project.identityKey = identity       // legacy (transition)
         context.insert(project)
 
-        let repo = Repo(name: name, cloneURL: cloneURL, identityKey: identity, project: project)
+        // A project is a workspace; its first repo can carry its own name (e.g.
+        // project "shio" with repo "shio-app"). Defaults to the project name.
+        let repo = Repo(name: repoName ?? name, cloneURL: cloneURL, identityKey: identity, project: project)
         repo.lastOpenedAt = .now
         context.insert(repo)
 

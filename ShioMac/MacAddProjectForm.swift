@@ -33,6 +33,11 @@ struct MacAddProjectForm: View {
         VStack(alignment: .leading, spacing: 14) {
             Text(targetProject == nil ? "Add a project" : "Add a repo to \(targetProject!.name)")
                 .font(.system(.title3, design: .monospaced).weight(.semibold))
+            if targetProject == nil {
+                Text("A project is a workspace. Add more repos to it anytime.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(ShioTheme.textSecondary)
+            }
             Form {
                 Picker("Machine", selection: $machineID) {
                     Text("This Mac").tag(PersistentIdentifier?.none)
@@ -80,7 +85,7 @@ struct MacAddProjectForm: View {
                           prompt: Text("/home/you/repo"))
                     .font(.system(.body, design: .monospaced))
             }
-            TextField("Name", text: $name, prompt: Text(defaultFolderName))
+            TextField(targetProject == nil ? "Project name" : "Name", text: $name, prompt: Text(defaultFolderName))
         case .git:
             TextField("Git URL", text: $gitURL,
                       prompt: Text("https://github.com/you/repo.git"))
@@ -100,7 +105,7 @@ struct MacAddProjectForm: View {
                 TextField("Clone into", text: $location, prompt: Text("/home/you"))
                     .font(.system(.body, design: .monospaced))
             }
-            TextField("Name", text: $name, prompt: Text(repoName(from: gitURL).isEmpty ? "repo" : repoName(from: gitURL)))
+            TextField(targetProject == nil ? "Project name" : "Name", text: $name, prompt: Text(repoName(from: gitURL).isEmpty ? "repo" : repoName(from: gitURL)))
         }
     }
 
@@ -146,28 +151,34 @@ struct MacAddProjectForm: View {
         let host = selectedMachine ?? MacSelfHost.ensure(in: context)
         let cleanLocation = location.trimmingCharacters(in: .whitespaces)
 
-        let rName: String
+        let typed = name.trimmingCharacters(in: .whitespaces)
+        // The repo's own name comes from the folder / git URL.
+        let folderNm: String
         let path: String
         let cloneURL: String?
         switch source {
         case .folder:
-            rName = name.isEmpty ? (cleanLocation as NSString).lastPathComponent : name
+            folderNm = (cleanLocation as NSString).lastPathComponent
             path = cleanLocation
             cloneURL = nil
         case .git:
-            rName = name.isEmpty ? repoName(from: gitURL) : name
-            path = (cleanLocation as NSString).appendingPathComponent(rName)
+            folderNm = repoName(from: gitURL)
+            path = (cleanLocation as NSString).appendingPathComponent(folderNm)
             cloneURL = gitURL.trimmingCharacters(in: .whitespaces)
         }
 
         if let target = targetProject {
-            // Add another repo under an existing project.
-            let repo = target.addRepo(name: rName, path: path, host: host, cloneURL: cloneURL, in: context)
+            // Adding another repo — the Name field is the repo's name.
+            let repo = target.addRepo(name: typed.isEmpty ? folderNm : typed,
+                                      path: path, host: host, cloneURL: cloneURL, in: context)
             target.lastOpenedAt = .now
             try? context.save()
             model.open(repo: repo)
         } else {
-            let project = Project.create(name: rName, path: path, host: host, cloneURL: cloneURL, in: context)
+            // New project — the Name field is the WORKSPACE name; the first repo
+            // keeps its folder name (project "shio" → repo "shio-app").
+            let project = Project.create(name: typed.isEmpty ? folderNm : typed, repoName: folderNm,
+                                         path: path, host: host, cloneURL: cloneURL, in: context)
             project.lastOpenedAt = .now
             try? context.save()
             model.open(project: project)

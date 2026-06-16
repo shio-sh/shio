@@ -21,6 +21,9 @@ struct AddProjectSheet: View {
     @State private var path: String = ""
     @State private var source: Source = .path
     @State private var gitURL: String = ""
+    /// The workspace name (new project only). Defaults to the first repo's
+    /// folder name if left blank.
+    @State private var projectName: String = ""
 
     private var trimmedPath: String {
         path.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -28,6 +31,12 @@ struct AddProjectSheet: View {
 
     private var trimmedURL: String {
         gitURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The first repo's folder name — the default project name.
+    private var defaultName: String {
+        let leaf = (trimmedPath as NSString).lastPathComponent
+        return leaf.isEmpty ? trimmedPath : leaf
     }
 
     private var canAdd: Bool {
@@ -46,6 +55,16 @@ struct AddProjectSheet: View {
                             .foregroundStyle(ShioTheme.textSecondary)
                     }
                 } else {
+                    if targetProject == nil {
+                        Section {
+                            TextField("Name", text: $projectName,
+                                      prompt: Text(defaultName.isEmpty ? "e.g. shio" : defaultName))
+                        } header: {
+                            Text("Project")
+                        } footer: {
+                            Text("A project is a workspace. You're adding its first repo below — add more to it anytime.")
+                        }
+                    }
                     Section("Machine") {
                         Picker("Host", selection: $selectedHost) {
                             ForEach(hosts.dedupedByIdentity) { host in
@@ -117,7 +136,7 @@ struct AddProjectSheet: View {
                     }
                 }
             }
-            .navigationTitle("New Project")
+            .navigationTitle(targetProject == nil ? "New project" : "Add a repo")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -143,7 +162,9 @@ struct AddProjectSheet: View {
             target.addRepo(name: name, path: trimmedPath, host: host, cloneURL: cloneURL, in: context)
             target.lastOpenedAt = .now
         } else {
-            Project.create(name: name, path: trimmedPath, host: host, cloneURL: cloneURL, in: context)
+            let proj = projectName.trimmingCharacters(in: .whitespaces)
+            Project.create(name: proj.isEmpty ? name : proj, repoName: name,
+                           path: trimmedPath, host: host, cloneURL: cloneURL, in: context)
         }
         try? context.save()
         dismiss()
