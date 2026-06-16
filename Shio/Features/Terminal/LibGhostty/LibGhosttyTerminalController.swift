@@ -50,13 +50,21 @@ final class LibGhosttyTerminalController {
     /// buttons. Defaults to a sane value before the first resize lands.
     private(set) var currentRows: Int = 24
 
+    /// Force the mouse-wheel scroll path even when libghostty's alt-screen
+    /// detection reads false — `ghostty_surface_alt_screen_active` is
+    /// unreliable on an external/SSH-fed surface in this GhosttyKit build, so
+    /// the Page buttons / pan were scrolling an empty native scrollback instead
+    /// of reaching tmux. SessionViewModel sets this for tmux sessions, which are
+    /// always alt-screen with `mouse on`.
+    var prefersWheelScroll = false
+
     /// Page the scrollback up (older content) by roughly one screen.
     func pageUp()   { page(directionDown: false) }
     /// Page the scrollback down (toward the live tail) by roughly one screen.
     func pageDown() { page(directionDown: true) }
 
     private func page(directionDown: Bool) {
-        if surfaceView.isAlternateScreenActive {
+        if surfaceView.isAlternateScreenActive || prefersWheelScroll {
             // A full-screen TUI (Claude Code, vim, htop) under tmux owns the
             // screen — ghostty's OWN scrollback is empty there, so scrolling it
             // does nothing (the bug). Instead synthesize SGR mouse-wheel events
