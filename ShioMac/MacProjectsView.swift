@@ -236,9 +236,9 @@ private struct MacProjectDashboard: View {
     // MARK: cards
 
     private var conversationsCard: some View {
-        BentoCard(title: "conversations", addLabel: "+ repo", addAction: addRepo) {
+        BentoCard(title: "repos", addLabel: "+ repo", addAction: addRepo) {
             if repos.isEmpty {
-                cardHint("No conversations yet — add a repo.")
+                cardHint("No repos yet — add one.")
             } else {
                 ForEach(repos) { row in
                     ChanRow(row: row,

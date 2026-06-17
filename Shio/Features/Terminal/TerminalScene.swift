@@ -519,7 +519,7 @@ private struct ConversationInspectorSheet: View {
             .padding(.bottom, 6)
 
             VStack(alignment: .leading, spacing: 0) {
-                kv("Conversation") { Text(session.displayName).foregroundStyle(ShioTheme.textPrimary) }
+                kv("Repo") { Text(session.displayName).foregroundStyle(ShioTheme.textPrimary) }
                 kv("Machine") { Text(session.viewModel.hostName).foregroundStyle(ShioTheme.textPrimary) }
                 if let snap = snapshot, snap.activity != .none {
                     kv("Agent") {
