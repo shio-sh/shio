@@ -269,7 +269,13 @@ final class SSHClient: @unchecked Sendable {
     }
 
     /// Open a shell channel with a PTY.
-    func requestShell() async throws {
+    /// Open the interactive terminal channel. With `command` set, the PTY runs
+    /// that command via the SSH exec mechanism instead of an interactive login
+    /// shell — a NON-interactive shell, so it skips `.zshrc`/`.bashrc` (where
+    /// auto-tmux usually lives). That's how Shio's `tmux new-session …` takes
+    /// effect cleanly instead of being preempted by the user's own auto-tmux.
+    /// `command == nil` keeps the old plain-login-shell behavior.
+    func requestShell(command: String? = nil) async throws {
         guard let parent = channel else { throw SSHError.notConnected }
 
         let dataHandler = ShellDataHandler { [weak self] data in
@@ -301,8 +307,15 @@ final class SSHClient: @unchecked Sendable {
         )
         try await child.triggerUserOutboundEvent(ptyReq)
 
-        let shellReq = SSHChannelRequestEvent.ShellRequest(wantReply: true)
-        try await child.triggerUserOutboundEvent(shellReq)
+        if let command {
+            // Non-interactive: runs `command` via the user's shell `-c`, which
+            // skips interactive rc files (so a `.zshrc` auto-tmux can't preempt).
+            let execReq = SSHChannelRequestEvent.ExecRequest(command: command, wantReply: true)
+            try await child.triggerUserOutboundEvent(execReq)
+        } else {
+            let shellReq = SSHChannelRequestEvent.ShellRequest(wantReply: true)
+            try await child.triggerUserOutboundEvent(shellReq)
+        }
     }
 
     /// Result of a headless exec with integrity info the bare string can't

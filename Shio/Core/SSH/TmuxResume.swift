@@ -80,6 +80,24 @@ enum TmuxResume {
         return cmd
     }
 
+    /// Exec-channel form of `resumeCommand(named:)` — the SSH session runs this
+    /// directly as its command (NON-interactive shell), so it bypasses the
+    /// user's `.zshrc`/`.bashrc` and any auto-tmux there can't preempt Shio.
+    /// `command -v tmux` guards a fallback to a plain login shell when tmux
+    /// isn't installed. No trailing newline (it's the command, not typed input).
+    static func execLine(named name: String, startDir: String? = nil, cloneURL: String? = nil) -> String {
+        var cmd = ""
+        if let cloneURL, !cloneURL.isEmpty, let startDir, !startDir.isEmpty {
+            cmd += "[ -d \(SSHClient.shellQuotedPath(startDir)) ] || git clone \(singleQuoted(cloneURL)) \(SSHClient.shellQuotedPath(startDir)); "
+        }
+        cmd += "command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s \(name)"
+        if let startDir, !startDir.isEmpty {
+            cmd += " -c \(SSHClient.shellQuotedPath(startDir))"
+        }
+        cmd += "\(sessionOptions) || exec \"${SHELL:-/bin/sh}\" -l"
+        return cmd
+    }
+
     /// tmux options applied on every attach (`\;`-chained onto `new-session`).
     /// `set mouse on` lets Shio's pan / page controls (mouse-scroll events) reach
     /// tmux and the running TUI.

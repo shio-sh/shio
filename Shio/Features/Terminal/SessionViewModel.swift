@@ -375,7 +375,14 @@ final class SessionViewModel {
 
         do {
             try await client.connect()
-            try await client.requestShell()
+            // tmux sessions bootstrap via the SSH exec command, which runs in a
+            // NON-interactive shell — bypassing .zshrc/.bashrc so a user's
+            // auto-tmux can't preempt Shio's session. Fresh name, mouse on, and
+            // status off all take effect; a new tab is reliably a fresh session.
+            let bootstrap = persistenceMode == .tmuxAutoResume
+                ? TmuxResume.execLine(named: tmuxSessionName, startDir: startDirectory, cloneURL: cloneURL)
+                : nil
+            try await client.requestShell(command: bootstrap)
             // The user may have closed the session while the connect was in
             // flight — don't resurrect it under them.
             if userInitiatedStop || Task.isCancelled {
@@ -406,9 +413,6 @@ final class SessionViewModel {
                 }
             }
             reconnectAttempt = 0
-            if persistenceMode == .tmuxAutoResume {
-                client.write(TmuxResume.resumeCommand(named: tmuxSessionName, startDir: startDirectory, cloneURL: cloneURL))
-            }
         } catch {
             // Connect itself failed.
             if userInitiatedStop {
