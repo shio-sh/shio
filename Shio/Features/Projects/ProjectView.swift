@@ -365,13 +365,7 @@ struct ProjectView: View {
     // MARK: shared bits
 
     private func projectMark(_ p: Project, size: CGFloat) -> some View {
-        let tint = ProjectIdentity.color(for: p.name)
-        return Text(String(p.name.first ?? "•").uppercased())
-            .font(.system(size: size * 0.46, weight: .medium, design: .monospaced))
-            .foregroundStyle(tint)
-            .frame(width: size, height: size)
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(ProjectIdentity.wash(for: p.name)))
+        ProjectAvatar(p, size: size)
     }
 
     @ViewBuilder private func presenceGlyph(_ a: AgentActivity) -> some View {

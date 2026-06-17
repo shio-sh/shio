@@ -61,7 +61,7 @@ struct MacRail: View {
 
     @ViewBuilder private var switcher: some View {
         if let project = model.selectedProject {
-            RailSwitcherButton(name: project.name) {
+            RailSwitcherButton(name: project.name, project: project) {
                 model.showingProjectMenu.toggle()
             }
         } else {
@@ -229,6 +229,7 @@ struct MacRail: View {
 private struct RailSwitcherButton: View {
     let name: String
     var mark: String? = nil
+    var project: Project? = nil
     var muted: Bool = false
     let action: () -> Void
     @State private var hovering = false
@@ -236,14 +237,18 @@ private struct RailSwitcherButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 9) {
-                Text(mark ?? String(name.first ?? "•").uppercased())
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(muted ? ShioTheme.textTertiary : ShioTheme.accent)
-                    .frame(width: 22, height: 22)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(muted ? ShioTheme.hover : ShioTheme.accentBg)
-                    )
+                if let project {
+                    ProjectAvatar(project, size: 22)
+                } else {
+                    Text(mark ?? String(name.first ?? "•").uppercased())
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .foregroundStyle(muted ? ShioTheme.textTertiary : ShioTheme.accent)
+                        .frame(width: 22, height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(muted ? ShioTheme.hover : ShioTheme.accentBg)
+                        )
+                }
                 // Slack-style: the caret rides the name, never the far edge.
                 HStack(spacing: 5) {
                     Text(name)
@@ -390,6 +395,7 @@ struct MacProjectMenu: View {
     private func item(_ project: Project) -> some View {
         let current = model.selectedProject?.persistentModelID == project.persistentModelID
         return MenuRow(mark: String(project.name.first ?? "•").uppercased(),
+                       project: project,
                        name: project.name,
                        current: current,
                        action: { model.select(project: project) },
@@ -417,6 +423,7 @@ struct MacProjectMenu: View {
 
 private struct MenuRow<Meta: View>: View {
     let mark: String
+    var project: Project? = nil
     let name: String
     let current: Bool
     let action: () -> Void
@@ -426,6 +433,9 @@ private struct MenuRow<Meta: View>: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 9) {
+                if let project {
+                    ProjectAvatar(project, size: 18)
+                } else {
                 Text(mark)
                     .font(.system(size: 10, weight: .medium, design: .monospaced))
                     .foregroundStyle(ShioTheme.textTertiary)
@@ -434,6 +444,7 @@ private struct MenuRow<Meta: View>: View {
                         RoundedRectangle(cornerRadius: 5, style: .continuous)
                             .fill(ShioTheme.hover)
                     )
+                }
                 Text(name)
                     .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(current ? ShioTheme.accent : ShioTheme.textPrimary)

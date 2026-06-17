@@ -25,6 +25,11 @@ final class Project {
     /// Freeform project-home notes scratchpad. Synced via CloudKit.
     var notes: String?
 
+    /// Optional project logo, resized small before storing (see ProjectAvatar).
+    /// nil → the identity tint mark (first letter on a per-project color) shows
+    /// instead, so a project always looks intentional. Synced via CloudKit.
+    var imageData: Data?
+
     var createdAt: Date = Date()
     var lastOpenedAt: Date?
 

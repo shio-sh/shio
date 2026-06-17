@@ -262,13 +262,7 @@ private struct ProjectOverviewCard: View {
     }
 
     private var mark: some View {
-        let tint = ProjectIdentity.color(for: project.name)
-        return Text(String(project.name.first ?? "•").uppercased())
-            .font(.system(size: 13, weight: .medium, design: .monospaced))
-            .foregroundStyle(tint)
-            .frame(width: 30, height: 30)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(ProjectIdentity.wash(for: project.name)))
+        ProjectAvatar(project, size: 30)
     }
 
     // MARK: resting whisper (A)
