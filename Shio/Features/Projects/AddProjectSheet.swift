@@ -1,43 +1,205 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
-/// Minimal v1 add-project: pick a host you've connected and point at a repo
-/// path on it. Repo auto-discovery and clone-by-URL come next in Phase 2.
+/// Create a project — a workspace that can hold a logo, context (memory),
+/// project-scoped skills, and any number of repos across machines. Everything
+/// is optional except a name, so it's still one tap to make an empty project
+/// and fill it in later. When `targetProject` is set the sheet collapses to the
+/// single repo editor (add a repo to an existing project).
 struct AddProjectSheet: View {
-    /// When set, adds another repo under this project instead of a new project.
     var targetProject: Project?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var hosts: [Host]
 
-    /// Where the project's files come from: an existing path on the machine, or
-    /// a git URL Shio clones on the machine on first open.
+    @State private var draft = ProjectDraft()
+    @State private var photoItem: PhotosPickerItem?
+    @State private var editingRepo = false
+    @State private var groundingExpanded = false
+
+    var body: some View {
+        NavigationStack {
+            if let target = targetProject {
+                RepoEditor(hosts: hosts, title: "Add a repo") { spec in
+                    target.addRepo(name: spec.name, path: spec.path,
+                                   host: hosts.first { $0.persistentModelID == spec.hostID },
+                                   cloneURL: spec.cloneURL, in: context)
+                    target.lastOpenedAt = .now
+                    try? context.save()
+                    dismiss()
+                }
+            } else {
+                newProjectForm
+            }
+        }
+    }
+
+    // MARK: New project
+
+    private var newProjectForm: some View {
+        Form {
+            identitySection
+            reposSection
+            groundingSection
+        }
+        .navigationTitle("New project")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Create") { create() }.disabled(!draft.canCreate)
+            }
+        }
+        .sheet(isPresented: $editingRepo) {
+            NavigationStack {
+                RepoEditor(hosts: hosts) { draft.repos.append($0) }
+            }
+        }
+        .onChange(of: photoItem) { _, item in loadLogo(item) }
+    }
+
+    private var identitySection: some View {
+        Section {
+            HStack(spacing: 14) {
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    ProjectAvatar(name: draft.name.isEmpty ? "?" : draft.name,
+                                  imageData: draft.imageData, size: 52)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.system(size: 17))
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(ShioTheme.textSecondary, ShioTheme.surface)
+                                .offset(x: 4, y: 4)
+                        }
+                }
+                .buttonStyle(.plain)
+
+                TextField("Project name", text: $draft.name)
+                    .font(ShioFont.bodyEmphasis)
+                    .submitLabel(.done)
+
+                if draft.imageData != nil {
+                    Button {
+                        draft.imageData = nil
+                        photoItem = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(ShioTheme.textTertiary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 4)
+        } footer: {
+            Text("A project is a workspace — give it a logo if you like, then add the repos and context that live under it.")
+        }
+    }
+
+    private var reposSection: some View {
+        Section {
+            ForEach(draft.repos) { repo in RepoRow(repo: repo) }
+                .onDelete { draft.repos.remove(atOffsets: $0) }
+            Button { editingRepo = true } label: {
+                Label(draft.repos.isEmpty ? "Add a repo" : "Add another repo",
+                      systemImage: "plus.circle.fill")
+            }
+            .disabled(hosts.isEmpty)
+        } header: {
+            Text("Repos")
+        } footer: {
+            Text(hosts.isEmpty
+                 ? "Connect a machine in the Machines tab to attach repos. You can create the project now and add them later."
+                 : "Add as many as the project spans, across any of your machines — or none for now.")
+        }
+    }
+
+    private var groundingSection: some View {
+        Section {
+            DisclosureGroup(isExpanded: $groundingExpanded) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("MEMORY").font(ShioFont.footnote).foregroundStyle(ShioTheme.textTertiary)
+                    TextField("What this project is, conventions, links the agent should read…",
+                              text: $draft.memory, axis: .vertical)
+                        .font(ShioFont.callout)
+                        .lineLimit(3...10)
+                }
+                .padding(.vertical, 4)
+
+                ForEach($draft.skills) { $skill in
+                    TextField("Skill name", text: $skill.name)
+                        .font(ShioFont.callout)
+                }
+                .onDelete { draft.skills.remove(atOffsets: $0) }
+
+                Button { draft.skills.append(SkillSpec()) } label: {
+                    Label("Add a skill", systemImage: "plus")
+                }
+                .font(ShioFont.callout)
+            } label: {
+                Label("Memory & skills", systemImage: "sparkles")
+            }
+        } footer: {
+            Text("Grounding travels with the project — every agent you start here begins with the same context.")
+        }
+    }
+
+    private func loadLogo(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        Task {
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let encoded = ProjectAvatar.encode(data) else { return }
+            await MainActor.run { draft.imageData = encoded }
+        }
+    }
+
+    private func create() {
+        Project.build(from: draft,
+                      resolveHost: { id in hosts.first { $0.persistentModelID == id } },
+                      in: context)
+        dismiss()
+    }
+}
+
+/// A repo as it appears in the draft list: source glyph, name, and machine·path.
+private struct RepoRow: View {
+    let repo: RepoSpec
+    var body: some View {
+        HStack(spacing: 11) {
+            Image(systemName: repo.cloneURL != nil ? "arrow.down.circle" : "folder")
+                .foregroundStyle(ShioTheme.textSecondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(repo.name).font(ShioFont.body)
+                Text("\(repo.machineLabel) · \(repo.path)")
+                    .font(ShioFont.Mono.inline)
+                    .foregroundStyle(ShioTheme.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+        }
+    }
+}
+
+/// Define one repo: which machine, and a folder on it or a git URL to clone.
+/// Produces a `RepoSpec` for the draft (or commits straight to a project).
+private struct RepoEditor: View {
+    let hosts: [Host]
+    var title: String = "Add a repo"
+    var onSave: (RepoSpec) -> Void
+    @Environment(\.dismiss) private var dismiss
+
     private enum Source: String, CaseIterable {
         case path = "On machine"
         case clone = "Clone URL"
     }
 
     @State private var selectedHost: Host?
-    @State private var path: String = ""
+    @State private var path = ""
     @State private var source: Source = .path
-    @State private var gitURL: String = ""
-    /// The workspace name (new project only). Defaults to the first repo's
-    /// folder name if left blank.
-    @State private var projectName: String = ""
+    @State private var gitURL = ""
 
-    private var trimmedPath: String {
-        path.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var trimmedURL: String {
-        gitURL.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// The first repo's folder name — the default project name.
-    private var defaultName: String {
-        let leaf = (trimmedPath as NSString).lastPathComponent
-        return leaf.isEmpty ? trimmedPath : leaf
-    }
+    private var trimmedPath: String { path.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var trimmedURL: String { gitURL.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private var canAdd: Bool {
         guard selectedHost != nil, !trimmedPath.isEmpty else { return false }
@@ -46,127 +208,97 @@ struct AddProjectSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                if hosts.isEmpty {
+        Form {
+            if hosts.isEmpty {
+                Section {
+                    Text("Add a machine in the Machines tab first, then come back to attach a repo.")
+                        .font(ShioFont.callout)
+                        .foregroundStyle(ShioTheme.textSecondary)
+                }
+            } else {
+                Section("Machine") {
+                    Picker("Host", selection: $selectedHost) {
+                        ForEach(hosts.dedupedByIdentity) { host in
+                            Text(host.name).tag(host as Host?)
+                        }
+                    }
+                }
+                Section {
+                    Picker("Source", selection: $source) {
+                        ForEach(Source.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                if source == .clone {
                     Section {
-                        Text("Add a machine in the Machines tab first, then come back to add a project on it.")
-                            .font(ShioFont.callout)
-                            .foregroundStyle(ShioTheme.textSecondary)
+                        TextField("https://github.com/you/your-repo.git", text: $gitURL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .font(ShioFont.Mono.inline)
+                            .keyboardType(.URL)
+                    } header: {
+                        Text("Git URL")
+                    } footer: {
+                        Text("Shio runs git clone on the machine, using its own git auth, the first time you open it.")
+                    }
+                    Section {
+                        TextField("/Users/you/code/your-repo", text: $path)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .font(ShioFont.Mono.inline)
+                    } header: {
+                        Text("Clone into")
+                    } footer: {
+                        Text("Absolute path on the machine to clone into.")
                     }
                 } else {
-                    if targetProject == nil {
-                        Section {
-                            TextField("Name", text: $projectName,
-                                      prompt: Text(defaultName.isEmpty ? "e.g. shio" : defaultName))
-                        } header: {
-                            Text("Project")
-                        } footer: {
-                            Text("A project is a workspace. You're adding its first repo below — add more to it anytime.")
-                        }
-                    }
-                    Section("Machine") {
-                        Picker("Host", selection: $selectedHost) {
-                            ForEach(hosts.dedupedByIdentity) { host in
-                                Text(host.name).tag(host as Host?)
-                            }
-                        }
-                    }
                     Section {
-                        Picker("Source", selection: $source) {
-                            ForEach(Source.allCases, id: \.self) { s in
-                                Text(s.rawValue).tag(s)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    if source == .clone {
-                        Section {
-                            TextField("https://github.com/you/your-repo.git", text: $gitURL)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .font(ShioFont.Mono.inline)
-                                .keyboardType(.URL)
-                        } header: {
-                            Text("Git URL")
-                        } footer: {
-                            Text("Shio runs git clone on the machine, using its own git auth, the first time you open the project.")
-                        }
-                    }
-                    if source == .clone {
-                        Section {
-                            TextField("/Users/you/code/your-repo", text: $path)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .font(ShioFont.Mono.inline)
-                        } header: {
-                            Text("Clone into")
-                        } footer: {
-                            Text("Absolute path on the machine to clone into. Shio opens a terminal here once it's cloned.")
-                        }
-                    } else {
-                        Section {
-                            NavigationLink {
-                                if let host = selectedHost {
-                                    DirectoryPickerView(
-                                        host: host,
-                                        initialPath: trimmedPath.isEmpty ? nil : trimmedPath
-                                    ) { picked in
-                                        path = picked
-                                    }
-                                }
-                            } label: {
-                                HStack {
-                                    Text("Folder")
-                                        .foregroundStyle(ShioTheme.textPrimary)
-                                    Spacer()
-                                    Text(trimmedPath.isEmpty ? "Choose…" : trimmedPath)
-                                        .font(trimmedPath.isEmpty ? ShioFont.body : ShioFont.Mono.inline)
-                                        .foregroundStyle(trimmedPath.isEmpty ? ShioTheme.textTertiary : ShioTheme.textSecondary)
-                                        .lineLimit(1)
-                                        .truncationMode(.head)
+                        NavigationLink {
+                            if let host = selectedHost {
+                                DirectoryPickerView(host: host,
+                                                    initialPath: trimmedPath.isEmpty ? nil : trimmedPath) {
+                                    path = $0
                                 }
                             }
-                            .disabled(selectedHost == nil)
-                        } header: {
-                            Text("Repo folder")
-                        } footer: {
-                            Text("Browse the machine and pick the repo folder. Shio opens a terminal there.")
+                        } label: {
+                            HStack {
+                                Text("Folder").foregroundStyle(ShioTheme.textPrimary)
+                                Spacer()
+                                Text(trimmedPath.isEmpty ? "Choose…" : trimmedPath)
+                                    .font(trimmedPath.isEmpty ? ShioFont.body : ShioFont.Mono.inline)
+                                    .foregroundStyle(trimmedPath.isEmpty ? ShioTheme.textTertiary : ShioTheme.textSecondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.head)
+                            }
                         }
+                        .disabled(selectedHost == nil)
+                    } header: {
+                        Text("Repo folder")
+                    } footer: {
+                        Text("Browse the machine and pick the repo folder.")
                     }
                 }
-            }
-            .navigationTitle(targetProject == nil ? "New project" : "Add a repo")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") { addProject() }
-                        .disabled(!canAdd)
-                }
-            }
-            .onAppear {
-                if selectedHost == nil { selectedHost = hosts.dedupedByIdentity.first }
             }
         }
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Add") { commit() }.disabled(!canAdd)
+            }
+        }
+        .onAppear { if selectedHost == nil { selectedHost = hosts.dedupedByIdentity.first } }
     }
 
-    private func addProject() {
+    private func commit() {
         guard let host = selectedHost else { return }
         let leaf = (trimmedPath as NSString).lastPathComponent
         let name = leaf.isEmpty ? trimmedPath : leaf
         let cloneURL = (source == .clone && !trimmedURL.isEmpty) ? trimmedURL : nil
-        if let target = targetProject {
-            target.addRepo(name: name, path: trimmedPath, host: host, cloneURL: cloneURL, in: context)
-            target.lastOpenedAt = .now
-        } else {
-            let proj = projectName.trimmingCharacters(in: .whitespaces)
-            Project.create(name: proj.isEmpty ? name : proj, repoName: name,
-                           path: trimmedPath, host: host, cloneURL: cloneURL, in: context)
-        }
-        try? context.save()
+        onSave(RepoSpec(name: name, path: trimmedPath,
+                        hostID: host.persistentModelID, cloneURL: cloneURL,
+                        machineLabel: host.name))
         dismiss()
     }
 }

@@ -1,17 +1,220 @@
 import SwiftUI
 import SwiftData
+import AppKit
+import UniformTypeIdentifiers
 
-/// Add a project — on **This Mac** or any saved **machine**, from an **existing
-/// folder** or by **cloning a Git URL**. Saves the `Project` (host / path /
-/// cloneURL) and opens it. Remote folders are typed for now (SSH folder
-/// browsing comes with the Files SFTP work); local folders use a picker.
+/// Create a project on the Mac — a workspace with a logo, context (memory),
+/// project-scoped skills, and any number of repos across **This Mac** or saved
+/// **machines**, each from an existing folder or a Git URL. Everything is
+/// optional except a name. When `targetProject` is set the form collapses to the
+/// single repo editor (add a repo to an existing project).
 struct MacAddProjectForm: View {
     @Bindable var model: MacTerminalModel
-    /// When set, adds another repo under this project instead of creating a new one.
     var targetProject: Project?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var machines: [Host]
+
+    @State private var draft = ProjectDraft()
+    @State private var editingRepo = false
+
+    var body: some View {
+        if let target = targetProject {
+            MacRepoEditor(machines: machines, title: "Add a repo to \(target.name)") { spec in
+                let repo = target.addRepo(name: spec.name, path: spec.path,
+                                          host: resolveHost(spec.hostID),
+                                          cloneURL: spec.cloneURL, in: context)
+                target.lastOpenedAt = .now
+                try? context.save()
+                model.open(repo: repo)
+                dismiss()
+            }
+        } else {
+            newProjectForm
+        }
+    }
+
+    // MARK: New project
+
+    private var newProjectForm: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                MacLogoWell(name: draft.name, imageData: $draft.imageData)
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("Project name", text: $draft.name)
+                        .textFieldStyle(.plain)
+                        .font(.system(.title3, design: .monospaced).weight(.semibold))
+                    Text("A workspace for the repos and context below.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(ShioTheme.textSecondary)
+                }
+            }
+
+            Form {
+                Section {
+                    ForEach(draft.repos) { repo in
+                        HStack {
+                            MacRepoRow(repo: repo)
+                            Button { draft.repos.removeAll { $0.id == repo.id } } label: {
+                                Image(systemName: "minus.circle.fill")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(ShioTheme.textTertiary)
+                        }
+                    }
+                    Button { editingRepo = true } label: {
+                        Label(draft.repos.isEmpty ? "Add a repo…" : "Add another repo…", systemImage: "plus")
+                    }
+                } header: {
+                    Text("Repos")
+                } footer: {
+                    Text("Across This Mac or any machine — or none for now; add them anytime.")
+                        .font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
+                }
+
+                Section {
+                    TextField("What this project is, conventions, links the agent should read…",
+                              text: $draft.memory, axis: .vertical)
+                        .lineLimit(3...10)
+                        .font(.system(size: 12))
+                } header: {
+                    Text("Memory")
+                } footer: {
+                    Text("Travels with the project — every agent you start here begins with it.")
+                        .font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
+                }
+
+                Section("Skills") {
+                    ForEach($draft.skills) { $skill in
+                        HStack {
+                            TextField("Skill name", text: $skill.name)
+                            Button { draft.skills.removeAll { $0.id == skill.id } } label: {
+                                Image(systemName: "minus.circle.fill")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(ShioTheme.textTertiary)
+                        }
+                    }
+                    Button { draft.skills.append(SkillSpec()) } label: {
+                        Label("Add a skill", systemImage: "plus")
+                    }
+                }
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                ShioButton("Create & Open", .primary, compact: true) { create() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!draft.canCreate)
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
+        .frame(maxHeight: 660)
+        .sheet(isPresented: $editingRepo) {
+            MacRepoEditor(machines: machines) { draft.repos.append($0) }
+        }
+    }
+
+    private func resolveHost(_ id: PersistentIdentifier?) -> Host? {
+        guard let id else { return MacSelfHost.ensure(in: context) }
+        return machines.first { $0.id == id }
+    }
+
+    private func create() {
+        let project = Project.build(from: draft, resolveHost: resolveHost, in: context)
+        model.open(project: project)
+        dismiss()
+    }
+}
+
+// MARK: - Logo well (tap to pick, drag an image onto it)
+
+private struct MacLogoWell: View {
+    let name: String
+    @Binding var imageData: Data?
+    @State private var targeted = false
+
+    var body: some View {
+        ProjectAvatar(name: name.isEmpty ? "?" : name, imageData: imageData, size: 56)
+            .overlay(
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .strokeBorder(targeted ? ShioTheme.accent : .clear, lineWidth: 2)
+            )
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: imageData == nil ? "pencil.circle.fill" : "xmark.circle.fill")
+                    .font(.system(size: 17))
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(ShioTheme.textSecondary, ShioTheme.surface)
+                    .offset(x: 4, y: 4)
+                    .onTapGesture { if imageData != nil { imageData = nil } else { choose() } }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { choose() }
+            .help("Click to choose a logo, or drag an image here")
+            .onDrop(of: [.image, .fileURL], isTargeted: $targeted) { handleDrop($0) }
+    }
+
+    private func choose() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.image]
+        panel.prompt = "Choose"
+        panel.message = "Pick a logo image for this project."
+        if panel.runModal() == .OK, let url = panel.url, let data = try? Data(contentsOf: url) {
+            imageData = ProjectAvatar.encode(data)
+        }
+    }
+
+    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+        if provider.canLoadObject(ofClass: NSImage.self) {
+            _ = provider.loadObject(ofClass: NSImage.self) { object, _ in
+                guard let image = object as? NSImage, let tiff = image.tiffRepresentation else { return }
+                DispatchQueue.main.async { imageData = ProjectAvatar.encode(tiff) }
+            }
+            return true
+        }
+        _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
+            guard let data, let path = String(data: data, encoding: .utf8),
+                  let url = URL(string: path), let bytes = try? Data(contentsOf: url) else { return }
+            DispatchQueue.main.async { imageData = ProjectAvatar.encode(bytes) }
+        }
+        return true
+    }
+}
+
+// MARK: - One repo in the draft list
+
+private struct MacRepoRow: View {
+    let repo: RepoSpec
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: repo.cloneURL != nil ? "arrow.down.circle" : "folder")
+                .foregroundStyle(ShioTheme.textSecondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(repo.name).font(.system(size: 13, weight: .medium))
+                Text("\(repo.machineLabel) · \(repo.path)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
+                    .lineLimit(1).truncationMode(.middle)
+            }
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Repo editor (machine + folder/git → RepoSpec)
+
+private struct MacRepoEditor: View {
+    let machines: [Host]
+    var title: String = "Add a repo"
+    var onSave: (RepoSpec) -> Void
+    @Environment(\.dismiss) private var dismiss
 
     private enum Source: String, CaseIterable, Identifiable {
         case folder = "Existing folder"
@@ -19,37 +222,37 @@ struct MacAddProjectForm: View {
         var id: String { rawValue }
     }
 
-    /// nil = This Mac (local); otherwise a saved machine's id.
     @State private var machineID: PersistentIdentifier?
     @State private var source: Source = .folder
-    @State private var name = ""
-    @State private var location = ""     // folder path, or the clone parent dir
+    @State private var location = ""
     @State private var gitURL = ""
 
-    private var selectedMachine: Host? { machines.first { $0.id == machineID } }
     private var isLocal: Bool { machineID == nil }
+    private var machineLabel: String {
+        machineID == nil ? "This Mac" : (machines.first { $0.id == machineID }?.name ?? "Machine")
+    }
+
+    private var canAdd: Bool {
+        switch source {
+        case .folder: return !location.trimmingCharacters(in: .whitespaces).isEmpty
+        case .git:    return !gitURL.trimmingCharacters(in: .whitespaces).isEmpty
+                          && !location.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(targetProject == nil ? "Add a project" : "Add a repo to \(targetProject!.name)")
+            Text(title)
                 .font(.system(.title3, design: .monospaced).weight(.semibold))
-            if targetProject == nil {
-                Text("A project is a workspace. Add more repos to it anytime.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(ShioTheme.textSecondary)
-            }
             Form {
                 Picker("Machine", selection: $machineID) {
                     Text("This Mac").tag(PersistentIdentifier?.none)
-                    ForEach(machines) { machine in
-                        Text(machine.name).tag(Optional(machine.id))
-                    }
+                    ForEach(machines) { Text($0.name).tag(Optional($0.id)) }
                 }
                 Picker("From", selection: $source) {
                     ForEach(Source.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.segmented)
-
                 sourceFields
             }
             .formStyle(.grouped)
@@ -57,7 +260,7 @@ struct MacAddProjectForm: View {
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
-                ShioButton("Add & Open", .primary, compact: true) { add() }
+                ShioButton("Add", .primary, compact: true) { commit() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canAdd)
             }
@@ -81,14 +284,11 @@ struct MacAddProjectForm: View {
                     }
                 }
             } else {
-                TextField("Path on machine", text: $location,
-                          prompt: Text("/home/you/repo"))
+                TextField("Path on machine", text: $location, prompt: Text("/home/you/repo"))
                     .font(.system(.body, design: .monospaced))
             }
-            TextField(targetProject == nil ? "Project name" : "Name", text: $name, prompt: Text(defaultFolderName))
         case .git:
-            TextField("Git URL", text: $gitURL,
-                      prompt: Text("https://github.com/you/repo.git"))
+            TextField("Git URL", text: $gitURL, prompt: Text("https://github.com/you/repo.git"))
                 .font(.system(.body, design: .monospaced))
                 .textContentType(.URL)
             if isLocal {
@@ -105,23 +305,10 @@ struct MacAddProjectForm: View {
                 TextField("Clone into", text: $location, prompt: Text("/home/you"))
                     .font(.system(.body, design: .monospaced))
             }
-            TextField(targetProject == nil ? "Project name" : "Name", text: $name, prompt: Text(repoName(from: gitURL).isEmpty ? "repo" : repoName(from: gitURL)))
         }
     }
 
-    // MARK: Validation + helpers
-
-    private var canAdd: Bool {
-        switch source {
-        case .folder: return !location.trimmingCharacters(in: .whitespaces).isEmpty
-        case .git:    return !gitURL.trimmingCharacters(in: .whitespaces).isEmpty
-                          && !location.trimmingCharacters(in: .whitespaces).isEmpty
-        }
-    }
-
-    private var defaultFolderName: String {
-        (location as NSString).lastPathComponent
-    }
+    private var defaultFolderName: String { (location as NSString).lastPathComponent }
 
     /// "https://github.com/you/repo.git" / "git@github.com:you/repo.git" → "repo".
     private func repoName(from url: String) -> String {
@@ -137,22 +324,12 @@ struct MacAddProjectForm: View {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.prompt = "Choose"
-        panel.message = parentOnly
-            ? "Pick the folder to clone into."
-            : "Pick a repo or folder on this Mac."
-        if panel.runModal() == .OK, let url = panel.url {
-            location = url.path
-        }
+        panel.message = parentOnly ? "Pick the folder to clone into." : "Pick a repo or folder on this Mac."
+        if panel.runModal() == .OK, let url = panel.url { location = url.path }
     }
 
-    private func add() {
-        // "This Mac" → the synced self-Host record, so the project syncs to
-        // other devices with a machine they can SSH into (continuity).
-        let host = selectedMachine ?? MacSelfHost.ensure(in: context)
+    private func commit() {
         let cleanLocation = location.trimmingCharacters(in: .whitespaces)
-
-        let typed = name.trimmingCharacters(in: .whitespaces)
-        // The repo's own name comes from the folder / git URL.
         let folderNm: String
         let path: String
         let cloneURL: String?
@@ -166,23 +343,8 @@ struct MacAddProjectForm: View {
             path = (cleanLocation as NSString).appendingPathComponent(folderNm)
             cloneURL = gitURL.trimmingCharacters(in: .whitespaces)
         }
-
-        if let target = targetProject {
-            // Adding another repo — the Name field is the repo's name.
-            let repo = target.addRepo(name: typed.isEmpty ? folderNm : typed,
-                                      path: path, host: host, cloneURL: cloneURL, in: context)
-            target.lastOpenedAt = .now
-            try? context.save()
-            model.open(repo: repo)
-        } else {
-            // New project — the Name field is the WORKSPACE name; the first repo
-            // keeps its folder name (project "shio" → repo "shio-app").
-            let project = Project.create(name: typed.isEmpty ? folderNm : typed, repoName: folderNm,
-                                         path: path, host: host, cloneURL: cloneURL, in: context)
-            project.lastOpenedAt = .now
-            try? context.save()
-            model.open(project: project)
-        }
+        onSave(RepoSpec(name: folderNm.isEmpty ? defaultFolderName : folderNm, path: path,
+                        hostID: machineID, cloneURL: cloneURL, machineLabel: machineLabel))
         dismiss()
     }
 }
