@@ -56,24 +56,40 @@ struct AddProjectSheet: View {
                 RepoEditor(hosts: hosts) { draft.repos.append($0) }
             }
         }
-        .onChange(of: photoItem) { _, item in loadLogo(item) }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task { @MainActor in
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let encoded = ProjectAvatar.encode(data) {
+                    draft.imageData = encoded
+                }
+            }
+        }
+    }
+
+    // Read the draft into Sendable locals here (main actor) so the PhotosPicker
+    // label closure — which strict concurrency treats as Sendable — captures
+    // plain values instead of the main-actor-isolated `draft`.
+    private var logoPicker: some View {
+        let avatarName = draft.name.isEmpty ? "?" : draft.name
+        let avatarData = draft.imageData
+        return PhotosPicker(selection: $photoItem, matching: .images) {
+            ProjectAvatar(name: avatarName, imageData: avatarData, size: 52)
+                .overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "pencil.circle.fill")
+                        .font(.system(size: 17))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(ShioTheme.textSecondary, ShioTheme.surface)
+                        .offset(x: 4, y: 4)
+                }
+        }
+        .buttonStyle(.plain)
     }
 
     private var identitySection: some View {
         Section {
             HStack(spacing: 14) {
-                PhotosPicker(selection: $photoItem, matching: .images) {
-                    ProjectAvatar(name: draft.name.isEmpty ? "?" : draft.name,
-                                  imageData: draft.imageData, size: 52)
-                        .overlay(alignment: .bottomTrailing) {
-                            Image(systemName: "pencil.circle.fill")
-                                .font(.system(size: 17))
-                                .symbolRenderingMode(.palette)
-                                .foregroundStyle(ShioTheme.textSecondary, ShioTheme.surface)
-                                .offset(x: 4, y: 4)
-                        }
-                }
-                .buttonStyle(.plain)
+                logoPicker
 
                 TextField("Project name", text: $draft.name)
                     .font(ShioFont.bodyEmphasis)
@@ -140,15 +156,6 @@ struct AddProjectSheet: View {
             }
         } footer: {
             Text("Grounding travels with the project — every agent you start here begins with the same context.")
-        }
-    }
-
-    private func loadLogo(_ item: PhotosPickerItem?) {
-        guard let item else { return }
-        Task {
-            guard let data = try? await item.loadTransferable(type: Data.self),
-                  let encoded = ProjectAvatar.encode(data) else { return }
-            await MainActor.run { draft.imageData = encoded }
         }
     }
 

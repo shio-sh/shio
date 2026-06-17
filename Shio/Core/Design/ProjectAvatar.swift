@@ -16,12 +16,12 @@ struct ProjectAvatar: View {
 
     private var radius: CGFloat { max(6, size * 0.24) }
 
-    init(_ project: Project, size: CGFloat = 30) {
+    nonisolated init(_ project: Project, size: CGFloat = 30) {
         self.name = project.name
         self.imageData = project.imageData
         self.size = size
     }
-    init(name: String, imageData: Data?, size: CGFloat = 30) {
+    nonisolated init(name: String, imageData: Data?, size: CGFloat = 30) {
         self.name = name
         self.imageData = imageData
         self.size = size
@@ -54,8 +54,9 @@ struct ProjectAvatar: View {
     }
 
     /// Downscale + JPEG-encode an image to keep it small (CloudKit-friendly).
-    /// Used by the logo pickers. `maxDimension` caps the longest side.
-    static func encode(_ data: Data, maxDimension: CGFloat = 256) -> Data? {
+    /// Used by the logo pickers; `nonisolated` so it can run off the main actor.
+    /// `maxDimension` caps the longest side.
+    nonisolated static func encode(_ data: Data, maxDimension: CGFloat = 256) -> Data? {
         #if os(macOS)
         guard let image = NSImage(data: data) else { return nil }
         let longest = max(image.size.width, image.size.height)

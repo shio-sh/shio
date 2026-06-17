@@ -156,10 +156,9 @@ struct ProjectView: View {
         .photosPicker(isPresented: $showingLogoPicker, selection: $logoItem, matching: .images)
         .onChange(of: logoItem) { _, item in
             guard let item else { return }
-            Task {
-                guard let data = try? await item.loadTransferable(type: Data.self),
-                      let encoded = ProjectAvatar.encode(data) else { return }
-                await MainActor.run {
+            Task { @MainActor in
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let encoded = ProjectAvatar.encode(data) {
                     project.imageData = encoded
                     try? context.save()
                 }
