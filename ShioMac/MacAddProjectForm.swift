@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import AppKit
-import UniformTypeIdentifiers
 
 /// Create a project on the Mac — a workspace with a logo, context (memory),
 /// project-scoped skills, and any number of repos across **This Mac** or saved
@@ -39,7 +38,7 @@ struct MacAddProjectForm: View {
     private var newProjectForm: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 14) {
-                MacLogoWell(name: draft.name, imageData: $draft.imageData)
+                MacLogoWell(name: draft.name, imageData: draft.imageData) { draft.imageData = $0 }
                 VStack(alignment: .leading, spacing: 4) {
                     TextField("Project name", text: $draft.name)
                         .textFieldStyle(.plain)
@@ -127,64 +126,6 @@ struct MacAddProjectForm: View {
         let project = Project.build(from: draft, resolveHost: resolveHost, in: context)
         model.open(project: project)
         dismiss()
-    }
-}
-
-// MARK: - Logo well (tap to pick, drag an image onto it)
-
-private struct MacLogoWell: View {
-    let name: String
-    @Binding var imageData: Data?
-    @State private var targeted = false
-
-    var body: some View {
-        ProjectAvatar(name: name.isEmpty ? "?" : name, imageData: imageData, size: 56)
-            .overlay(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .strokeBorder(targeted ? ShioTheme.accent : .clear, lineWidth: 2)
-            )
-            .overlay(alignment: .bottomTrailing) {
-                Image(systemName: imageData == nil ? "pencil.circle.fill" : "xmark.circle.fill")
-                    .font(.system(size: 17))
-                    .symbolRenderingMode(.palette)
-                    .foregroundStyle(ShioTheme.textSecondary, ShioTheme.surface)
-                    .offset(x: 4, y: 4)
-                    .onTapGesture { if imageData != nil { imageData = nil } else { choose() } }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture { choose() }
-            .help("Click to choose a logo, or drag an image here")
-            .onDrop(of: [.image, .fileURL], isTargeted: $targeted) { handleDrop($0) }
-    }
-
-    private func choose() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.image]
-        panel.prompt = "Choose"
-        panel.message = "Pick a logo image for this project."
-        if panel.runModal() == .OK, let url = panel.url, let data = try? Data(contentsOf: url) {
-            imageData = ProjectAvatar.encode(data)
-        }
-    }
-
-    private func handleDrop(_ providers: [NSItemProvider]) -> Bool {
-        guard let provider = providers.first else { return false }
-        if provider.canLoadObject(ofClass: NSImage.self) {
-            _ = provider.loadObject(ofClass: NSImage.self) { object, _ in
-                guard let image = object as? NSImage, let tiff = image.tiffRepresentation else { return }
-                DispatchQueue.main.async { imageData = ProjectAvatar.encode(tiff) }
-            }
-            return true
-        }
-        _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
-            guard let data, let path = String(data: data, encoding: .utf8),
-                  let url = URL(string: path), let bytes = try? Data(contentsOf: url) else { return }
-            DispatchQueue.main.async { imageData = ProjectAvatar.encode(bytes) }
-        }
-        return true
     }
 }
 

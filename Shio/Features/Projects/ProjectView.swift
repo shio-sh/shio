@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 /// Inside a project on iPhone — the Mac rail's AGENTS/SHELLS/REPOS, decomposed
 /// for a phone: a needs-you bar, the repos (each a standing terminal) with
@@ -22,6 +23,8 @@ struct ProjectView: View {
     @State private var repoToRename: Repo?
     @State private var repoRenameText = ""
     @State private var noCheckoutName: String?
+    @State private var logoItem: PhotosPickerItem?
+    @State private var showingLogoPicker = false
     private let sessionStore = SessionStore.shared
     private let status = ProjectStatusStore.shared
 
@@ -139,6 +142,29 @@ struct ProjectView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Switch project")
         .background(ShioTheme.background)
+        .contextMenu {
+            Button { showingLogoPicker = true } label: {
+                Label(project.imageData == nil ? "Add Logo…" : "Change Logo…", systemImage: "photo")
+            }
+            if project.imageData != nil {
+                Button(role: .destructive) {
+                    project.imageData = nil
+                    try? context.save()
+                } label: { Label("Remove Logo", systemImage: "trash") }
+            }
+        }
+        .photosPicker(isPresented: $showingLogoPicker, selection: $logoItem, matching: .images)
+        .onChange(of: logoItem) { _, item in
+            guard let item else { return }
+            Task {
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      let encoded = ProjectAvatar.encode(data) else { return }
+                await MainActor.run {
+                    project.imageData = encoded
+                    try? context.save()
+                }
+            }
+        }
     }
 
     // MARK: needs-you

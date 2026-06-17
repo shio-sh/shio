@@ -41,6 +41,10 @@ struct MacDashboardCanvas: View {
 
     private func head(_ project: Project, glance: ProjectGlance) -> some View {
         HStack(spacing: 10) {
+            MacLogoWell(name: project.name, imageData: project.imageData, size: 22, showsBadge: false) {
+                project.imageData = $0
+                try? context.save()
+            }
             if renaming {
                 TextField("Project name", text: Bindable(project).name)
                     .textFieldStyle(.plain)
