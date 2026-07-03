@@ -13,9 +13,9 @@ struct ConnectToHostIntent: AppIntent {
     var host: HostEntity
 
     func perform() async throws -> some IntentResult {
-        // Brick 11 second pass: post a notification the app picks up to
-        // route into the right TerminalScene. For now we just bring Shio to
-        // the front; the user lands on the host list with the selection ready.
+        // RootView observes `.shioConnectToHost`; ConnectRouter resolves the
+        // host and opens the session directly — same path as away-push taps,
+        // widget links, and `shio://connect` URLs.
         NotificationCenter.default.post(
             name: .shioConnectToHost,
             object: nil,

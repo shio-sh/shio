@@ -2,8 +2,8 @@ import Foundation
 import CryptoKit
 import Security
 
-/// Owns Shio's Ed25519 SSH key. One key per app install for now — Brick 7
-/// second pass adds per-host keys if/when users ask for them.
+/// Owns Shio's Ed25519 SSH key. One key per app install for now — per-host
+/// keys can come if/when users ask for them.
 ///
 /// **API split** (audit finding #4): we used to have a single
 /// `currentKey()` that silently generated a key if none existed. That made

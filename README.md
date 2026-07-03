@@ -46,11 +46,10 @@ Two things make it more than a connection list:
 - **SSH + tmux** — SwiftNIO SSH, host-key pinning (trust-on-first-use), `tmux` session continuity across devices.
 - **Projects** — projects-first organization on iOS and Mac; tabs and splits on Mac.
 - **Pairing & reach** — Tailscale-native, plus QR/CloudKit pairing for your own devices.
+- **Agent supervision** — push when an agent stops and needs you, one-tap approve/deny from the lock screen, jump straight back into the session.
 - **Apple integrations** — Live Activities, widgets, App Intents, Handoff.
 
 **Distribution:** iPhone/iPad ship via **TestFlight**; the Mac app ships as a **notarized Developer ID** direct download (the Mac App Store mandates the App Sandbox, which forbids a real terminal — so Shio ships the way iTerm, Ghostty, and Warp do). Get it at [shio.sh/mac](https://shio.sh/mac).
-
-**Next:** deeper **agent supervision** — push-notify when an agent stops and needs you, one-tap approve/deny, jump straight back into the session. The foundations are here; the experience lands in a future version, built right rather than shipped as a stub.
 
 ## Running it locally
 

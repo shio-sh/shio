@@ -9,8 +9,9 @@ import os.log
 /// fall back to an in-memory container so the app still launches and the
 /// user can see a clear error in Settings instead of a crash on boot.
 ///
-/// Brick 10 (Widgets) will switch to an App Group container URL once the
-/// entitlement is reliably provisioned across all build configurations.
+/// The store stays at SwiftData's default sandboxed location on iOS (moving
+/// it would orphan existing installs); widgets share state via
+/// WidgetSharedState in the App Group instead of reading this store.
 enum ShioModelContainer {
     static let appGroup = "group.sh.shio.app"
 

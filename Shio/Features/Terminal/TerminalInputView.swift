@@ -8,8 +8,8 @@ import UIKit
 /// We override `pressesBegan`/`pressesChanged`/`pressesEnded` to intercept
 /// hardware keyboard events before they reach the responder chain, and
 /// `insertText`/`deleteBackward` from `UIKeyInput` to handle soft-keyboard
-/// characters. The `KeyboardAccessoryView` (see Brick 4 part 2) sets modifier
-/// state via `setModifier(_:)` so users can tap Ctrl, then a letter.
+/// characters. `KeyboardAccessoryView` sets modifier state via
+/// `setModifier(_:)` so users can tap Ctrl, then a letter.
 final class TerminalInputView: UIView {
 
     /// Called with raw bytes to send over the SSH channel.
@@ -67,7 +67,7 @@ final class TerminalInputView: UIView {
     // Tell UIKit we accept text input.
     override var canResignFirstResponder: Bool { true }
 
-    // The keyboard accessory row is attached by KeyboardAccessoryView (Brick 4 P2).
+    // The keyboard accessory row is attached by KeyboardAccessoryView.
     private var _inputAccessoryView: UIView?
     override var inputAccessoryView: UIView? {
         get { _inputAccessoryView }

@@ -3,8 +3,8 @@ import SwiftData
 import Foundation
 
 /// App Intents entity that surfaces saved Hosts to Shortcuts, Siri, and
-/// Spotlight. Pulled from SwiftData by hostname (which is unique enough for
-/// MVP — Brick 11 will harden with stable IDs if collisions appear).
+/// Spotlight. Pulled from SwiftData by hostname (unique enough in practice —
+/// harden with stable IDs if collisions ever appear).
 struct HostEntity: AppEntity, Identifiable {
 
     static var typeDisplayRepresentation: TypeDisplayRepresentation {

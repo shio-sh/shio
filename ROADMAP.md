@@ -10,25 +10,23 @@ Where Shio is and where it's going. Loosely ordered by priority, not hardness.
 - **Projects-first** — organized around the work, not just hosts; tabs and splits on Mac.
 - **Pairing & reach** — Tailscale-native, plus QR/CloudKit pairing for your own devices.
 - **Sync** — profiles via SwiftData + CloudKit (your iCloud, no account with us).
-- **Apple integrations** — Live Activities, widgets, App Intents, Handoff foundations.
+- **Agent supervision** — push when an agent **stops and needs you**, one-tap **approve / deny** from the lock screen (notification actions, answered over CloudKit), and jump-back routing into the **exact session** that needs attention.
+- **iPad's own layout** — a proper three-column frame (rail · canvas · inspector), not a stretched iPhone.
+- **Apple integrations** — Live Activities, widgets, App Intents (`ConnectToHost` and `RunCommand` are real — Siri/Shortcuts can connect and run commands without opening the app), Handoff foundations.
 - **Distribution** — iPhone/iPad on TestFlight; Mac as a notarized Developer ID direct download (the App Store sandbox can't host a real terminal).
 
-## Next major: agent supervision
+## Agent supervision: what remains
 
-The reason Shio exists in the "agent era" — and the part we're building right rather than shipping as a stub:
+The reason Shio exists in the "agent era." The experience is built — away-push, lock-screen approve/deny, jump-back — so what's left is earning trust in it:
 
-- Push when an agent **stops and needs you** (a prompt, a confirmation, a failure).
-- **One-tap approve / deny** from the lock screen, without opening the app.
-- Jump straight back into the **exact session** that needs attention.
-
-The plumbing (agent detection, away signals, Live Activities) exists; the supervision *experience* lands in a future version.
+- **On-device verification** across real agents and real away sessions (not just the happy path).
+- **Polish** — the timing, wording, and failure behavior a lock-screen decision deserves.
 
 ## In progress / near-term
 
-- **Reconnect UX** — iOS suspends SSH within ~30s of backgrounding; clean disconnect detection on resume and one-tap tmux-restore.
+- **Reconnect UX** — the reconnect state machine now runs on both platforms (iOS, plus the Mac port with wake/path recovery); what's left is polish on the edges.
 - **Live Activities / Dynamic Island** — real lock-screen state (host, session, last command), beyond the current shell.
 - **Widgets** — tap-to-connect home-screen widget behavior.
-- **App Intents** — real `RunCommand` and `ConnectToHost` (currently stubbed/foreground-only).
 - **Public beta hardening** — external TestFlight, landing/onboarding, the polish a first impression needs.
 
 ## Later / nice-to-have

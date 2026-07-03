@@ -1,12 +1,12 @@
 import SwiftUI
 import SwiftData
 
-/// The project dashboard on iPhone — supervision-first, reordered for mobile:
-/// a one-line glance, then **needs-you** and **agents** up top (the away
-/// use-case), repos next, and the grounding/config modules as tap-in rows.
-/// Built on the terminal-refined kit. Live now: repos (git) + agents (from open
-/// sessions). Approve/deny on a needs-you card arrives with remote control (P6);
-/// for now the card jumps you into the terminal to answer.
+/// The project dashboard on the iPad canvas — supervision-first, reordered
+/// for touch: a one-line glance, then **needs-you** and **agents** up top
+/// (the away use-case), repos next, and the grounding/config modules as
+/// tap-in rows. Built on the terminal-refined kit. A needs-you card answers
+/// in place — approve/deny sends the keystroke over CloudKit — or jumps you
+/// into the terminal.
 struct ProjectOverviewView: View {
     @Bindable var project: Project
     let openRepo: (Repo) -> Void

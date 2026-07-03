@@ -14,9 +14,9 @@ final class Host {
     }
 
     enum PersistenceMode: String, Codable, CaseIterable {
-        /// Invisible tmux session — survives backgrounding (Brick 5).
+        /// Invisible tmux session — survives backgrounding.
         case tmuxAutoResume
-        /// Mosh — survives anything (Brick 13).
+        /// Mosh — model case only; no transport yet, hidden from the UI.
         case mosh
         /// Plain SSH — stateless.
         case plain

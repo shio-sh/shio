@@ -5,9 +5,11 @@ import Combine
 /// Root scene router.
 ///
 /// - First launch (no hosts): show OnboardingView full-screen.
-/// - Otherwise: show the two-tab interface (Hosts + Settings).
+/// - Regular width (iPad): PadRootView — rail · canvas · inspector.
+/// - Compact width (iPhone): MainTabsView — the mono tab bar.
 ///
-/// Brick 8 will swap the iPad layer for a bespoke NavigationSplitView.
+/// Also the single observer of `.shioConnectToHost` — every "jump in"
+/// entry point funnels through here (see the onReceive below).
 struct RootView: View {
 
     @Query private var hosts: [Host]
