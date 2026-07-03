@@ -42,7 +42,7 @@ struct HomeTabView: View {
                     ScrollView {
                         LazyVStack(spacing: 12) {
                             ForEach(sortedProjects) { project in
-                                ProjectOverviewCard(
+                                HomeProjectCard(
                                     project: project,
                                     activity: agentActivity(for: project),
                                     changes: totalChanges(project),
@@ -187,7 +187,7 @@ struct HomeTabView: View {
 }
 
 
-// MARK: - Overview card (A resting · B active)
+// MARK: - Home project card (A resting · B active)
 
 /// One project in the overview. At rest it's a calm whisper card — the
 /// identity-tinted mark, the name, and one faint terminal line (the project's
@@ -195,7 +195,7 @@ struct HomeTabView: View {
 /// moment an agent is live it expands into a hero: the repos inline with
 /// presence, plus a needs-you bar you can answer in place. (His call: A
 /// resting + B active.)
-private struct ProjectOverviewCard: View {
+private struct HomeProjectCard: View {
     let project: Project
     let activity: AgentActivity
     let changes: Int

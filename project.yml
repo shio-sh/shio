@@ -276,6 +276,9 @@ targets:
       - path: Shio/Features/Files/FilesViewModel.swift
       # Shared Skills library shell (UIKit-free; ShioTheme + kit only).
       - path: Shio/Features/Skills/SkillsLibraryView.swift
+      # Shared project dashboard (the bento) — ONE body for the Mac and iPad
+      # canvases; each platform's builder + closures feed it.
+      - path: Shio/Features/Projects/ProjectDashboardView.swift
     dependencies:
       # libghostty's macOS slice uses Carbon's Text Input Source (TIS) APIs
       # for keyboard-layout handling; link it explicitly.

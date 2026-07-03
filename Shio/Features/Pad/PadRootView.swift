@@ -276,12 +276,11 @@ struct PadRootView: View {
         switch canvas {
         case .dashboard:
             if let project = selected {
-                NavigationStack {
-                    ProjectOverviewView(project: project,
-                                        openRepo: { jump($0) },
-                                        openProject: { if let r = project.activeRepo { jump(r) } })
-                }
-                .id(project.persistentModelID)
+                PadDashboardCanvas(project: project,
+                                   openRepo: { jump($0) },
+                                   openTerminal: { if let r = project.activeRepo { jump(r) } },
+                                   openMachines: { canvas = .machines })
+                    .id(project.persistentModelID)
             } else {
                 padEmptyState
             }
@@ -385,6 +384,129 @@ struct PadRootView: View {
         let targets = ProjectStatusStore.targets(for: projects, isLocalHost: { _ in false })
         status.refresh(targets)
         status.refreshPRs(targets)
+    }
+}
+
+// MARK: - Dashboard canvas
+
+/// The dashboard on the iPad canvas — the same shared bento as the Mac,
+/// under a 44pt head colinear with the terminal header (the alignment law):
+/// avatar + name + quiet counts, the terminal jump, and the project menu
+/// (the old overview's toolbar, kept).
+private struct PadDashboardCanvas: View {
+    @Bindable var project: Project
+    let openRepo: (Repo) -> Void
+    let openTerminal: () -> Void
+    let openMachines: () -> Void
+    @Environment(\.modelContext) private var context
+    @State private var showingAddRepo = false
+    @State private var showingRename = false
+    @State private var renameText = ""
+    private let status = ProjectStatusStore.shared
+
+    var body: some View {
+        let rows = ActivityFeed.rows(for: project)
+        let glance = ActivityFeed.glance(for: project, rows: rows)
+        VStack(spacing: 0) {
+            head(glance)
+            ProjectDashboardView(
+                project: project,
+                repos: rows,
+                glance: glance,
+                machines: ActivityFeed.machines(for: project),
+                openRepo: openRepo,
+                addRepo: { showingAddRepo = true },
+                openMachines: openMachines,
+                reply: { row, key in
+                    // Every blocked row is answerable from here — an open
+                    // session directly, anything else over CloudKit (#33).
+                    guard row.agent == .waiting else { return nil }
+                    return {
+                        Haptics.medium()
+                        ActivityFeed.reply(repoName: row.name,
+                                           sessionID: ActivityFeed.presence(for: row.repo)?.sessionID,
+                                           key: key)
+                    }
+                },
+                isLocalHost: { _ in false }
+            )
+        }
+        .background(ShioTheme.background)
+        .sheet(isPresented: $showingAddRepo) { AddProjectSheet(targetProject: project) }
+        .alert("Rename project", isPresented: $showingRename) {
+            TextField("Name", text: $renameText)
+            Button("Save") {
+                let n = renameText.trimmingCharacters(in: .whitespaces)
+                if !n.isEmpty { project.name = n; try? context.save() }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .onAppear {
+            // Fresh status + PRs for the project on landing (the canvas is
+            // .id'd per project, so switching teams re-probes too).
+            let targets = ProjectStatusStore.targets(for: [project], isLocalHost: { _ in false })
+            status.refresh(targets)
+            status.refreshPRs(targets)
+        }
+    }
+
+    // MARK: head (44pt — colinear with the terminal header)
+
+    private func head(_ glance: ProjectGlance) -> some View {
+        HStack(spacing: 10) {
+            ProjectAvatar(project, size: 22)
+            Text(project.name)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(ShioTheme.textPrimary)
+                .lineLimit(1)
+                .layoutPriority(1)
+            Text(headSub(glance))
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 10)
+            Button(action: openTerminal) {
+                Image(systemName: "terminal")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(ShioTheme.accent)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open terminal")
+            Menu {
+                Button { renameText = project.name; showingRename = true } label: {
+                    Label("Rename", systemImage: "pencil")
+                }
+                Button { showingAddRepo = true } label: {
+                    Label("Add repo", systemImage: "plus")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(ShioTheme.textSecondary)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Project menu")
+        }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+        .frame(height: 44)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(ShioTheme.line).frame(height: 1)
+        }
+    }
+
+    private func headSub(_ glance: ProjectGlance) -> String {
+        guard glance.repoCount > 0 else { return "no repos yet" }
+        let machines = max(1, Set(project.allCheckouts.map { $0.host?.persistentModelID }).count)
+        var sub = "\(glance.repoCount) repo\(glance.repoCount == 1 ? "" : "s")"
+            + " · \(machines) machine\(machines == 1 ? "" : "s")"
+        if !glance.age.isEmpty { sub += " · updated \(glance.age) ago" }
+        return sub
     }
 }
 
