@@ -28,6 +28,11 @@ settings:
     TARGETED_DEVICE_FAMILY: "1,2"
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
     SUPPORTS_MACCATALYST: NO
+  configs:
+    # @testable import needs testability on the host apps (Debug only —
+    # the test action runs Debug; Release stays lean).
+    Debug:
+      ENABLE_TESTABILITY: YES
 
 packages:
   swift-nio-ssh:
@@ -333,6 +338,42 @@ targets:
         DEVELOPMENT_TEAM: VRNNS4H6XH
         CODE_SIGN_ENTITLEMENTS: ShioMac/ShioMac.entitlements
 
+  # ── Tests ──────────────────────────────────────────────────────────────
+  # ShioKitTests: the shared platform-agnostic core (parsers, classifiers,
+  # quoting, the bcrypt KDF, the action channel) tested on macOS — fast, no
+  # simulator boot. Hosted in ShioMac so `@testable import Shio` sees the real
+  # build products (the Mac target's module is "Shio" via PRODUCT_NAME).
+  ShioKitTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: ShioKitTests
+    dependencies:
+      - target: ShioMac
+    settings:
+      base:
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.kittests
+        # XcodeGen derives TEST_HOST from the target name (ShioMac), but the
+        # product is renamed to "Shio" — point at the real binary.
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Shio.app/Contents/MacOS/Shio
+        BUNDLE_LOADER: $(TEST_HOST)
+
+  # ShioAppTests: iOS-only seams (ConnectRouter resolution over an in-memory
+  # SwiftData container). Hosted in the iOS app, runs on the simulator.
+  ShioAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ShioAppTests
+    dependencies:
+      - target: Shio
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.apptests
+
 schemes:
   Shio:
     build:
@@ -349,6 +390,8 @@ schemes:
         IDEPreferLogStreaming: "YES"
     test:
       config: Debug
+      targets:
+        - ShioAppTests
     profile:
       config: Release
     analyze:
@@ -366,6 +409,14 @@ schemes:
       # ObjC runtime's fork-safety abort. Disable it the way terminal emulators
       # do. Set in the scheme so it applies when running from Xcode; also in
       # LSEnvironment (Info.plist) for Finder/dock launches.
+      environmentVariables:
+        OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
+    test:
+      config: Debug
+      targets:
+        - ShioKitTests
+      # The hosted ShioMac app may fork a local shell during the test run —
+      # same fork-safety story as the run action above.
       environmentVariables:
         OBJC_DISABLE_INITIALIZE_FORK_SAFETY: "YES"
     profile:

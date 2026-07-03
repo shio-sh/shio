@@ -48,7 +48,8 @@ enum GitWriter {
     /// Verdict comes from the exit status, never from grepping the transcript
     /// — a commit message containing "error:" must not read as failure, and a
     /// timed-out or rejected push must never read as success.
-    private static func interpret(stdout: String, stderr: String, exitStatus: Int?, timedOut: Bool) -> Outcome {
+    /// Internal (not private) so the truth table is unit-tested.
+    static func interpret(stdout: String, stderr: String, exitStatus: Int?, timedOut: Bool) -> Outcome {
         let transcript = [stdout, stderr]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }

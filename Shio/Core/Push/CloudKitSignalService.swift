@@ -145,30 +145,60 @@ final class CloudKitSignalService {
                             predicate: NSPredicate(format: "sessionId > %@", ""))
         do {
             let (matches, _) = try await database.records(matching: query)
-            let cutoff = Date().addingTimeInterval(-maxAge)
-            var fresh: [CKRecord.ID: (sessionId: String, key: String)] = [:]
+            var fetched: [FetchedAction] = []
             var allIDs: [CKRecord.ID] = []
             for (id, result) in matches {
                 guard case .success(let rec) = result,
                       let s = rec["sessionId"] as? String,
                       let k = rec["key"] as? String else { continue }
                 allIDs.append(id)
-                if (rec.creationDate ?? .distantPast) > cutoff {
-                    fresh[id] = (s, k)
-                }
+                fetched.append(FetchedAction(id: id.recordName, sessionId: s, key: k,
+                                             created: rec.creationDate))
             }
             guard !allIDs.isEmpty else { return [] }
             let (_, deleteResults) = try await database.modifyRecords(saving: [], deleting: allIDs)
-            var consumed: [(sessionId: String, key: String)] = []
+            var confirmed: Set<String> = []
             for (id, result) in deleteResults {
-                if case .success = result, let action = fresh[id] {
-                    consumed.append(action)
-                }
+                if case .success = result { confirmed.insert(id.recordName) }
             }
-            return consumed
+            return Self.consumable(records: fetched, deleteConfirmed: confirmed,
+                                   now: Date(), maxAge: maxAge)
+                .map { (sessionId: $0.sessionId, key: $0.key) }
         } catch {
             return []
         }
+    }
+
+    /// One fetched `Action`, decoupled from CKRecord so the consume rules are
+    /// unit-testable.
+    struct FetchedAction: Equatable, Sendable {
+        var id: String
+        var sessionId: String
+        var key: String
+        var created: Date?
+    }
+
+    /// The pure core of the consume step: which fetched actions may be
+    /// injected. Three rules, each protecting against a double-answer:
+    /// - only delete-confirmed records (a failed delete re-fetches next poll;
+    ///   injecting it now too would answer twice),
+    /// - only fresh records (older than `maxAge` = a leftover from a Mac that
+    ///   was off — consumed but never injected into whatever blocks *now*),
+    /// - one per session, the newest write wins (approve on the phone *and*
+    ///   the watch in the same window must not land two keystrokes).
+    nonisolated static func consumable(records: [FetchedAction],
+                                       deleteConfirmed: Set<String>,
+                                       now: Date,
+                                       maxAge: TimeInterval) -> [FetchedAction] {
+        let cutoff = now.addingTimeInterval(-maxAge)
+        var newest: [String: FetchedAction] = [:]
+        for r in records {
+            guard deleteConfirmed.contains(r.id) else { continue }
+            guard let created = r.created, created > cutoff else { continue }
+            if let held = newest[r.sessionId], (held.created ?? .distantPast) >= created { continue }
+            newest[r.sessionId] = r
+        }
+        return newest.values.sorted { $0.sessionId < $1.sessionId }
     }
 
     enum SubscriptionCheck {

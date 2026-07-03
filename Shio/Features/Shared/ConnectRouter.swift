@@ -55,7 +55,8 @@ final class ConnectRouter {
     /// Try each identity the producers use: the synced per-device id (away-push
     /// from a Mac), the local persistentModelID string (widget links), the
     /// hostname (Siri / Handoff), then the display name as a last resort.
-    private func resolveHost(ref: String, context: ModelContext) -> Host? {
+    /// Internal (not private) so the precedence order is unit-tested.
+    func resolveHost(ref: String, context: ModelContext) -> Host? {
         guard let hosts = try? context.fetch(FetchDescriptor<Host>()) else { return nil }
         if let h = hosts.first(where: { $0.deviceID == ref }) { return h }
         if let h = hosts.first(where: { "\($0.persistentModelID)" == ref }) { return h }
@@ -66,7 +67,8 @@ final class ConnectRouter {
     /// Map a tmux session name back to the (project, checkout) it was created
     /// from — `shio-<scrubbed repo name>[-index]` — scoped to the resolved
     /// host. Indexed sessions route to the repo's primary session.
-    private func checkout(forTmuxSession tmux: String, on host: Host) -> (Project, ProjectCheckout)? {
+    /// Internal (not private) so the mapping is unit-tested.
+    func checkout(forTmuxSession tmux: String, on host: Host) -> (Project, ProjectCheckout)? {
         guard tmux.hasPrefix("shio-") else { return nil }
         let stripped = String(tmux.dropFirst("shio-".count))
         for checkout in host.checkouts ?? [] {
