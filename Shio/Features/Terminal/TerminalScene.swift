@@ -86,9 +86,10 @@ struct TerminalScene: View {
         // one-keystroke answer, injected straight into the live terminal.
         .overlay(alignment: .bottom) {
             if let viewModel, let waiting = waitingSnapshot {
-                NeedBar(agentName: waiting.agentName ?? "Your agent",
-                        approve: { Haptics.medium(); viewModel.terminal.onInput?("y\n") },
-                        deny: { Haptics.medium(); viewModel.terminal.onInput?("n\n") })
+                ShioNeedsYouBar(agentName: waiting.agentName ?? "Your agent",
+                                approve: { Haptics.medium(); viewModel.terminal.onInput?("y\n") },
+                                deny: { Haptics.medium(); viewModel.terminal.onInput?("n\n") })
+                    .shadow(color: .black.opacity(0.25), radius: 10, y: 3)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 10)
             }
@@ -219,21 +220,14 @@ struct TerminalScene: View {
 
     /// Presence on this terminal — ⚑ needs-you / ⠋ working / ⎇ repo at
     /// rest, or % for a loose shell. Mirrors the Mac terminal header.
+    /// .finished stays quiet here — the header idles at ⎇.
     @ViewBuilder
     private var presenceGlyph: some View {
-        let isShell = store.activeSession?.projectID == nil
-        let activity = store.activeSession.flatMap { AgentStateStore.shared.snapshot(for: $0.id)?.activity }
-        if isShell {
-            Text("%").font(.system(size: 13, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
+        if store.activeSession?.projectID == nil {
+            ShioPresenceGlyph(activity: .none, size: 13, idle: "%")
         } else {
-            switch activity {
-            case .waiting:
-                Text("⚑").font(.system(size: 13)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-            case .running:
-                ShioBrailleSpinner(status: .info, size: 13)
-            default:
-                Text("⎇").font(.system(size: 13, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
-            }
+            let act = store.activeSession.flatMap { AgentStateStore.shared.snapshot(for: $0.id)?.activity } ?? .none
+            ShioPresenceGlyph(activity: act == .finished ? .none : act, size: 13)
         }
     }
 
@@ -459,47 +453,6 @@ struct TerminalScene: View {
         guard let m = viewModel?.hostKeyMismatch else { return base }
         let offered = m.offered.map(ShioKnownHosts.shortFingerprint) ?? "unreadable"
         return "Pinned \(ShioKnownHosts.shortFingerprint(m.pinned)) → offered \(offered). " + base
-    }
-}
-
-// MARK: - Needs-you answer bar
-
-/// "⚑ Codex is waiting · Approve · Deny" — floats over the terminal while the
-/// agent is blocked; the question itself is in the scrollback right above.
-private struct NeedBar: View {
-    let agentName: String
-    let approve: () -> Void
-    let deny: () -> Void
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Text("⚑")
-                .font(.system(size: 12))
-                .foregroundStyle(ShioTheme.warning)
-                .shioNeedsPulse()
-            Text("\(agentName) is waiting")
-                .font(.system(size: 12.5))
-                .foregroundStyle(ShioTheme.textPrimary)
-                .lineLimit(1)
-            Spacer(minLength: 8)
-            ShioMiniButton(title: "Approve", status: .success, action: approve)
-            ShioMiniButton(title: "Deny", status: .danger, action: deny)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(ShioTheme.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(ShioTheme.warningBg)
-        )
-        .overlay(alignment: .leading) {
-            Rectangle().fill(ShioTheme.warning).frame(width: 2)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .shadow(color: .black.opacity(0.25), radius: 10, y: 3)
     }
 }
 

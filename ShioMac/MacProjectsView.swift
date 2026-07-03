@@ -514,15 +514,9 @@ private struct DashboardRepoRow: View {
         }
     }
 
-    @ViewBuilder private var presence: some View {
-        switch row.agent {
-        case .waiting:
-            Text("⚑").font(.system(size: 12)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-        case .running:
-            ShioBrailleSpinner(status: .info, size: 12)
-        default:
-            Text("⎇").font(.system(size: 12, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
-        }
+    /// .finished stays quiet here — the row idles at ⎇.
+    private var presence: some View {
+        ShioPresenceGlyph(activity: row.agent == .finished ? .none : row.agent, size: 12)
     }
 
     @ViewBuilder private var secondLine: some View {
@@ -542,10 +536,10 @@ private struct DashboardRepoRow: View {
                     Text(agentLine(quoted: false)).foregroundStyle(ShioTheme.info)
                         .lineLimit(1).truncationMode(.tail)
                 }
-                gitSegs(m)
+                ShioGitStatusLine(model: m, cleanMark: "clean")
                 Spacer(minLength: 0)
             default:
-                gitSegs(m)
+                ShioGitStatusLine(model: m, cleanMark: "clean")
                 Spacer(minLength: 0)
                 Text(row.machines).foregroundStyle(ShioTheme.textTertiary)
                     .lineLimit(1).truncationMode(.middle)
@@ -553,30 +547,6 @@ private struct DashboardRepoRow: View {
         }
         .font(.system(size: 12, design: .monospaced))
         .monospacedDigit()
-    }
-
-    @ViewBuilder private func gitSegs(_ m: GitLineModel) -> some View {
-        Group {
-            HStack(spacing: 6) {
-                Text("⎇").foregroundStyle(ShioTheme.textTertiary)
-                Text(m.branchLabel).lineLimit(1).truncationMode(.middle)
-                    .foregroundStyle(m.state == .loading || m.state == .unreachable
-                                     ? ShioTheme.textTertiary : ShioTheme.textSecondary)
-            }
-            if m.hasTracking {
-                if m.ahead > 0 { Text("↑\(m.ahead)").foregroundStyle(ShioTheme.textSecondary) }
-                if m.behind > 0 { Text("↓\(m.behind)").foregroundStyle(ShioTheme.textSecondary) }
-                if m.dirty > 0 {
-                    HStack(spacing: 6) {
-                        ShioStatusDot(status: .warning)
-                        Text("\(m.dirty)").foregroundStyle(ShioTheme.warning)
-                    }
-                } else {
-                    Text("clean").foregroundStyle(ShioTheme.success)
-                }
-            }
-        }
-        .opacity(m.stale ? 0.6 : 1)
     }
 
     private func agentLine(quoted: Bool) -> String {

@@ -134,39 +134,6 @@ struct MacMiniButton: View {
     }
 }
 
-/// "⚑ Codex is waiting on you · Approve · Deny" — the blocked-agent bar shown
-/// over a terminal (and echoed by the dashboard's needs-you row).
-struct MacNeedBar: View {
-    let agentName: String
-    let approve: () -> Void
-    let deny: () -> Void
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text("⚑")
-                .font(.system(size: 12))
-                .foregroundStyle(ShioTheme.warning)
-                .shioNeedsPulse()
-            Text("\(agentName) is waiting on you")
-                .font(.system(size: 12.5))
-                .foregroundStyle(ShioTheme.textPrimary)
-            Spacer(minLength: 10)
-            MacMiniButton(title: "Approve · y", status: .success, action: approve)
-            MacMiniButton(title: "Deny · n", status: .danger, action: deny)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(ShioTheme.warningBg)
-        )
-        .overlay(alignment: .leading) {
-            Rectangle().fill(ShioTheme.warning).frame(width: 2)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-    }
-}
-
 /// The sidebar toggle (⌘\) — rides the switcher row while the rail is open,
 /// floats beside the traffic lights when it's collapsed.
 struct MacRailToggleButton: View {

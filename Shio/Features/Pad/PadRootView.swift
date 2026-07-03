@@ -162,7 +162,7 @@ struct PadRootView: View {
                 railRow(title: "\(item.agentName) · \(item.repoName)",
                         selected: isOpenRepo(named: item.repoName),
                         action: { jump(item.repo) }) {
-                    presenceGlyph(item.activity)
+                    ShioPresenceGlyph(activity: item.activity, size: 11.5, idle: nil)
                 } trailing: {
                     if item.activity == .waiting {
                         Text("needs you")
@@ -197,11 +197,9 @@ struct PadRootView: View {
                     Text("⎇").font(.system(size: 11.5, design: .monospaced))
                         .foregroundStyle(ShioTheme.textTertiary)
                 } trailing: {
-                    let dirty = dirtyCount(repo)
-                    if dirty > 0 {
-                        Text("\(dirty)")
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(ShioTheme.warning)
+                    let m = gitModel(repo)
+                    if m.dirty > 0 {
+                        ShioGitStatusLine(model: m, compact: true, size: 11)
                     }
                 }
             }
@@ -267,19 +265,6 @@ struct PadRootView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    @ViewBuilder private func presenceGlyph(_ activity: AgentActivity) -> some View {
-        switch activity {
-        case .waiting:
-            Text("⚑").font(.system(size: 11.5)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-        case .running:
-            ShioBrailleSpinner(status: .info, size: 11.5)
-        case .finished:
-            Text("✓").font(.system(size: 11.5, design: .monospaced)).foregroundStyle(ShioTheme.success)
-        case .none:
-            EmptyView()
-        }
     }
 
     // MARK: center
@@ -382,9 +367,8 @@ struct PadRootView: View {
         canvas = .terminal(session.id)
     }
 
-    private func dirtyCount(_ repo: Repo) -> Int {
-        guard let c = repo.activeCheckout else { return 0 }
-        return GitLineFormatter.make(status.status(forHost: c.host, path: c.path)?.probe).dirty
+    private func gitModel(_ repo: Repo) -> GitLineModel {
+        GitLineFormatter.make(repo.activeCheckout.flatMap { status.status(forHost: $0.host, path: $0.path)?.probe })
     }
 
     private var terminalRepo: Repo? {
@@ -439,27 +423,11 @@ private struct PadTerminalView: View {
             }
             .overlay(alignment: .bottom) {
                 if let snap = snapshot, snap.activity == .waiting {
-                    HStack(spacing: 9) {
-                        Text("⚑").font(.system(size: 12)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-                        Text("\(snap.agentName ?? "Your agent") is waiting")
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(ShioTheme.textPrimary)
-                        Spacer(minLength: 8)
-                        ShioMiniButton(title: "Approve", status: .success) {
-                            Haptics.medium()
-                            session.viewModel.terminal.onInput?("y\n")
-                        }
-                        ShioMiniButton(title: "Deny", status: .danger) {
-                            Haptics.medium()
-                            session.viewModel.terminal.onInput?("n\n")
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(ShioTheme.surface))
-                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(ShioTheme.warningBg))
-                    .overlay(alignment: .leading) { Rectangle().fill(ShioTheme.warning).frame(width: 2) }
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    ShioNeedsYouBar(
+                        agentName: snap.agentName ?? "Your agent",
+                        approve: { Haptics.medium(); session.viewModel.terminal.onInput?("y\n") },
+                        deny: { Haptics.medium(); session.viewModel.terminal.onInput?("n\n") }
+                    )
                     .shadow(color: .black.opacity(0.25), radius: 10, y: 3)
                     .padding(12)
                 }
@@ -475,18 +443,10 @@ private struct PadTerminalView: View {
 
     private var head: some View {
         HStack(spacing: 10) {
-            Group {
-                switch snapshot?.activity {
-                case .waiting:
-                    Text("⚑").font(.system(size: 12)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-                case .running:
-                    ShioBrailleSpinner(status: .info, size: 12)
-                default:
-                    Text(session.projectID == nil ? "%" : "⎇")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(ShioTheme.textTertiary)
-                }
-            }
+            // .finished stays quiet here — the header idles at ⎇/%.
+            let act = snapshot?.activity ?? .none
+            ShioPresenceGlyph(activity: act == .finished ? .none : act, size: 12,
+                              idle: session.projectID == nil ? "%" : "⎇")
             Text(session.displayName)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(ShioTheme.textPrimary)

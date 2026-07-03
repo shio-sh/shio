@@ -214,7 +214,13 @@ private struct ProjectOverviewCard: View {
             header.padding(.horizontal, 14).padding(.top, 13)
             if isLive {
                 if let item = waitingItem {
-                    needbar(item).padding(.horizontal, 14).padding(.top, 10)
+                    ShioNeedsYouBar(
+                        agentName: item.agentName,
+                        detail: item.detail,
+                        approve: { Haptics.medium(); ActivityFeed.reply(item, key: "y") },
+                        deny: { Haptics.medium(); ActivityFeed.reply(item, key: "n") }
+                    )
+                    .padding(.horizontal, 14).padding(.top, 10)
                 }
                 Rectangle().fill(ShioTheme.line).frame(height: 1).padding(.top, 11)
                 ForEach(project.sortedRepos) { repo in heroRepoRow(repo) }
@@ -290,21 +296,6 @@ private struct ProjectOverviewCard: View {
 
     // MARK: active hero (B)
 
-    private func needbar(_ item: ActivityItem) -> some View {
-        HStack(spacing: 8) {
-            Text("⚑").font(.system(size: 12)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-            Text(item.detail.map { "\(item.agentName) · \"\($0)\"" } ?? "\(item.agentName) needs you")
-                .font(.system(size: 11.5)).foregroundStyle(ShioTheme.warning).lineLimit(1)
-            Spacer(minLength: 6)
-            ShioMiniButton(title: "Approve", status: .success) { Haptics.medium(); ActivityFeed.reply(item, key: "y") }
-            ShioMiniButton(title: "Deny", status: .danger) { Haptics.medium(); ActivityFeed.reply(item, key: "n") }
-        }
-        .padding(.vertical, 9).padding(.horizontal, 11)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(ShioTheme.warningBg))
-        .overlay(alignment: .leading) { Rectangle().fill(ShioTheme.warning).frame(width: 2) }
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-    }
-
     private func heroRepoRow(_ repo: Repo) -> some View {
         let presence = ActivityFeed.presence(for: repo)
         let act = presence?.snap.activity ?? .none
@@ -313,7 +304,7 @@ private struct ProjectOverviewCard: View {
             status.prList(forHost: c.host, path: c.path).first { $0.state == "OPEN" }
         }
         return HStack(spacing: 10) {
-            presenceGlyph(act).frame(width: 14)
+            ShioPresenceGlyph(activity: act, size: 11.5).frame(width: 14)
             Text(repo.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary).lineLimit(1)
             Group {
                 switch act {
@@ -324,15 +315,7 @@ private struct ProjectOverviewCard: View {
             }
             .font(.system(size: 11, design: .monospaced)).lineLimit(1).truncationMode(.tail)
             Spacer(minLength: 6)
-            HStack(spacing: 8) {
-                if m.dirty > 0 {
-                    HStack(spacing: 3) { ShioStatusDot(status: .warning, size: 5); Text("\(m.dirty)").foregroundStyle(ShioTheme.warning) }
-                } else if m.hasTracking {
-                    Text("✓").foregroundStyle(ShioTheme.success)
-                }
-                if let pr { Text("PR #\(pr.number)").foregroundStyle(ShioTheme.textTertiary) }
-            }
-            .font(.system(size: 10.5, design: .monospaced)).monospacedDigit()
+            ShioGitStatusLine(model: m, openPR: pr, compact: true, size: 10.5)
         }
         .padding(.horizontal, 14).padding(.vertical, 9)
     }
@@ -352,15 +335,6 @@ private struct ProjectOverviewCard: View {
         var seen = Set<String>(); var out: [String] = []
         for nm in names where !seen.contains(nm) { seen.insert(nm); out.append(nm) }
         return out.isEmpty ? "this mac" : out.joined(separator: " · ")
-    }
-
-    @ViewBuilder private func presenceGlyph(_ a: AgentActivity) -> some View {
-        switch a {
-        case .waiting:  Text("⚑").font(.system(size: 11.5)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-        case .running:  ShioBrailleSpinner(status: .info, size: 11)
-        case .finished: Text("✓").font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.success)
-        case .none:     Text("⎇").font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
-        }
     }
 
     private func gitProbe(_ repo: Repo) -> GitProbe? {

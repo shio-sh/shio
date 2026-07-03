@@ -49,7 +49,15 @@ struct ProjectView: View {
                 switcherHeader
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(needsYou) { item in needsYouBar(item) }
+                        ForEach(needsYou) { item in
+                            ShioNeedsYouBar(
+                                agentName: item.agentName,
+                                detail: item.detail,
+                                approve: { Haptics.medium(); ActivityFeed.reply(item, key: "y") },
+                                deny: { Haptics.medium(); ActivityFeed.reply(item, key: "n") }
+                            )
+                            .padding(.horizontal, 14).padding(.top, 10)
+                        }
 
                         sectionHeader("repos", add: { showingAddRepo = true })
                         if project.sortedRepos.isEmpty {
@@ -166,33 +174,6 @@ struct ProjectView: View {
         }
     }
 
-    // MARK: needs-you
-
-    private func needsYouBar(_ item: ActivityItem) -> some View {
-        HStack(spacing: 9) {
-            Text("⚑").font(.system(size: 12)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(item.agentName) · \(item.repoName)")
-                    .font(.system(size: 12.5)).foregroundStyle(ShioTheme.textPrimary).lineLimit(1)
-                if let d = item.detail, !d.isEmpty {
-                    Text("\"\(d)\"").font(.system(size: 12)).foregroundStyle(ShioTheme.warning).lineLimit(1)
-                }
-            }
-            Spacer(minLength: 6)
-            ShioMiniButton(title: "Approve", status: .success) {
-                Haptics.medium(); ActivityFeed.reply(item, key: "y")
-            }
-            ShioMiniButton(title: "Deny", status: .danger) {
-                Haptics.medium(); ActivityFeed.reply(item, key: "n")
-            }
-        }
-        .padding(.horizontal, 12).padding(.vertical, 11)
-        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(ShioTheme.warningBg))
-        .overlay(alignment: .leading) { Rectangle().fill(ShioTheme.warning).frame(width: 2) }
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .padding(.horizontal, 14).padding(.top, 10)
-    }
-
     // MARK: repos
 
     private func repoRow(_ repo: Repo) -> some View {
@@ -200,7 +181,7 @@ struct ProjectView: View {
         let activity = presence?.snap.activity ?? .none
         return Button { openRepo(repo) } label: {
             HStack(spacing: 11) {
-                presenceGlyph(activity).frame(width: 15)
+                ShioPresenceGlyph(activity: activity, size: 12).frame(width: 15)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(repo.name).font(.system(size: 14.5)).foregroundStyle(ShioTheme.textPrimary).lineLimit(1)
                     sub(repo, presence: presence?.snap)
@@ -243,14 +224,7 @@ struct ProjectView: View {
         let pr = repo.activeCheckout.flatMap { c in
             status.prList(forHost: c.host, path: c.path).first { $0.state == "OPEN" }
         }
-        HStack(spacing: 6) {
-            if m.dirty > 0 { Text("\(m.dirty)").foregroundStyle(ShioTheme.warning) }
-            if let pr {
-                if m.dirty > 0 { Text("·").foregroundStyle(ShioTheme.textTertiary) }
-                Text("PR #\(pr.number)").foregroundStyle(ShioTheme.textTertiary)
-            }
-        }
-        .font(.system(size: 11, design: .monospaced)).monospacedDigit()
+        ShioGitStatusLine(model: m, openPR: pr, compact: true, size: 11)
     }
 
     // MARK: shells
@@ -374,9 +348,9 @@ struct ProjectView: View {
                 Text(p.name).font(.system(size: 14.5)).foregroundStyle(ShioTheme.textPrimary).lineLimit(1)
                 Spacer(minLength: 6)
                 if act.contains(.waiting) {
-                    Text("⚑").font(.system(size: 11)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
+                    ShioPresenceGlyph(activity: .waiting, size: 11)
                 } else if act.contains(.running) {
-                    ShioBrailleSpinner(status: .info, size: 11)
+                    ShioPresenceGlyph(activity: .running, size: 11)
                 } else {
                     let age = shioShortAge(p.lastOpenedAt)
                     if !age.isEmpty { Text(age).font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary) }
@@ -392,15 +366,6 @@ struct ProjectView: View {
 
     private func projectMark(_ p: Project, size: CGFloat) -> some View {
         ProjectAvatar(p, size: size)
-    }
-
-    @ViewBuilder private func presenceGlyph(_ a: AgentActivity) -> some View {
-        switch a {
-        case .waiting:  Text("⚑").font(.system(size: 12.5)).foregroundStyle(ShioTheme.warning).shioNeedsPulse()
-        case .running:  ShioBrailleSpinner(status: .info, size: 12)
-        case .finished: Text("✓").font(.system(size: 12, design: .monospaced)).foregroundStyle(ShioTheme.success)
-        case .none:     Text("⎇").font(.system(size: 12, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
-        }
     }
 
     private func sectionHeader(_ title: String, add: (() -> Void)? = nil) -> some View {

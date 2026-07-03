@@ -128,7 +128,14 @@ struct TerminalWorkspaceView: View {
 
     private func terminalHead(_ tab: WorkspaceTab) -> some View {
         MacCanvasHeader(title: tab.title, sub: sub(for: tab)) {
-            presenceGlyph(tab)
+            // ⚑ needs-you / ⠋ working / ⎇ quiet repo / % shell — the agent's
+            // presence on this terminal. .finished stays quiet (idles at ⎇).
+            if tab.isShellTab {
+                ShioPresenceGlyph(activity: .none, size: 12, idle: "%")
+            } else {
+                let act = MacProjectAgentMonitor.shared.snapshot(forProjectNamed: tab.title)?.activity ?? .none
+                ShioPresenceGlyph(activity: act == .finished ? .none : act, size: 12)
+            }
         } trailing: {
             MacHeaderIconButton(systemImage: "rectangle.split.2x1", help: "Split right (⌘D)") {
                 model.splitFocused(.horizontal)
@@ -136,27 +143,6 @@ struct TerminalWorkspaceView: View {
             MacHeaderIconButton(systemImage: "sidebar.trailing", help: "Inspector (⌘I)",
                                 on: model.inspectorOpen) {
                 model.inspectorOpen.toggle()
-            }
-        }
-    }
-
-    /// ⚑ needs-you / ⠋ working / ⎇ quiet repo / % shell — the agent's
-    /// presence on this terminal.
-    @ViewBuilder private func presenceGlyph(_ tab: WorkspaceTab) -> some View {
-        if tab.isShellTab {
-            Text("%").font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(ShioTheme.textTertiary)
-        } else {
-            switch MacProjectAgentMonitor.shared.snapshot(forProjectNamed: tab.title)?.activity {
-            case .waiting:
-                Text("⚑").font(.system(size: 12))
-                    .foregroundStyle(ShioTheme.warning)
-                    .shioNeedsPulse()
-            case .running:
-                ShioBrailleSpinner(status: .info, size: 12)
-            default:
-                Text("⎇").font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(ShioTheme.textTertiary)
             }
         }
     }
@@ -211,7 +197,7 @@ struct TerminalWorkspaceView: View {
             // The agent's question is in the scrollback right above — this is
             // the one-keystroke answer. Local tmux only; a remote agent is
             // answered in its terminal directly.
-            MacNeedBar(
+            ShioNeedsYouBar(
                 agentName: MacProjectAgentMonitor.shared.byTmux[session]?.agentName ?? "Your agent",
                 approve: { MacProjectAgentMonitor.shared.send(key: "y", toSession: session) },
                 deny: { MacProjectAgentMonitor.shared.send(key: "n", toSession: session) }

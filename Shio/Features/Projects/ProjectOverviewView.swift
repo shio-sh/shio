@@ -225,28 +225,16 @@ struct ProjectOverviewView: View {
 
     private func needsYouCard(_ item: AgentItem) -> some View {
         let snap = item.snap
-        return VStack(alignment: .leading, spacing: 0) {
-            Text(item.title)
-                .font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
-            if let d = snap.detail, !d.isEmpty {
-                Text("\"\(d)\"").font(.system(size: 13)).foregroundStyle(ShioTheme.warning)
-                    .padding(.top, 6).padding(.bottom, 11)
-            } else { Color.clear.frame(height: 11) }
-            if let tmux = item.sessionTmux {
-                HStack(spacing: 8) {
-                    ShioButton("Approve", .primary, icon: "checkmark") { answer(tmux, "y") }
-                    ShioButton("Deny", .secondary, icon: "xmark") { answer(tmux, "n") }
-                    ShioButton("Open", .ghost, icon: "terminal") { openProject() }
-                }
-            } else {
-                ShioButton("Open terminal to answer", .secondary, icon: "terminal") { openProject() }
-            }
-        }
-        .padding(13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(ShioTheme.warningBg))
-        .overlay(alignment: .leading) { Rectangle().fill(ShioTheme.warning).frame(width: 2) }
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        let detail = (snap.detail?.isEmpty == false) ? snap.detail : nil
+        // Answerable in place only when the blocked agent's tmux is known
+        // (the CloudKit path); otherwise the bar offers the terminal jump.
+        return ShioNeedsYouBar(
+            agentName: item.title,
+            detail: detail,
+            approve: item.sessionTmux.map { tmux in { answer(tmux, "y") } },
+            deny: item.sessionTmux.map { tmux in { answer(tmux, "n") } },
+            jump: { openProject() }
+        )
         .padding(.horizontal, 12).padding(.bottom, 4)
     }
 
@@ -312,28 +300,7 @@ struct ProjectOverviewView: View {
         let pr = repo.activeCheckout.flatMap { c in
             status.prList(forHost: c.host, path: c.path).first(where: { $0.state == "OPEN" })
         }
-        HStack(spacing: 9) {
-            HStack(spacing: 5) {
-                Text("⎇").foregroundStyle(ShioTheme.textTertiary)
-                Text(m.branchLabel).lineLimit(1).truncationMode(.middle)
-            }
-            .foregroundStyle(m.state == .loading || m.state == .unreachable ? ShioTheme.textTertiary : ShioTheme.textSecondary)
-            if m.hasTracking {
-                if m.ahead > 0 { Text("↑\(m.ahead)").foregroundStyle(ShioTheme.textSecondary) }
-                if m.behind > 0 { Text("↓\(m.behind)").foregroundStyle(ShioTheme.textSecondary) }
-                if m.dirty > 0 {
-                    HStack(spacing: 5) { ShioStatusDot(status: .warning, size: 6)
-                        Text("\(m.dirty)").foregroundStyle(ShioTheme.warning) }
-                } else {
-                    Text("✓").foregroundStyle(ShioTheme.success)
-                }
-            }
-            if let pr {
-                Text("PR #\(pr.number)").foregroundStyle(pr.isDraft ? ShioTheme.textTertiary : ShioTheme.info)
-            }
-        }
-        .font(.system(size: 12, design: .monospaced)).monospacedDigit()
-        .opacity(m.stale ? 0.6 : 1)
+        ShioGitStatusLine(model: m, openPR: pr)
     }
 
     private func moduleRow(icon: String, name: String, detail: String, chevron: Bool = false) -> some View {

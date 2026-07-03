@@ -104,19 +104,7 @@ struct MacRail: View {
         RailRow(title: "\(row.agentName ?? "Agent") · \(row.name)",
                 selected: isOpenRepo(row.name),
                 action: { model.open(repo: row.repo) }) {
-            switch row.agent {
-            case .waiting:
-                Text("⚑").font(.system(size: 11.5))
-                    .foregroundStyle(ShioTheme.warning)
-                    .shioNeedsPulse()
-            case .running:
-                ShioBrailleSpinner(status: .info, size: 11.5)
-            case .finished:
-                Text("✓").font(.system(size: 11.5, design: .monospaced))
-                    .foregroundStyle(ShioTheme.success)
-            case .none:
-                EmptyView()
-            }
+            ShioPresenceGlyph(activity: row.agent, size: 11.5, idle: nil)
         } trailing: {
             if row.agent == .waiting {
                 Text("needs you")
@@ -133,8 +121,7 @@ struct MacRail: View {
         RailRow(title: row.name,
                 selected: isOpenRepo(row.name),
                 action: { model.open(repo: row.repo) }) {
-            Text("⎇").font(.system(size: 11.5, design: .monospaced))
-                .foregroundStyle(ShioTheme.textTertiary)
+            ShioPresenceGlyph(activity: .none, size: 11.5)
         } trailing: {
             let m = GitLineFormatter.make(row.git)
             HStack(spacing: 4) {
@@ -403,13 +390,10 @@ struct MacProjectMenu: View {
     }
 
     @ViewBuilder private func meta(_ project: Project) -> some View {
-        switch ProjectRows.activity(project) {
-        case .waiting:
-            Text("⚑").font(.system(size: 11))
-                .foregroundStyle(ShioTheme.warning)
-                .shioNeedsPulse()
-        case .running:
-            ShioBrailleSpinner(status: .info, size: 11)
+        let act = ProjectRows.activity(project)
+        switch act {
+        case .waiting, .running:
+            ShioPresenceGlyph(activity: act, size: 11, idle: nil)
         default:
             let age = shioShortAge(project.lastOpenedAt)
             if !age.isEmpty {
