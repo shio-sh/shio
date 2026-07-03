@@ -104,12 +104,9 @@ final class SessionViewModel {
     /// Current reconnect attempt count. Reset on a successful connect.
     private var reconnectAttempt = 0
     /// Task running the backoff loop. Cancellable so a path-change can
-    /// short-circuit the wait.
+    /// short-circuit the wait. Backoff/attempt-budget/permanent-failure rules
+    /// live in the shared `ReconnectPolicy` (the Mac runs the same table).
     private var reconnectTask: Task<Void, Never>?
-    /// Maximum reconnects before we give up and surface the disconnect
-    /// overlay. Six attempts ~= 31s of exponential backoff, plenty of
-    /// time for a brief tunnel/network flap to recover.
-    private let maxReconnects = 6
 
     // MARK: Network monitor
 
@@ -436,7 +433,7 @@ final class SessionViewModel {
             // Connect itself failed.
             if userInitiatedStop {
                 state = .idle
-            } else if Self.isPermanentFailure(error) {
+            } else if ReconnectPolicy.isPermanentFailure(error) {
                 // Auth/key/host-key problems need the user, not a retry loop —
                 // backing off ~31s would only bury the actionable error.
                 if case SSHClient.SSHError.hostKeyChanged = error { hostKeyConflict = true }
@@ -447,27 +444,13 @@ final class SessionViewModel {
         }
     }
 
-    /// Failures the user has to fix (a rejected key, a changed host key, a
-    /// missing or locked local key) — retrying can't change the outcome.
-    private static func isPermanentFailure(_ error: any Error) -> Bool {
-        guard let ssh = error as? SSHClient.SSHError else { return false }
-        switch ssh {
-        case .authenticationFailed, .hostKeyChanged, .sshKeyMissing,
-             .noAuthenticationConfigured, .noUsableKey, .passphraseRequired,
-             .keychainUnavailable, .keychainFailed:
-            return true
-        default:
-            return false
-        }
-    }
-
     private func handleUnexpectedDisconnect(reason: String?, fromFailedRetry: Bool = false) {
         // A live shell dropping while a retry is already scheduled must not
         // pile on a duplicate task — but a *failed retry itself* (state is
         // .reconnecting by definition then) has to continue the chain, or
         // the loop dies after one attempt with a permanent spinner.
         if !fromFailedRetry, case .reconnecting = state { return }
-        guard reconnectAttempt < maxReconnects else {
+        guard reconnectAttempt < ReconnectPolicy.maxAttempts else {
             giveUp(reason: reason)
             return
         }
@@ -519,12 +502,10 @@ final class SessionViewModel {
         reconnectTask = Task { [weak self] in
             guard let self else { return }
             if !immediate {
-                // Exponential backoff: 0.5, 1, 2, 4, 8, 16 seconds. Capped
-                // by maxReconnects so the worst case is ~31s of trying.
-                // Task inherits MainActor isolation here so reading
-                // `reconnectAttempt` is synchronous.
-                let attempt = self.reconnectAttempt
-                let delayMs = UInt64(500 * (1 << min(attempt, 5)))
+                // Shared exponential backoff (0.5 → 16s). Task inherits
+                // MainActor isolation here so reading `reconnectAttempt`
+                // is synchronous.
+                let delayMs = ReconnectPolicy.delayMilliseconds(forAttempt: self.reconnectAttempt)
                 try? await Task.sleep(nanoseconds: delayMs * 1_000_000)
             }
             if Task.isCancelled { return }

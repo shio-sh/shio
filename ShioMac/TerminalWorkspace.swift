@@ -161,7 +161,8 @@ struct TerminalWorkspaceView: View {
         }
     }
 
-    /// Quiet terminal-ish metadata: "Claude · tmux · this mac".
+    /// Quiet terminal-ish metadata: "Claude · tmux · this mac" — carrying the
+    /// connection state when it isn't the happy path.
     private func sub(for tab: WorkspaceTab) -> String {
         let agent = tab.isShellTab ? nil
             : MacProjectAgentMonitor.shared.snapshot(forProjectNamed: tab.title)?.agentName
@@ -169,7 +170,13 @@ struct TerminalWorkspaceView: View {
         switch tab.root.firstLeafPane?.content {
         case .shell:          place = "zsh · this mac"
         case .project:        place = "tmux · this mac"
-        case .ssh(let s):     place = "tmux · \(s.hostName)"
+        case .ssh(let s):
+            switch s.state {
+            case .reconnecting: place = "reconnecting… · \(s.hostName)"
+            case .failed:       place = "disconnected · \(s.hostName)"
+            case .connecting:   place = "connecting… · \(s.hostName)"
+            default:            place = "tmux · \(s.hostName)"
+            }
         case .none:           place = nil
         }
         return [agent, place].compactMap(\.self).joined(separator: " · ")
@@ -192,21 +199,54 @@ struct TerminalWorkspaceView: View {
                 TerminalSearchBar(model: model).padding(12)
             }
         }
-        .overlay(alignment: .bottom) {
+        .overlay(alignment: .bottom) { bottomOverlay }
+    }
+
+    /// One bottom slot, in priority order: a blocked agent's answer bar, then
+    /// connection state (a reconnecting chip, or a Reconnect affordance once
+    /// the retry budget is spent). Never two at once.
+    @ViewBuilder private var bottomOverlay: some View {
+        if let tab = model.selectedTab, !tab.isShellTab,
+           let session = MacProjectAgentMonitor.shared.waitingSessionName(forProjectNamed: tab.title) {
             // The agent's question is in the scrollback right above — this is
             // the one-keystroke answer. Local tmux only; a remote agent is
             // answered in its terminal directly.
-            if let tab = model.selectedTab, !tab.isShellTab,
-               let session = MacProjectAgentMonitor.shared.waitingSessionName(forProjectNamed: tab.title) {
-                MacNeedBar(
-                    agentName: MacProjectAgentMonitor.shared.byTmux[session]?.agentName ?? "Your agent",
-                    approve: { MacProjectAgentMonitor.shared.send(key: "y", toSession: session) },
-                    deny: { MacProjectAgentMonitor.shared.send(key: "n", toSession: session) }
-                )
-                .padding(14)
-                .shadow(color: .black.opacity(0.18), radius: 10, y: 3)
+            MacNeedBar(
+                agentName: MacProjectAgentMonitor.shared.byTmux[session]?.agentName ?? "Your agent",
+                approve: { MacProjectAgentMonitor.shared.send(key: "y", toSession: session) },
+                deny: { MacProjectAgentMonitor.shared.send(key: "n", toSession: session) }
+            )
+            .padding(14)
+            .shadow(color: .black.opacity(0.18), radius: 10, y: 3)
+        } else if let session = focusedSSHSession {
+            switch session.state {
+            case .reconnecting:
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small).tint(ShioTheme.textSecondary)
+                    Text("Reconnecting…")
+                        .font(.system(size: 12))
+                        .foregroundStyle(ShioTheme.textSecondary)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 7)
+                .background(ShioTheme.surface, in: Capsule())
+                .overlay(Capsule().strokeBorder(ShioTheme.line2))
+                .padding(.bottom, 14)
+            case .failed:
+                ShioButton("Reconnect", .primary, icon: "arrow.clockwise") {
+                    Task { await session.connect() }
+                }
+                .padding(.bottom, 14)
+            default:
+                EmptyView()
             }
         }
+    }
+
+    /// The selected tab's focused SSH session, if that's what's focused.
+    private var focusedSSHSession: MacSSHSession? {
+        guard let pane = model.selectedTab?.focusedPane ?? model.selectedTab?.root.firstLeafPane,
+              case .ssh(let s) = pane.content else { return nil }
+        return s
     }
 }
 

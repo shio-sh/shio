@@ -5,9 +5,12 @@ import AppKit
 /// `.external` ghostty surface, and attaches the same `tmux shio-<host>`
 /// session iOS uses — so a session is continuous across devices.
 ///
-/// Minimal for now (no reconnect state machine / agent detection yet — those
-/// are brought over from the iOS SessionViewModel in a later slice). Enough to
-/// prove SSH parity end to end on the Mac.
+/// Reconnect mirrors the iOS `SessionViewModel` machine on the shared
+/// `ReconnectPolicy` table: exponential backoff with a fresh client per
+/// attempt, permanent failures surfaced instead of retried, and
+/// `MacNetworkMonitor` feeding network-return / interface-switch / wake
+/// events so a sleeping Mac's dead sockets recover in place (tmux reattach
+/// makes it lossless).
 @MainActor
 @Observable
 final class MacSSHSession: Identifiable {
@@ -19,10 +22,21 @@ final class MacSSHSession: Identifiable {
     let resumeCommand: String
     let surface: GhosttyMacSurface
 
-    enum State: Equatable { case connecting, connected, failed(String), closed }
+    enum State: Equatable {
+        case connecting, connected, reconnecting(attempt: Int), failed(String), closed
+    }
     private(set) var state: State = .connecting
 
-    private let client: SSHClient
+    private let configuration: SSHClient.Configuration
+    private var client: SSHClient
+
+    // MARK: Reconnect state (the iOS machine's shape)
+
+    /// True once the user (or the hibernation sweep) explicitly closed the
+    /// session — suppresses auto-reconnect so we don't fight a closing tab.
+    private var userInitiatedStop = false
+    private var reconnectAttempt = 0
+    private var reconnectTask: Task<Void, Never>?
 
     init(host: String, port: Int, username: String, password: String?, resumeCommand: String? = nil) {
         self.hostName = host
@@ -37,17 +51,26 @@ final class MacSSHSession: Identifiable {
         let config = SSHClient.Configuration(
             host: host, port: port, username: username, authentication: auth
         )
+        self.configuration = config
         self.client = SSHClient(configuration: config)
         self.surface = GhosttyMacSurface(backend: .external)
-        wire()
+        wireSurface()
+        wire(client)
+        MacNetworkMonitor.shared.register(self)
     }
 
-    private func wire() {
+    /// Surface hooks are set once — they always forward to the *current*
+    /// client, so a reconnect's fresh client picks them up for free.
+    private func wireSurface() {
         // Terminal → SSH (keystrokes, resize).
         surface.onOutput = { [weak self] data in self?.client.write(data) }
         surface.onResize = { [weak self] cols, rows in
             self?.client.resize(cols: Int(cols), rows: Int(rows))
         }
+    }
+
+    /// Client hooks are re-wired onto every fresh client.
+    private func wire(_ client: SSHClient) {
         // SSH → terminal. ghostty_surface_write_bytes is thread-safe, but hop
         // to main to be consistent with AppKit. `DispatchQueue.main.async` is
         // strictly FIFO so chunks render in order; the rolling tail also
@@ -60,10 +83,15 @@ final class MacSSHSession: Identifiable {
                 }
             }
         }
-        client.onDisconnect = { [weak self] _ in
+        client.onDisconnect = { [weak self] error in
             Task { @MainActor in
-                self?.state = .closed
-                if let self { AgentStateStore.shared.clear(self.id) }
+                guard let self else { return }
+                AgentStateStore.shared.clear(self.id)
+                guard !self.userInitiatedStop else {
+                    self.state = .closed
+                    return
+                }
+                self.handleUnexpectedDisconnect(reason: error?.localizedDescription)
             }
         }
     }
@@ -78,59 +106,157 @@ final class MacSSHSession: Identifiable {
     }
 
     func connect() async {
-        state = .connecting
+        userInitiatedStop = false
+        reconnectAttempt = 0
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        await connectOnce(isReconnect: false)
+    }
+
+    /// One connect attempt. A fresh client per attempt, with the stale one
+    /// retired for real (callbacks detached first so its teardown can't echo
+    /// into this attempt, and its parent SSH/TCP connection can't leak).
+    private func connectOnce(isReconnect: Bool) async {
+        state = isReconnect ? .reconnecting(attempt: reconnectAttempt) : .connecting
+        let stale = client
+        stale.onOutput = nil
+        stale.onDisconnect = nil
+        Task { await stale.disconnect() }
+        let fresh = SSHClient(configuration: configuration)
+        client = fresh
+        wire(fresh)
+
         do {
             // May prompt for (and cache) a key passphrase; false = user cancelled,
-            // with a clean failure state already set.
-            guard try await establishConnection() else { return }
-            try await client.requestShell()
+            // with a clean failure state already set. Reconnects never prompt —
+            // the passphrase is Keychain-cached by then, so a prompt mid-backoff
+            // means something the user must look at (treated permanent below).
+            guard try await establishConnection(isReconnect: isReconnect) else { return }
+            try await fresh.requestShell()
+            // The user may have closed the tab while the connect was in
+            // flight — don't resurrect the session under them.
+            if userInitiatedStop {
+                fresh.onOutput = nil
+                fresh.onDisconnect = nil
+                Task { await fresh.disconnect() }
+                state = .closed
+                return
+            }
             state = .connected
+            reconnectAttempt = 0
             // Attach the same tmux session name the phone computes — this is
-            // what makes the session follow you across devices.
-            client.write(resumeCommand)
+            // what makes the session follow you across devices (and what makes
+            // a reconnect land exactly where the user left off).
+            fresh.write(resumeCommand)
         } catch {
-            // Render the failure on the terminal — a silent blank cursor is the
-            // worst outcome. ConnectErrorTranslator turns NIO/auth/DNS errors
-            // into something a human can act on.
-            let msg = ConnectErrorTranslator.translate(error, host: hostName, port: port)
-            state = .failed(msg)
-            let line = "\r\n\u{1b}[31m⚠  \(msg)\u{1b}[0m\r\n"
-            surface.writeBytes(Data(line.utf8))
-            // A refused host-key change is reviewable: show what changed and
-            // offer to trust the new key (drop the pin, TOFU re-pins).
-            if case SSHClient.SSHError.hostKeyChanged = error, reviewHostKeyChange() {
-                ShioKnownHosts.forget("\(hostName):\(port)")
-                await connect()
+            if userInitiatedStop {
+                state = .closed
+            } else if ReconnectPolicy.isPermanentFailure(error) {
+                fail(with: error)
+            } else {
+                handleUnexpectedDisconnect(reason: ConnectErrorTranslator.translate(
+                    error, host: hostName, port: port), fromFailedRetry: true)
             }
         }
     }
 
-    /// Modal review of a refused key change (same pattern as the passphrase
-    /// prompt). Returns true if the user chose to trust the new key.
-    private func reviewHostKeyChange() -> Bool {
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "\(hostName)’s key changed"
-        var detail = "If this machine was reinstalled or upgraded, trusting the new key is safe. If you didn’t expect a change, keep refusing — the connection could be intercepted."
-        if let m = ShioKnownHosts.mismatch(for: "\(hostName):\(port)") {
-            let offered = m.offered.map(ShioKnownHosts.shortFingerprint) ?? "unreadable"
-            detail = "Pinned \(ShioKnownHosts.shortFingerprint(m.pinned)) → offered \(offered).\n\n" + detail
+    /// Permanent failure: render it on the terminal (a silent blank cursor is
+    /// the worst outcome) and — for a refused host-key change — offer the
+    /// in-place review instead of a dead end.
+    private func fail(with error: any Error) {
+        let msg = ConnectErrorTranslator.translate(error, host: hostName, port: port)
+        state = .failed(msg)
+        surface.writeBytes(Data("\r\n\u{1b}[31m⚠  \(msg)\u{1b}[0m\r\n".utf8))
+        if case SSHClient.SSHError.hostKeyChanged = error, reviewHostKeyChange() {
+            ShioKnownHosts.forget("\(hostName):\(port)")
+            Task { await connect() }
         }
-        alert.informativeText = detail
-        alert.addButton(withTitle: "Trust New Key & Reconnect")
-        alert.addButton(withTitle: "Cancel")
-        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func handleUnexpectedDisconnect(reason: String?, fromFailedRetry: Bool = false) {
+        // A live shell dropping while a retry is already scheduled must not
+        // pile on a duplicate task — but a *failed retry itself* (state is
+        // .reconnecting by definition then) has to continue the chain, or
+        // the loop dies after one attempt with a permanent spinner.
+        if !fromFailedRetry, case .reconnecting = state { return }
+        guard reconnectAttempt < ReconnectPolicy.maxAttempts else {
+            state = .failed(reason ?? "Connection lost.")
+            surface.writeBytes(Data("\r\n\u{1b}[31m⚠  \(reason ?? "Connection lost.")\u{1b}[0m\r\n".utf8))
+            return
+        }
+        state = .reconnecting(attempt: reconnectAttempt)
+        kickReconnect(immediate: false)
+    }
+
+    private func kickReconnect(immediate: Bool) {
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            guard let self else { return }
+            if !immediate {
+                let delayMs = ReconnectPolicy.delayMilliseconds(forAttempt: self.reconnectAttempt)
+                try? await Task.sleep(nanoseconds: delayMs * 1_000_000)
+            }
+            if Task.isCancelled { return }
+            self.reconnectAttempt += 1
+            await self.connectOnce(isReconnect: true)
+        }
+    }
+
+    /// Tear down the current (now-dead) client and reconnect immediately,
+    /// surfaced as a reconnect so the pane stays put and tmux reattaches.
+    private func forceReconnect() {
+        guard !userInitiatedStop else { return }
+        reconnectAttempt = 0
+        reconnectTask?.cancel()
+        state = .reconnecting(attempt: 0)
+        kickReconnect(immediate: true)
+    }
+
+    // MARK: MacNetworkMonitor hooks
+
+    /// The network just came back: if we're mid-backoff, jump the queue.
+    func networkReturned() {
+        guard !userInitiatedStop else { return }
+        if case .reconnecting = state {
+            reconnectTask?.cancel()
+            kickReconnect(immediate: true)
+        }
+    }
+
+    /// The primary interface flipped (Wi-Fi ↔ wired) while we think we're
+    /// connected — the old socket is dead even though it hasn't timed out.
+    func interfaceSwitched() {
+        guard case .connected = state else { return }
+        forceReconnect()
+    }
+
+    /// Wake-from-sleep / app-activation recovery: sleep kills sockets while
+    /// the state still says `.connected` — verify the transport and recover.
+    func recoverIfNeeded() {
+        guard !userInitiatedStop else { return }
+        switch state {
+        case .connected where !client.isTransportActive:
+            forceReconnect()
+        case .reconnecting:
+            reconnectTask?.cancel()
+            reconnectAttempt = 0
+            kickReconnect(immediate: true)
+        default:
+            break
+        }
     }
 
     /// Connect, transparently unlocking a passphrase-protected `~/.ssh` key when
     /// that's the only identity available: prompt, validate, cache to Keychain,
     /// retry. Returns false if the user dismisses the prompt (state already set
     /// to a clean failure); throws for ordinary connection errors.
-    private func establishConnection() async throws -> Bool {
+    private func establishConnection(isReconnect: Bool) async throws -> Bool {
         do {
             try await client.connect()
             return true
         } catch SSHClient.SSHError.passphraseRequired(let names) {
+            // Never modal-prompt from a background retry loop.
+            guard !isReconnect else { throw SSHClient.SSHError.passphraseRequired(names) }
             guard let name = names.first else { throw SSHClient.SSHError.passphraseRequired(names) }
             var incorrect = false
             while true {
@@ -166,7 +292,27 @@ final class MacSSHSession: Identifiable {
         return field.stringValue
     }
 
+    /// Modal review of a refused key change (same pattern as the passphrase
+    /// prompt). Returns true if the user chose to trust the new key.
+    private func reviewHostKeyChange() -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "\(hostName)’s key changed"
+        var detail = "If this machine was reinstalled or upgraded, trusting the new key is safe. If you didn’t expect a change, keep refusing — the connection could be intercepted."
+        if let m = ShioKnownHosts.mismatch(for: "\(hostName):\(port)") {
+            let offered = m.offered.map(ShioKnownHosts.shortFingerprint) ?? "unreadable"
+            detail = "Pinned \(ShioKnownHosts.shortFingerprint(m.pinned)) → offered \(offered).\n\n" + detail
+        }
+        alert.informativeText = detail
+        alert.addButton(withTitle: "Trust New Key & Reconnect")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
     func stop() async {
+        userInitiatedStop = true
+        reconnectTask?.cancel()
+        reconnectTask = nil
         AgentStateStore.shared.clear(id)
         await client.disconnect()
         state = .closed
