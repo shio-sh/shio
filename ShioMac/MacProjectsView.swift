@@ -2,10 +2,10 @@ import SwiftUI
 import SwiftData
 
 /// The dashboard canvas — the LANDING when you switch teams. The selected
-/// project's overview: a 48pt header (name + quiet counts + Rename/New repo),
-/// the glance strip, and the BENTO — outline-only cards that fill on hover,
-/// laid on a real grid so every edge lands (repos spans two rows;
-/// machines + integrations share the bottom row).
+/// project's overview: a 48pt header (name + quiet counts + Rename/New repo)
+/// over the shared `ProjectDashboardView` bento — outline-only cards that
+/// fill on hover, laid on a real grid so every edge lands (repos beside
+/// grounding; machines full-width below).
 struct MacDashboardCanvas: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context

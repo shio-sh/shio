@@ -104,36 +104,6 @@ struct MacHeaderIconButton: View {
     }
 }
 
-/// The inline micro-action — Approve · y / Deny · n on a needs-you row.
-/// Mono, hairline, status-tinted; never a heavy fill.
-struct MacMiniButton: View {
-    let title: String
-    var status: ShioStatus = .neutral
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(status == .neutral ? ShioTheme.textSecondary : status.tint)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(hovering ? ShioTheme.hover : .clear)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(status == .neutral ? ShioTheme.line2 : status.tint.opacity(0.35),
-                                      lineWidth: 1)
-                )
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-    }
-}
-
 /// The sidebar toggle (⌘\) — rides the switcher row while the rail is open,
 /// floats beside the traffic lights when it's collapsed.
 struct MacRailToggleButton: View {
