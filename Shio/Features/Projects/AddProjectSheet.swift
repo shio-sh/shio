@@ -17,6 +17,7 @@ struct AddProjectSheet: View {
     @State private var photoItem: PhotosPickerItem?
     @State private var editingRepo = false
     @State private var groundingExpanded = false
+    @State private var pairing = false
 
     var body: some View {
         NavigationStack {
@@ -56,6 +57,7 @@ struct AddProjectSheet: View {
                 RepoEditor(hosts: hosts) { draft.repos.append($0) }
             }
         }
+        .sheet(isPresented: $pairing) { PairingView() }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task { @MainActor in
@@ -115,16 +117,24 @@ struct AddProjectSheet: View {
         Section {
             ForEach(draft.repos) { repo in RepoRow(repo: repo) }
                 .onDelete { draft.repos.remove(atOffsets: $0) }
-            Button { editingRepo = true } label: {
-                Label(draft.repos.isEmpty ? "Add a repo" : "Add another repo",
-                      systemImage: "plus.circle.fill")
+            if hosts.isEmpty {
+                // Not a disabled button with homework — the fix, in place.
+                // `hosts` is a live @Query, so finishing the pairing flips
+                // this section to the normal repo-add state without leaving.
+                Button { pairing = true } label: {
+                    Label("Pair your first machine…", systemImage: "qrcode.viewfinder")
+                }
+            } else {
+                Button { editingRepo = true } label: {
+                    Label(draft.repos.isEmpty ? "Add a repo" : "Add another repo",
+                          systemImage: "plus.circle.fill")
+                }
             }
-            .disabled(hosts.isEmpty)
         } header: {
             Text("Repos")
         } footer: {
             Text(hosts.isEmpty
-                 ? "Connect a machine in the Machines tab to attach repos. You can create the project now and add them later."
+                 ? "Repos live on machines. Pair one now, or create the project and add them later."
                  : "Add as many as the project spans, across any of your machines — or none for now.")
         }
     }
@@ -204,6 +214,7 @@ private struct RepoEditor: View {
     @State private var path = ""
     @State private var source: Source = .path
     @State private var gitURL = ""
+    @State private var pairing = false
 
     private var trimmedPath: String { path.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var trimmedURL: String { gitURL.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -217,10 +228,14 @@ private struct RepoEditor: View {
     var body: some View {
         Form {
             if hosts.isEmpty {
+                // The fix in place, not a dead paragraph pointing elsewhere —
+                // `hosts` is live, so pairing completion reveals the editor.
                 Section {
-                    Text("Add a machine in the Machines tab first, then come back to attach a repo.")
-                        .font(ShioFont.callout)
-                        .foregroundStyle(ShioTheme.textSecondary)
+                    Button { pairing = true } label: {
+                        Label("Pair your first machine…", systemImage: "qrcode.viewfinder")
+                    }
+                } footer: {
+                    Text("Repos live on machines. Pair one and this editor unlocks.")
                 }
             } else {
                 Section("Machine") {
@@ -296,6 +311,7 @@ private struct RepoEditor: View {
             }
         }
         .onAppear { if selectedHost == nil { selectedHost = hosts.dedupedByIdentity.first } }
+        .sheet(isPresented: $pairing) { PairingView() }
     }
 
     private func commit() {
