@@ -119,4 +119,16 @@ struct GitStatusParseTests {
         #expect(s.unstaged.count == 1)
         #expect(s.unstaged.first?.path == "Real.swift")
     }
+
+    @Test func staleCacheIsMarkedNeverDisguised() {
+        // ST-3: a stale last-known cache carries the flag + the "·· " prefix
+        // so old numbers never render as live ones.
+        let status = GitStatus.parse(porcelainV2: z(["# branch.head main"]))
+        let live = GitLineFormatter.make(.ok(status))
+        let stale = GitLineFormatter.make(.ok(status), stale: true)
+        #expect(!live.stale && live.branchLabel == "main")
+        #expect(stale.stale && stale.branchLabel == "·· main")
+        // No cache at all is "loading", not "stale".
+        #expect(GitLineFormatter.make(nil, stale: true).stale == false)
+    }
 }

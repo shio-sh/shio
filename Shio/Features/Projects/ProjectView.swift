@@ -230,10 +230,11 @@ struct ProjectView: View {
             Text("\(presence?.agentName ?? "Agent")\(presence?.detail.map { " · \($0)" } ?? "")")
                 .font(.system(size: 11.5)).foregroundStyle(ShioTheme.info).lineLimit(1).truncationMode(.tail)
         default:
-            let m = GitLineFormatter.make(gitProbe(repo))
-            Text("\(m.branch) · \(machineLabel(repo))")
+            let m = GitLineFormatter.make(gitProbe(repo), stale: gitStale(repo))
+            Text("\(m.branchLabel) · \(machineLabel(repo))")
                 .font(.system(size: 11.5, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
                 .lineLimit(1).truncationMode(.middle)
+                .opacity(m.stale ? 0.6 : 1)
         }
     }
 
@@ -428,6 +429,10 @@ struct ProjectView: View {
     private func gitProbe(_ repo: Repo) -> GitProbe? {
         guard let c = repo.activeCheckout else { return nil }
         return status.status(forHost: c.host, path: c.path)?.probe
+    }
+    private func gitStale(_ repo: Repo) -> Bool {
+        guard let c = repo.activeCheckout else { return false }
+        return status.isStale(forHost: c.host, path: c.path)
     }
 
     private func openRepo(_ repo: Repo) {

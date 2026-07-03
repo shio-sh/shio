@@ -63,6 +63,14 @@ final class ProjectStatusStore {
         Date().timeIntervalSince(cached.fetchedAt) > maxAge
     }
 
+    /// Checkout-shaped convenience for the git-line surfaces: stale when a
+    /// cached entry exists and is past the window (no cache = loading, which
+    /// renders as its own state, not as stale).
+    func isStale(forHost host: Host?, path: String) -> Bool {
+        guard let cached = status(forHost: host, path: path) else { return false }
+        return isStale(cached)
+    }
+
     /// Where a checkout lives, pre-resolved on the main actor so the fan-out
     /// never touches SwiftData off-main.
     struct Target {

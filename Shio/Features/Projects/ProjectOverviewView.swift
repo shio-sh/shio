@@ -307,15 +307,15 @@ struct ProjectOverviewView: View {
     }
 
     @ViewBuilder private func gitLine(_ repo: Repo) -> some View {
-        let probe = repo.activeCheckout.flatMap { status.status(forHost: $0.host, path: $0.path)?.probe }
-        let m = GitLineFormatter.make(probe)
+        let cached = repo.activeCheckout.flatMap { status.status(forHost: $0.host, path: $0.path) }
+        let m = GitLineFormatter.make(cached?.probe, stale: cached.map { status.isStale($0) } ?? false)
         let pr = repo.activeCheckout.flatMap { c in
             status.prList(forHost: c.host, path: c.path).first(where: { $0.state == "OPEN" })
         }
         HStack(spacing: 9) {
             HStack(spacing: 5) {
                 Text("⎇").foregroundStyle(ShioTheme.textTertiary)
-                Text(m.branch).lineLimit(1).truncationMode(.middle)
+                Text(m.branchLabel).lineLimit(1).truncationMode(.middle)
             }
             .foregroundStyle(m.state == .loading || m.state == .unreachable ? ShioTheme.textTertiary : ShioTheme.textSecondary)
             if m.hasTracking {
@@ -333,6 +333,7 @@ struct ProjectOverviewView: View {
             }
         }
         .font(.system(size: 12, design: .monospaced)).monospacedDigit()
+        .opacity(m.stale ? 0.6 : 1)
     }
 
     private func moduleRow(icon: String, name: String, detail: String, chevron: Bool = false) -> some View {

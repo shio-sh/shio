@@ -117,14 +117,21 @@ final class MacProjectAgentMonitor {
     /// Pull any approve/deny `Action`s the phone wrote (#33) and inject the
     /// keystroke into the matching tmux session. Only polls iCloud while an
     /// agent is actually blocked, so it's quiet the rest of the time.
+    ///
+    /// Inject only into sessions that are *still waiting* per this poll's
+    /// fresh scan (`byTmux` was just replaced by the caller). An action for a
+    /// session that moved on — the user answered at the keyboard, the agent
+    /// timed out — is consumed but dropped, never typed into whatever that
+    /// terminal is doing now.
     private func injectPendingActions(tmux: String) async {
         guard !signaledWaiting.isEmpty, !isInjecting else { return }
         isInjecting = true
         defer { isInjecting = false }
         let actions = await CloudKitSignalService.shared.fetchAndClearActions()
-        guard !actions.isEmpty else { return }
+        let injectable = actions.filter { byTmux[$0.sessionId]?.activity == .waiting }
+        guard !injectable.isEmpty else { return }
         await Task.detached(priority: .utility) {
-            for action in actions {
+            for action in injectable {
                 _ = MacProjectAgentMonitor.run(
                     tmux, ["send-keys", "-t", action.sessionId, action.key, "Enter"])
             }

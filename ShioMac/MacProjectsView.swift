@@ -526,7 +526,7 @@ private struct ChanRow: View {
     }
 
     @ViewBuilder private var secondLine: some View {
-        let m = GitLineFormatter.make(row.git)
+        let m = GitLineFormatter.make(row.git, stale: row.gitStale)
         HStack(spacing: 12) {
             switch row.agent {
             case .waiting:
@@ -556,24 +556,27 @@ private struct ChanRow: View {
     }
 
     @ViewBuilder private func gitSegs(_ m: GitLineModel) -> some View {
-        HStack(spacing: 6) {
-            Text("⎇").foregroundStyle(ShioTheme.textTertiary)
-            Text(m.branch).lineLimit(1).truncationMode(.middle)
-                .foregroundStyle(m.state == .loading || m.state == .unreachable
-                                 ? ShioTheme.textTertiary : ShioTheme.textSecondary)
-        }
-        if m.hasTracking {
-            if m.ahead > 0 { Text("↑\(m.ahead)").foregroundStyle(ShioTheme.textSecondary) }
-            if m.behind > 0 { Text("↓\(m.behind)").foregroundStyle(ShioTheme.textSecondary) }
-            if m.dirty > 0 {
-                HStack(spacing: 6) {
-                    ShioStatusDot(status: .warning)
-                    Text("\(m.dirty)").foregroundStyle(ShioTheme.warning)
+        Group {
+            HStack(spacing: 6) {
+                Text("⎇").foregroundStyle(ShioTheme.textTertiary)
+                Text(m.branchLabel).lineLimit(1).truncationMode(.middle)
+                    .foregroundStyle(m.state == .loading || m.state == .unreachable
+                                     ? ShioTheme.textTertiary : ShioTheme.textSecondary)
+            }
+            if m.hasTracking {
+                if m.ahead > 0 { Text("↑\(m.ahead)").foregroundStyle(ShioTheme.textSecondary) }
+                if m.behind > 0 { Text("↓\(m.behind)").foregroundStyle(ShioTheme.textSecondary) }
+                if m.dirty > 0 {
+                    HStack(spacing: 6) {
+                        ShioStatusDot(status: .warning)
+                        Text("\(m.dirty)").foregroundStyle(ShioTheme.warning)
+                    }
+                } else {
+                    Text("clean").foregroundStyle(ShioTheme.success)
                 }
-            } else {
-                Text("clean").foregroundStyle(ShioTheme.success)
             }
         }
+        .opacity(m.stale ? 0.6 : 1)
     }
 
     private func agentLine(quoted: Bool) -> String {

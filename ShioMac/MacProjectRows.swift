@@ -9,6 +9,9 @@ struct RepoRowVM: Identifiable {
     let name: String
     let machines: String
     let git: GitProbe?
+    /// True when `git` is a last-known cache past the stale window — the row
+    /// dims its git segs so old numbers never read as live.
+    var gitStale: Bool = false
     let agent: AgentActivity
     var agentName: String? = nil
     var agentDetail: String? = nil
@@ -37,6 +40,7 @@ enum ProjectRows {
             let snap = agentSnapshot(repo)
             return RepoRowVM(id: repo.persistentModelID, repo: repo, name: repo.name,
                              machines: machinesText(repo), git: gitProbe(repo),
+                             gitStale: gitStale(repo),
                              agent: snap?.activity ?? .none,
                              agentName: snap?.agentName,
                              agentDetail: snap?.detail,
@@ -87,6 +91,11 @@ enum ProjectRows {
     static func gitProbe(_ repo: Repo) -> GitProbe? {
         guard let c = repo.activeCheckout else { return nil }
         return ProjectStatusStore.shared.status(forHost: c.host, path: c.path)?.probe
+    }
+
+    static func gitStale(_ repo: Repo) -> Bool {
+        guard let c = repo.activeCheckout else { return false }
+        return ProjectStatusStore.shared.isStale(forHost: c.host, path: c.path)
     }
 
     /// One row per machine carrying this project (the dashboard's machines
