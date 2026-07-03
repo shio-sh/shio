@@ -22,7 +22,7 @@ struct ProjectView: View {
     @State private var renameText = ""
     @State private var repoToRename: Repo?
     @State private var repoRenameText = ""
-    @State private var noCheckoutName: String?
+    @State private var repoNeedingHome: Repo?
     @State private var logoItem: PhotosPickerItem?
     @State private var showingLogoPicker = false
     private let sessionStore = SessionStore.shared
@@ -107,11 +107,12 @@ struct ProjectView: View {
         .sheet(isPresented: $showingAddRepo) { AddProjectSheet(targetProject: project) }
         .sheet(isPresented: $showingAddProject) { AddProjectSheet() }
         .fullScreenCover(isPresented: $showingTerminal) { TerminalScene() }
-        .alert("No machine for this repo", isPresented: Binding(
-            get: { noCheckoutName != nil }, set: { if !$0 { noCheckoutName = nil } })) {
-            Button("OK") { noCheckoutName = nil }
-        } message: {
-            Text("“\(noCheckoutName ?? "")” has no checkout on a reachable machine yet.")
+        .sheet(item: $repoNeedingHome) { repo in
+            // Not an alert — the repair: place the repo on a machine, then
+            // open it right away.
+            RepoRepairSheet(repo: repo) { _ in
+                if sessionStore.openOrCreate(repo: repo) != nil { showingTerminal = true }
+            }
         }
         .onAppear { refresh() }
         .onChange(of: project.persistentModelID) { _, _ in refresh() }
@@ -402,7 +403,7 @@ struct ProjectView: View {
 
     private func openRepo(_ repo: Repo) {
         if sessionStore.openOrCreate(repo: repo) != nil { showingTerminal = true }
-        else { noCheckoutName = repo.name }
+        else { repoNeedingHome = repo }
     }
 
     private func refresh() {

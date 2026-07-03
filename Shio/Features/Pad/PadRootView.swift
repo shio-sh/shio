@@ -21,7 +21,7 @@ struct PadRootView: View {
     @AppStorage("shio.pad.inspector") private var inspectorOpen = true
     @State private var canvas: Canvas = .dashboard
     @State private var isAddingProject = false
-    @State private var noCheckoutName: String?
+    @State private var repoNeedingHome: Repo?
     private let sessionStore = SessionStore.shared
     private let status = ProjectStatusStore.shared
 
@@ -43,11 +43,14 @@ struct PadRootView: View {
         }
         .background(ShioTheme.background)
         .sheet(isPresented: $isAddingProject) { AddProjectSheet() }
-        .alert("No machine for this repo", isPresented: Binding(
-            get: { noCheckoutName != nil }, set: { if !$0 { noCheckoutName = nil } })) {
-            Button("OK") { noCheckoutName = nil }
-        } message: {
-            Text("“\(noCheckoutName ?? "")” has no checkout on a reachable machine yet.")
+        .sheet(item: $repoNeedingHome) { repo in
+            // Not an alert — the repair: place the repo on a machine, then
+            // open it right away.
+            RepoRepairSheet(repo: repo) { _ in
+                if let session = sessionStore.openOrCreate(repo: repo) {
+                    canvas = .terminal(session.id)
+                }
+            }
         }
         .onAppear { refreshStatus() }
         .task {
@@ -358,7 +361,7 @@ struct PadRootView: View {
         if let session = sessionStore.openOrCreate(repo: repo) {
             canvas = .terminal(session.id)
         } else {
-            noCheckoutName = repo.name
+            repoNeedingHome = repo
         }
     }
 
