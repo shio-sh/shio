@@ -96,7 +96,30 @@ final class MacSSHSession: Identifiable {
             state = .failed(msg)
             let line = "\r\n\u{1b}[31m⚠  \(msg)\u{1b}[0m\r\n"
             surface.writeBytes(Data(line.utf8))
+            // A refused host-key change is reviewable: show what changed and
+            // offer to trust the new key (drop the pin, TOFU re-pins).
+            if case SSHClient.SSHError.hostKeyChanged = error, reviewHostKeyChange() {
+                ShioKnownHosts.forget("\(hostName):\(port)")
+                await connect()
+            }
         }
+    }
+
+    /// Modal review of a refused key change (same pattern as the passphrase
+    /// prompt). Returns true if the user chose to trust the new key.
+    private func reviewHostKeyChange() -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "\(hostName)’s key changed"
+        var detail = "If this machine was reinstalled or upgraded, trusting the new key is safe. If you didn’t expect a change, keep refusing — the connection could be intercepted."
+        if let m = ShioKnownHosts.mismatch(for: "\(hostName):\(port)") {
+            let offered = m.offered.map(ShioKnownHosts.shortFingerprint) ?? "unreadable"
+            detail = "Pinned \(ShioKnownHosts.shortFingerprint(m.pinned)) → offered \(offered).\n\n" + detail
+        }
+        alert.informativeText = detail
+        alert.addButton(withTitle: "Trust New Key & Reconnect")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     /// Connect, transparently unlocking a passphrase-protected `~/.ssh` key when

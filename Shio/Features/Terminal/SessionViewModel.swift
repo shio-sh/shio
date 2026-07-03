@@ -50,6 +50,24 @@ final class SessionViewModel {
     private let persistenceMode: Host.PersistenceMode
     private var tmuxFallbackTriggered = false
 
+    // MARK: Host-key review
+    /// True when the last failure was a refused host-key change — drives the
+    /// "Review key change" affordance on the disconnected overlay.
+    private(set) var hostKeyConflict = false
+    /// The pin-store key for this session's endpoint (matches the format the
+    /// validation delegate records under).
+    var hostPort: String { "\(configuration.host):\(configuration.port)" }
+    /// What changed, for the review dialog (pinned vs offered fingerprint).
+    var hostKeyMismatch: ShioKnownHosts.Mismatch? { ShioKnownHosts.mismatch(for: hostPort) }
+
+    /// The user reviewed the refused change and chose to trust the new key:
+    /// drop the pin (TOFU re-pins on the next connect) and reconnect.
+    func trustNewHostKeyAndReconnect() {
+        ShioKnownHosts.forget(hostPort)
+        hostKeyConflict = false
+        Task { await start() }
+    }
+
     // MARK: Resize debounce
     /// Latest grid size waiting to be pushed to the remote PTY.
     private var pendingResize: (cols: Int, rows: Int)?
@@ -328,6 +346,7 @@ final class SessionViewModel {
     private func connectOnce(isReconnect: Bool) async {
         state = isReconnect ? .reconnecting : .connecting
         tmuxFallbackTriggered = false
+        hostKeyConflict = false
 
         let client = SSHClient(configuration: configuration)
         client.onOutput = { [weak self] data in
@@ -420,6 +439,7 @@ final class SessionViewModel {
             } else if Self.isPermanentFailure(error) {
                 // Auth/key/host-key problems need the user, not a retry loop —
                 // backing off ~31s would only bury the actionable error.
+                if case SSHClient.SSHError.hostKeyChanged = error { hostKeyConflict = true }
                 giveUp(reason: error.localizedDescription)
             } else {
                 handleUnexpectedDisconnect(reason: error.localizedDescription, fromFailedRetry: true)

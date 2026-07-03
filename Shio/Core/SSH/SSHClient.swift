@@ -78,7 +78,7 @@ final class SSHClient: @unchecked Sendable {
                 let which = names.first.map { " for \($0)" } ?? ""
                 return "Your SSH key\(which) is passphrase-protected. Enter its passphrase to unlock it."
             case .hostKeyChanged:
-                return "This server's host key changed since you last connected. That can mean it was reinstalled — or that the connection is being intercepted. Refused for safety. Remove the host and re-add it if you trust the change."
+                return "This server's host key changed since you last connected. That can mean it was reinstalled — or that the connection is being intercepted. Refused for safety. If you expected the change, review it and trust the new key."
             }
         }
     }
@@ -616,6 +616,31 @@ enum ShioKnownHosts {
         map[hostPort] = nil
         UserDefaults.standard.set(map, forKey: storeKey)
     }
+
+    /// The last refused key change per host — in-memory only, recorded by the
+    /// validation delegate so the review UI can show *what* changed before the
+    /// user decides to trust it.
+    struct Mismatch: Sendable {
+        var pinned: String
+        var offered: String?   // nil = the offered key couldn't be fingerprinted
+    }
+    private nonisolated(unsafe) static var mismatches: [String: Mismatch] = [:]
+
+    static func recordMismatch(_ mismatch: Mismatch, for hostPort: String) {
+        lock.lock(); defer { lock.unlock() }
+        mismatches[hostPort] = mismatch
+    }
+
+    static func mismatch(for hostPort: String) -> Mismatch? {
+        lock.lock(); defer { lock.unlock() }
+        return mismatches[hostPort]
+    }
+
+    /// Short display form of a fingerprint ("AbCdEfGh1234…") for review copy.
+    static func shortFingerprint(_ fp: String) -> String {
+        let body = fp.hasPrefix("v1:") ? String(fp.dropFirst(3)) : fp
+        return String(body.prefix(12)) + "…"
+    }
 }
 
 /// A stable fingerprint for a host key. swift-nio-ssh exposes no public
@@ -669,10 +694,11 @@ private final class SSHHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate
         validationCompletePromise: EventLoopPromise<Void>
     ) {
         guard let fp = hostKeyFingerprint(hostKey) else {
-            if ShioKnownHosts.fingerprint(for: hostPort) != nil {
+            if let pinned = ShioKnownHosts.fingerprint(for: hostPort) {
                 // A pin EXISTS but the offered key can't be fingerprinted.
                 // Failing open here would let any key through on exactly the
                 // hosts the user already trusts — fail closed as a key change.
+                ShioKnownHosts.recordMismatch(.init(pinned: pinned, offered: nil), for: hostPort)
                 validationCompletePromise.fail(SSHClient.SSHError.hostKeyChanged)
                 return
             }
@@ -687,6 +713,7 @@ private final class SSHHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate
             if pinned == fp {
                 validationCompletePromise.succeed(())
             } else {
+                ShioKnownHosts.recordMismatch(.init(pinned: pinned, offered: fp), for: hostPort)
                 validationCompletePromise.fail(SSHClient.SSHError.hostKeyChanged)
             }
         } else {

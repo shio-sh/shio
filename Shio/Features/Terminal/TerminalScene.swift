@@ -14,6 +14,7 @@ private struct IdentifiableURL: Identifiable {
 struct TerminalScene: View {
 
     @State private var showingDiagnose: Bool = false
+    @State private var showingKeyReview: Bool = false
     @State private var showingInspector: Bool = false
     @State private var presentedLink: IdentifiableURL?
     /// Live SSH forward backing a loopback OAuth redirect, torn down when the
@@ -429,6 +430,11 @@ struct TerminalScene: View {
                 }
             }
             .padding(.top, ShioSpace.sm)
+            if viewModel?.hostKeyConflict == true {
+                ShioButton("Review key change", .secondary, fullWidth: true) {
+                    showingKeyReview = true
+                }
+            }
         }
         .padding(ShioSpace.xl)
         .frame(maxWidth: 480)
@@ -436,6 +442,23 @@ struct TerminalScene: View {
         .clipShape(RoundedRectangle(cornerRadius: ShioRadius.lg, style: .continuous))
         .shadow(color: .black.opacity(0.5), radius: 24, y: 8)
         .padding(ShioSpace.xl)
+        .confirmationDialog("This server's key changed",
+                            isPresented: $showingKeyReview, titleVisibility: .visible) {
+            Button("Trust new key & reconnect", role: .destructive) {
+                viewModel?.trustNewHostKeyAndReconnect()
+            }
+            Button("Keep refusing", role: .cancel) {}
+        } message: {
+            Text(keyReviewMessage)
+        }
+    }
+
+    /// Show *what* changed, then the decision the user is actually making.
+    private var keyReviewMessage: String {
+        let base = "If this machine was reinstalled or upgraded, trusting the new key is safe. If you didn't expect a change, keep refusing — the connection could be intercepted."
+        guard let m = viewModel?.hostKeyMismatch else { return base }
+        let offered = m.offered.map(ShioKnownHosts.shortFingerprint) ?? "unreadable"
+        return "Pinned \(ShioKnownHosts.shortFingerprint(m.pinned)) → offered \(offered). " + base
     }
 }
 
