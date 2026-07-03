@@ -1,10 +1,13 @@
 import SwiftUI
 import SwiftData
 
-/// The iPhone dock — the old noun dock, restored, with the supervision inbox
-/// promoted to a peer: Home (this team's repos), Agents (the
-/// cross-project needs-you feed, badged while something's blocked), Machines,
-/// Files. Settings lives behind the gear on Home. Native Liquid Glass dock.
+/// The iPhone dock — three nouns: Home (the command center: every project,
+/// supervision-first, badged while an agent is blocked), Machines, Files.
+/// Settings lives behind the gear on Home. Native Liquid Glass dock.
+///
+/// Supervision is Home's job, not a separate place — a blocked agent floats
+/// its project to the top of Home with the question answerable inline, so a
+/// dedicated feed tab would just be the same rows one level flatter.
 struct MainTabsView: View {
     @Query private var projects: [Project]
 
@@ -16,9 +19,6 @@ struct MainTabsView: View {
         TabView {
             Tab("Home", systemImage: "house") {
                 HomeTabView()
-            }
-            Tab("Agents", systemImage: "wand.and.sparkles.inverse") {
-                ActivityTabView()
             }
             .badge(needsYou)
             // Machines + Files own their title/toolbar/links, so each tab

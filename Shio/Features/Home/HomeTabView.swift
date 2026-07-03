@@ -205,20 +205,23 @@ private struct ProjectOverviewCard: View {
 
     private var needsYou: Bool { activity == .waiting }
     private var isLive: Bool { activity == .running || activity == .waiting }
-    private var waitingItem: ActivityItem? {
-        ActivityFeed.items(projects: [project]).first { $0.activity == .waiting }
+    /// Every blocked repo in the project — two agents waiting means two bars,
+    /// each answerable, not one bar hiding the other.
+    private var waitingItems: [ActivityItem] {
+        ActivityFeed.items(projects: [project]).filter { $0.activity == .waiting }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header.padding(.horizontal, 14).padding(.top, 13)
             if isLive {
-                if let item = waitingItem {
+                ForEach(waitingItems) { item in
                     ShioNeedsYouBar(
                         agentName: item.agentName,
                         detail: item.detail,
                         approve: { Haptics.medium(); ActivityFeed.reply(item, key: "y") },
-                        deny: { Haptics.medium(); ActivityFeed.reply(item, key: "n") }
+                        deny: { Haptics.medium(); ActivityFeed.reply(item, key: "n") },
+                        jump: { jump(item) }
                     )
                     .padding(.horizontal, 14).padding(.top, 10)
                 }
@@ -269,6 +272,15 @@ private struct ProjectOverviewCard: View {
 
     private var mark: some View {
         ProjectAvatar(project, size: 30)
+    }
+
+    /// Straight into the terminal that's asking — the same app-wide cover the
+    /// push tap uses (RootView presents when ConnectRouter raises it).
+    private func jump(_ item: ActivityItem) {
+        guard SessionStore.shared.openOrCreate(repo: item.repo) != nil else { return }
+        if !SessionStore.shared.isTerminalPresented {
+            ConnectRouter.shared.showTerminal = true
+        }
     }
 
     // MARK: resting whisper (A)
