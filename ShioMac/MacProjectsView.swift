@@ -4,7 +4,7 @@ import SwiftData
 /// The dashboard canvas — the LANDING when you switch teams. The selected
 /// project's overview: a 48pt header (name + quiet counts + Rename/New repo),
 /// the glance strip, and the BENTO — outline-only cards that fill on hover,
-/// laid on a real grid so every edge lands (conversations spans two rows;
+/// laid on a real grid so every edge lands (repos spans two rows;
 /// machines + integrations share the bottom row).
 struct MacDashboardCanvas: View {
     @Bindable var model: MacTerminalModel
@@ -141,14 +141,14 @@ private struct MacProjectDashboard: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 glanceBar
-                // Conversations spans the left; skills (+ memory, when it has
+                // Repos spans the left; skills (+ memory, when it has
                 // anything to say — the empty-states law) stack beside it.
                 BentoRow(ratios: [1.35, 1]) {
-                    conversationsCard
+                    reposCard
                     VStack(spacing: 14) {
                         skillsCard
                         if project.notes?.isEmpty == false {
-                            memoryCard   // stretches — bottoms align with conversations
+                            memoryCard   // stretches — bottoms align with repos
                         } else {
                             Spacer(minLength: 0)
                         }
@@ -239,31 +239,31 @@ private struct MacProjectDashboard: View {
 
     // MARK: cards
 
-    private var conversationsCard: some View {
+    private var reposCard: some View {
         BentoCard(title: "repos", addLabel: "+ repo", addAction: addRepo) {
             if repos.isEmpty {
                 cardHint("No repos yet — add one.")
             } else {
                 ForEach(repos) { row in
-                    ChanRow(row: row,
-                            open: { openRepo(row.repo) },
-                            approve: replyAction(row, key: "y"),
-                            deny: replyAction(row, key: "n"),
-                            onCommit: { commitTarget = row },
-                            openOn: { checkout in
-                                // Mark the chosen machine most-recent → it becomes
-                                // the active checkout → open() picks it up.
-                                checkout.lastOpenedAt = .now
-                                try? context.save()
-                                openRepo(row.repo)
-                            })
+                    DashboardRepoRow(row: row,
+                                     open: { openRepo(row.repo) },
+                                     approve: replyAction(row, key: "y"),
+                                     deny: replyAction(row, key: "n"),
+                                     onCommit: { commitTarget = row },
+                                     openOn: { checkout in
+                                         // Mark the chosen machine most-recent → it becomes
+                                         // the active checkout → open() picks it up.
+                                         checkout.lastOpenedAt = .now
+                                         try? context.save()
+                                         openRepo(row.repo)
+                                     })
                 }
             }
         }
     }
 
     /// Inline Approve/Deny exists only when the blocked agent is in THIS Mac's
-    /// tmux — a remote one answers from inside its conversation.
+    /// tmux — a remote one answers from inside its terminal.
     private func replyAction(_ row: RepoRowVM, key: String) -> (() -> Void)? {
         guard row.agent == .waiting,
               let session = MacProjectAgentMonitor.shared.waitingSessionName(forProjectNamed: row.name)
@@ -446,13 +446,13 @@ private struct BentoCard<Content: View>: View {
     }
 }
 
-// MARK: - Conversation (channel) row
+// MARK: - Repo row
 
-/// One repo's standing conversation inside the conversations card: presence
+/// One repo's standing terminal inside the repos card: presence
 /// glyph + name + PR chip, then the live second line — the agent's question
 /// with inline Approve/Deny when it needs you, the working detail while it
 /// runs, or quiet git state at rest.
-private struct ChanRow: View {
+private struct DashboardRepoRow: View {
     let row: RepoRowVM
     let open: () -> Void
     var approve: (() -> Void)? = nil

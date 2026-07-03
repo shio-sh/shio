@@ -33,7 +33,7 @@ struct TerminalScene: View {
         store.activeSession?.viewModel
     }
 
-    /// The active conversation's blocked agent, if any — drives the answer bar.
+    /// The active terminal's blocked agent, if any — drives the answer bar.
     private var waitingSnapshot: AgentSnapshot? {
         guard let id = store.activeSession?.id,
               let snap = AgentStateStore.shared.snapshot(for: id),
@@ -83,7 +83,7 @@ struct TerminalScene: View {
             topBar
         }
         // The agent's question is in the scrollback right above — this is the
-        // one-keystroke answer, injected straight into the live channel.
+        // one-keystroke answer, injected straight into the live terminal.
         .overlay(alignment: .bottom) {
             if let viewModel, let waiting = waitingSnapshot {
                 NeedBar(agentName: waiting.agentName ?? "Your agent",
@@ -95,7 +95,7 @@ struct TerminalScene: View {
         }
         .sheet(isPresented: $showingInspector) {
             if let session = store.activeSession {
-                ConversationInspectorSheet(session: session)
+                TerminalGlanceSheet(session: session)
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
             }
@@ -165,7 +165,7 @@ struct TerminalScene: View {
 
     // MARK: - Top chrome
 
-    /// The conversation's channel header — the Mac chead on a phone: presence
+    /// The terminal's header — the Mac chead on a phone: presence
     /// glyph (⚑/⠋/⎇/%) + repo name + "agent · tmux · machine" + ▤.
     @ViewBuilder
     private var topBar: some View {
@@ -188,7 +188,7 @@ struct TerminalScene: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(ShioTheme.textPrimary)
                     .lineLimit(1).truncationMode(.middle)
-                if let sub = channelSub {
+                if let sub = terminalSub {
                     Text(sub)
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(ShioTheme.textTertiary)
@@ -217,8 +217,8 @@ struct TerminalScene: View {
         .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1) }
     }
 
-    /// Presence on this conversation — ⚑ needs-you / ⠋ working / ⎇ repo at
-    /// rest, or % for a loose shell. Mirrors the Mac conversation header.
+    /// Presence on this terminal — ⚑ needs-you / ⠋ working / ⎇ repo at
+    /// rest, or % for a loose shell. Mirrors the Mac terminal header.
     @ViewBuilder
     private var presenceGlyph: some View {
         let isShell = store.activeSession?.projectID == nil
@@ -239,7 +239,7 @@ struct TerminalScene: View {
 
     /// "Codex · tmux · this mac" — agent (if any), the standing transport, the
     /// machine. Drops the agent for a shell.
-    private var channelSub: String? {
+    private var terminalSub: String? {
         guard let session = store.activeSession else { return nil }
         let agent = session.projectID == nil ? nil
             : AgentStateStore.shared.snapshot(for: session.id)?.agentName
@@ -505,9 +505,9 @@ private struct NeedBar: View {
 
 // MARK: - Inspector sheet (▤)
 
-/// The conversation's GLANCE as a sheet: where it runs, who's on it, and the
+/// The terminal's GLANCE as a sheet: where it runs, who's on it, and the
 /// repo's git state. Empty modules disappear (the empty-states law).
-private struct ConversationInspectorSheet: View {
+private struct TerminalGlanceSheet: View {
     let session: SessionStore.Session
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss

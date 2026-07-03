@@ -168,7 +168,7 @@ struct SettingsView: View {
                             Task { await createActionSchema() }
                         } label: {
                             HStack {
-                                Label("Create approve channel", systemImage: "checkmark.message")
+                                Label("Create approve record", systemImage: "checkmark.message")
                                 Spacer()
                                 if creatingAction { ProgressView() }
                             }
@@ -177,7 +177,7 @@ struct SettingsView: View {
                     } header: {
                         Text("Notifications")
                     } footer: {
-                        Text("\"Send test notification\" verifies away-push delivers. \"Create approve channel\" writes one Action record so the CloudKit \"Action\" record type appears in Development — then make it Queryable and deploy it to Production (that's what powers lock-screen approve).")
+                        Text("\"Send test notification\" verifies away-push delivers. \"Create approve record\" writes one Action record so the CloudKit \"Action\" record type appears in Development — then make it Queryable and deploy it to Production (that's what powers lock-screen approve).")
                     }
                 }
             }

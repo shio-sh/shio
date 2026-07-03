@@ -70,9 +70,9 @@ struct MacInspector: View {
         }
     }
 
-    /// The repo whose conversation is on screen — the "this repo" context.
+    /// The repo whose terminal is on screen — the "this repo" context.
     private func contextRepo(in rows: [RepoRowVM]) -> RepoRowVM? {
-        guard model.canvas == .conversation,
+        guard model.canvas == .terminal,
               let tab = model.selectedTab, !tab.isShellTab else { return nil }
         return rows.first { $0.name == tab.title }
     }

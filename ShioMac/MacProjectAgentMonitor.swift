@@ -54,7 +54,7 @@ final class MacProjectAgentMonitor {
 
     /// The local tmux session whose agent is blocked for this project/repo —
     /// the target for an inline Approve/Deny. nil when the waiting agent is
-    /// remote (answer from inside its conversation instead).
+    /// remote (answer from inside its terminal instead).
     func waitingSessionName(forProjectNamed name: String) -> String? {
         let base = "shio-\(TmuxResume.scrubName(name))"
         if byTmux[base]?.activity == .waiting { return base }

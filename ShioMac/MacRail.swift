@@ -3,7 +3,7 @@ import SwiftData
 
 /// THE rail — Shio's Slack frame on macOS. The project (team) switcher sits at
 /// the top; AGENTS (presence), SHELLS (loose per-machine terminals) and REPOS
-/// (each repo's standing conversation) are the live groups; Machines & Files
+/// (each repo's standing terminal) are the live groups; Machines & Files
 /// are quiet utility rows at the bottom; 塩 signs the foot. The traffic lights
 /// and the ◧ toggle float above the rail at window level (MacShell owns them).
 struct MacRail: View {
@@ -102,7 +102,7 @@ struct MacRail: View {
 
     private func agentRow(_ row: RepoRowVM) -> some View {
         RailRow(title: "\(row.agentName ?? "Agent") · \(row.name)",
-                selected: isOpenConversation(row.name),
+                selected: isOpenRepo(row.name),
                 action: { model.open(repo: row.repo) }) {
             switch row.agent {
             case .waiting:
@@ -131,7 +131,7 @@ struct MacRail: View {
 
     private func repoRow(_ row: RepoRowVM) -> some View {
         RailRow(title: row.name,
-                selected: isOpenConversation(row.name),
+                selected: isOpenRepo(row.name),
                 action: { model.open(repo: row.repo) }) {
             Text("⎇").font(.system(size: 11.5, design: .monospaced))
                 .foregroundStyle(ShioTheme.textTertiary)
@@ -151,9 +151,9 @@ struct MacRail: View {
         }
     }
 
-    /// A repo/agent row lights up when its standing conversation is on screen.
-    private func isOpenConversation(_ name: String) -> Bool {
-        guard model.canvas == .conversation, let tab = model.selectedTab else { return false }
+    /// A repo/agent row lights up when its standing terminal is on screen.
+    private func isOpenRepo(_ name: String) -> Bool {
+        guard model.canvas == .terminal, let tab = model.selectedTab else { return false }
         return !tab.isShellTab && tab.title == name
     }
 
@@ -325,7 +325,7 @@ private struct ShellRailRow: View {
     @State private var hovering = false
 
     var body: some View {
-        let isSel = model.canvas == .conversation && model.selectedTabID == tab.id
+        let isSel = model.canvas == .terminal && model.selectedTabID == tab.id
         Button { model.focus(tab) } label: {
             HStack(spacing: 9) {
                 Text("%")

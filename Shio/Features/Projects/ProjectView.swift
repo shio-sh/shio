@@ -55,7 +55,7 @@ struct ProjectView: View {
                         if project.sortedRepos.isEmpty {
                             quietHint("No repos yet — add one.")
                         } else {
-                            ForEach(project.sortedRepos) { repo in conversationRow(repo) }
+                            ForEach(project.sortedRepos) { repo in repoRow(repo) }
                         }
 
                         if !machines.isEmpty {
@@ -193,9 +193,9 @@ struct ProjectView: View {
         .padding(.horizontal, 14).padding(.top, 10)
     }
 
-    // MARK: conversations
+    // MARK: repos
 
-    private func conversationRow(_ repo: Repo) -> some View {
+    private func repoRow(_ repo: Repo) -> some View {
         let presence = ActivityFeed.presence(for: repo)
         let activity = presence?.snap.activity ?? .none
         return Button { openRepo(repo) } label: {

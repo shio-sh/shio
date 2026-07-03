@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// The iPhone dock — the old noun dock, restored, with the supervision inbox
-/// promoted to a peer: Home (this team's conversations), Agents (the
+/// promoted to a peer: Home (this team's repos), Agents (the
 /// cross-project needs-you feed, badged while something's blocked), Machines,
 /// Files. Settings lives behind the gear on Home. Native Liquid Glass dock.
 struct MainTabsView: View {

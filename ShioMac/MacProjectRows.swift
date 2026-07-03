@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// Display data for one repo row — shared by the rail (REPOS/AGENTS groups)
-/// and the dashboard's conversations card.
+/// and the dashboard's repos card.
 struct RepoRowVM: Identifiable {
     let id: PersistentIdentifier
     let repo: Repo

@@ -135,7 +135,7 @@ struct MacMiniButton: View {
 }
 
 /// "⚑ Codex is waiting on you · Approve · Deny" — the blocked-agent bar shown
-/// over a conversation (and echoed by the dashboard's needs-you row).
+/// over a terminal (and echoed by the dashboard's needs-you row).
 struct MacNeedBar: View {
     let agentName: String
     let approve: () -> Void

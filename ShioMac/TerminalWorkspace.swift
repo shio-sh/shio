@@ -3,7 +3,7 @@ import SwiftUI
 /// One tab in the Mac terminal workspace. A tab owns a **tree of panes** (the
 /// split layout) plus which pane is focused. `isShellTab` marks a loose
 /// per-machine shell (the rail's SHELLS group); everything else is a repo's
-/// standing conversation.
+/// standing terminal.
 @MainActor
 @Observable
 final class WorkspaceTab: Identifiable {
@@ -106,11 +106,11 @@ struct TabDescriptor: Codable {
     var port: Int? = nil
     var user: String? = nil
     var resume: String? = nil
-    /// Loose machine shell vs repo conversation (nil in pre-rail data).
+    /// Loose machine shell vs repo terminal (nil in pre-rail data).
     var shell: Bool? = nil
 }
 
-/// The conversation canvas: the selected tab's terminal under its 48pt header
+/// The terminal canvas: the selected tab's terminal under its 48pt header
 /// (presence glyph + name + quiet "agent · tmux · machine" metadata). The rail
 /// owns tab switching; splits stay ⌘D / ⇧⌘D inside the canvas.
 struct TerminalWorkspaceView: View {
@@ -119,14 +119,14 @@ struct TerminalWorkspaceView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let tab = model.selectedTab {
-                conversationHead(tab)
+                terminalHead(tab)
             }
             workspace
         }
         .onAppear { model.ensureTerminalTab() }
     }
 
-    private func conversationHead(_ tab: WorkspaceTab) -> some View {
+    private func terminalHead(_ tab: WorkspaceTab) -> some View {
         MacCanvasHeader(title: tab.title, sub: sub(for: tab)) {
             presenceGlyph(tab)
         } trailing: {
@@ -141,7 +141,7 @@ struct TerminalWorkspaceView: View {
     }
 
     /// ⚑ needs-you / ⠋ working / ⎇ quiet repo / % shell — the agent's
-    /// presence on this conversation.
+    /// presence on this terminal.
     @ViewBuilder private func presenceGlyph(_ tab: WorkspaceTab) -> some View {
         if tab.isShellTab {
             Text("%").font(.system(size: 12, design: .monospaced))

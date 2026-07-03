@@ -137,12 +137,12 @@ struct ShioMacApp: App {
 }
 
 /// App-level state shared between the window and the menu commands: the
-/// selected project (team), the open tabs (conversations + shells), and which
+/// selected project (team), the open tabs (repo terminals + shells), and which
 /// canvas the center shows.
 @Observable
 @MainActor
 final class MacTerminalModel {
-    /// Open terminal tabs (each owns its surface). The conversation canvas
+    /// Open terminal tabs (each owns its surface). The terminal canvas
     /// shows the selected one; the rail's SHELLS/REPOS rows select them.
     var tabs: [WorkspaceTab] = []
     var selectedTabID: UUID? {
@@ -186,7 +186,7 @@ final class MacTerminalModel {
     var canvas: MacCanvas = .dashboard {
         didSet {
             guard canvas != oldValue else { return }
-            if oldValue == .conversation { focusedSurface?.searchEnd() }
+            if oldValue == .terminal { focusedSurface?.searchEnd() }
             showingSearch = false
             searchQuery = ""
         }
@@ -214,10 +214,10 @@ final class MacTerminalModel {
     /// The surface that find/search and focused-pane actions target.
     var focusedSurface: GhosttyMacSurface? { selectedTab?.focusedPane?.surface }
 
-    /// ⌘F — context-aware. In a conversation it opens scrollback search; in a
+    /// ⌘F — context-aware. In a terminal it opens scrollback search; in a
     /// list canvas it reveals that canvas's filter field.
     func showFind() {
-        if canvas == .conversation { ensureTerminalTab() }
+        if canvas == .terminal { ensureTerminalTab() }
         showingSearch = true
     }
     func findNext() { focusedSurface?.searchNavigate(next: true) }
@@ -233,13 +233,13 @@ final class MacTerminalModel {
     /// never an empty void.
     func showTerminal() {
         ensureTerminalTab()
-        canvas = .conversation
+        canvas = .terminal
     }
 
     /// Bring an existing tab on screen (the rail's rows).
     func focus(_ tab: WorkspaceTab) {
         selectedTabID = tab.id
-        canvas = .conversation
+        canvas = .terminal
     }
 
     /// Restore the previous run's tabs once — called at launch so the rail's
@@ -261,7 +261,7 @@ final class MacTerminalModel {
         let tab = WorkspaceTab(pane: TerminalPane(content: content), title: title, isShell: isShell)
         tabs.append(tab)
         selectedTabID = tab.id
-        if !restoring { canvas = .conversation }   // surface the new tab
+        if !restoring { canvas = .terminal }   // surface the new tab
         persistTabs()
         return tab
     }
@@ -311,7 +311,7 @@ final class MacTerminalModel {
     // MARK: Splits (act on the selected tab's focused pane)
 
     func splitFocused(_ direction: SplitDirection) {
-        guard canvas == .conversation else { return }
+        guard canvas == .terminal else { return }
         selectedTab?.split(direction)
     }
 
@@ -319,9 +319,9 @@ final class MacTerminalModel {
         addTab(.shell(GhosttyMacSurface(backend: .local)), title: "This Mac", isShell: true)
     }
 
-    /// A repo's conversation is STANDING — opening it again refocuses the
-    /// existing terminal instead of spawning a second one.
-    private func focusConversation(named name: String) -> Bool {
+    /// A repo's terminal is STANDING — opening it again refocuses the
+    /// existing tab instead of spawning a second one.
+    private func focusTab(named name: String) -> Bool {
         guard let existing = tabs.first(where: { !$0.isShellTab && $0.title == name }) else { return false }
         focus(existing)
         return true
@@ -343,7 +343,7 @@ final class MacTerminalModel {
         if let project = repo.project { selectedProject = project }
         repo.lastOpenedAt = .now
         repo.project?.lastOpenedAt = .now
-        if focusConversation(named: repo.name) { return }
+        if focusTab(named: repo.name) { return }
         let checkout = repo.activeCheckout
         let host = checkout?.host
         let path = checkout?.path ?? ""
@@ -370,7 +370,7 @@ final class MacTerminalModel {
     /// nil checkout falls back to the legacy fields during the migration window.
     func open(project: Project, checkout: ProjectCheckout?) {
         selectedProject = project
-        if focusConversation(named: project.name) { return }
+        if focusTab(named: project.name) { return }
         let host = checkout?.host ?? project.host
         let path = checkout?.path ?? project.path
         checkout?.lastOpenedAt = .now
@@ -395,7 +395,7 @@ final class MacTerminalModel {
     }
 
     /// Open an SSH terminal as a tab and connect it. `isShell` marks a loose
-    /// per-machine shell (the rail's SHELLS group) vs a repo conversation.
+    /// per-machine shell (the rail's SHELLS group) vs a repo terminal.
     func openSSH(_ session: MacSSHSession, title: String, isShell: Bool = false) {
         addTab(.ssh(session), title: title, isShell: isShell)
         Task { await session.connect() }
@@ -411,23 +411,23 @@ final class MacTerminalModel {
 
     // MARK: Hibernation (the RAM lever tmux makes safe)
 
-    /// How long a background conversation keeps its live surface. The surface
+    /// How long a background terminal keeps its live surface. The surface
     /// (scrollback buffer + Metal textures) is where the app's memory goes;
     /// tmux holds the real session, so releasing it is lossless.
     static let hibernateAfter: TimeInterval = 15 * 60
     private var hibernateTimer: Timer?
 
-    /// Sweep idle background conversations once a minute: close their tabs
-    /// (freeing the renderer), keep the standing conversation in tmux —
+    /// Sweep idle background terminals once a minute: close their tabs
+    /// (freeing the renderer), keep the standing session in tmux —
     /// clicking the repo row reattaches with scrollback intact.
     func startHibernator() {
         guard hibernateTimer == nil else { return }
         hibernateTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.sweepIdleConversations() }
+            Task { @MainActor in self?.sweepIdleTabs() }
         }
     }
 
-    private func sweepIdleConversations() {
+    private func sweepIdleTabs() {
         let cutoff = Date.now.addingTimeInterval(-Self.hibernateAfter)
         for tab in tabs where tab.id != selectedTabID
             && tab.isHibernatable
@@ -437,7 +437,7 @@ final class MacTerminalModel {
         }
     }
 
-    /// Never hibernate a conversation whose agent is live — jumping to a
+    /// Never hibernate a terminal whose agent is live — jumping to a
     /// needs-you must be instant, not a reattach.
     private func agentBusy(_ tab: WorkspaceTab) -> Bool {
         guard let activity = MacProjectAgentMonitor.shared
@@ -461,7 +461,7 @@ final class MacTerminalModel {
     /// Closing the last tab lands on the empty-terminal state (the window
     /// stays — the red traffic light closes the window).
     func closeSelectedTab() {
-        guard canvas == .conversation, let tab = selectedTab else { return }
+        guard canvas == .terminal, let tab = selectedTab else { return }
         if tab.isSinglePane {
             closeTab(tab.id)
         } else {

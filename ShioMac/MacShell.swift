@@ -3,10 +3,10 @@ import SwiftData
 
 /// What fills the center of the window. The rail is permanent (collapse aside);
 /// the canvas is what a rail row landed you on: the team's dashboard, a
-/// conversation's terminal, or the Machines/Files utilities.
+/// terminal (repo or loose shell), or the Machines/Files utilities.
 enum MacCanvas: Equatable {
     case dashboard
-    case conversation
+    case terminal
     case machines
     case files
 }
@@ -114,7 +114,7 @@ struct MacShell: View {
         // Watch local tmux sessions so a repo row lights up when its agent
         // needs you — even though ghostty owns the local PTY.
         .task { MacProjectAgentMonitor.shared.start() }
-        // Release the renderer of conversations idle in the background —
+        // Release the renderer of terminals idle in the background —
         // tmux keeps the session, so reopening reattaches losslessly.
         .task { model.startHibernator() }
         // The rail is always on screen now — keep its git state warm app-wide.
@@ -142,7 +142,7 @@ struct MacShell: View {
     private var center: some View {
         switch model.canvas {
         case .dashboard:    MacDashboardCanvas(model: model)
-        case .conversation: TerminalWorkspaceView(model: model)
+        case .terminal:     TerminalWorkspaceView(model: model)
         case .machines:     MacMachinesView(model: model)
         case .files:        MacFilesPane(model: model)
         }

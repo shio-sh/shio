@@ -3,13 +3,13 @@ import SwiftData
 
 /// iPad = the Mac layout, touch-sized: ONE rail (project switcher +
 /// AGENTS/SHELLS/REPOS + utility rows + 塩 foot), a center canvas (the team's
-/// dashboard as the landing, a conversation's terminal, Machines, Files), and
+/// dashboard as the landing, a repo or shell terminal, Machines, Files), and
 /// the GLANCE inspector — open by default, ▤ everywhere, headers at one fixed
 /// height so the hairlines run as one line (the alignment law).
 struct PadRootView: View {
     enum Canvas: Equatable {
         case dashboard
-        case conversation(UUID)   // SessionStore.Session id
+        case terminal(UUID)   // SessionStore.Session id
         case machines
         case files
     }
@@ -37,7 +37,7 @@ struct PadRootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             if inspectorOpen {
                 Rectangle().fill(ShioTheme.line).frame(width: 1)
-                PadInspector(project: selected, contextRepo: conversationRepo,
+                PadInspector(project: selected, contextRepo: terminalRepo,
                              close: { inspectorOpen = false })
             }
         }
@@ -160,7 +160,7 @@ struct PadRootView: View {
             railHeader("agents")
             ForEach(items) { item in
                 railRow(title: "\(item.agentName) · \(item.repoName)",
-                        selected: isOpenConversation(named: item.repoName),
+                        selected: isOpenRepo(named: item.repoName),
                         action: { jump(item.repo) }) {
                     presenceGlyph(item.activity)
                 } trailing: {
@@ -192,7 +192,7 @@ struct PadRootView: View {
                 .padding(.top, 6)
             ForEach(project.sortedRepos) { repo in
                 railRow(title: repo.name,
-                        selected: isOpenConversation(named: repo.name),
+                        selected: isOpenRepo(named: repo.name),
                         action: { jump(repo) }) {
                     Text("⎇").font(.system(size: 11.5, design: .monospaced))
                         .foregroundStyle(ShioTheme.textTertiary)
@@ -297,11 +297,11 @@ struct PadRootView: View {
             } else {
                 padEmptyState
             }
-        case .conversation(let id):
+        case .terminal(let id):
             if let session = sessionStore.sessions.first(where: { $0.id == id }) {
-                PadConversationView(session: session,
-                                    inspectorOpen: inspectorOpen,
-                                    toggleInspector: { inspectorOpen.toggle() })
+                PadTerminalView(session: session,
+                                inspectorOpen: inspectorOpen,
+                                toggleInspector: { inspectorOpen.toggle() })
             } else {
                 // The session closed under us — land back on the dashboard.
                 Color.clear.onAppear { canvas = .dashboard }
@@ -347,14 +347,14 @@ struct PadRootView: View {
         }
     }
 
-    private func isOpenConversation(named name: String) -> Bool {
-        guard case .conversation(let id) = canvas,
+    private func isOpenRepo(named name: String) -> Bool {
+        guard case .terminal(let id) = canvas,
               let session = sessionStore.sessions.first(where: { $0.id == id }) else { return false }
         return session.displayName == name
     }
 
     private func isOpenShell(_ host: Host) -> Bool {
-        guard case .conversation(let id) = canvas,
+        guard case .terminal(let id) = canvas,
               let session = sessionStore.sessions.first(where: { $0.id == id }) else { return false }
         return session.projectID == nil && session.hostID == host.persistentModelID
     }
@@ -371,7 +371,7 @@ struct PadRootView: View {
             selectedName = project.name
         }
         if let session = sessionStore.openOrCreate(repo: repo) {
-            canvas = .conversation(session.id)
+            canvas = .terminal(session.id)
         } else {
             noCheckoutName = repo.name
         }
@@ -379,7 +379,7 @@ struct PadRootView: View {
 
     private func openShell(_ host: Host) {
         let session = sessionStore.openOrCreate(host: host)
-        canvas = .conversation(session.id)
+        canvas = .terminal(session.id)
     }
 
     private func dirtyCount(_ repo: Repo) -> Int {
@@ -387,8 +387,8 @@ struct PadRootView: View {
         return GitLineFormatter.make(status.status(forHost: c.host, path: c.path)?.probe).dirty
     }
 
-    private var conversationRepo: Repo? {
-        guard case .conversation(let id) = canvas,
+    private var terminalRepo: Repo? {
+        guard case .terminal(let id) = canvas,
               let session = sessionStore.sessions.first(where: { $0.id == id }),
               let project = selected else { return nil }
         return project.sortedRepos.first { $0.name == session.displayName }
@@ -401,12 +401,12 @@ struct PadRootView: View {
     }
 }
 
-// MARK: - Conversation canvas
+// MARK: - Terminal canvas
 
-/// A conversation inline on the iPad canvas: 44pt header (presence + name +
+/// A terminal inline on the iPad canvas: 44pt header (presence + name +
 /// quiet metadata + ▤), the terminal, and the answer bar while its agent is
 /// blocked.
-private struct PadConversationView: View {
+private struct PadTerminalView: View {
     let session: SessionStore.Session
     let inspectorOpen: Bool
     let toggleInspector: () -> Void
@@ -526,7 +526,7 @@ private struct PadConversationView: View {
 
 // MARK: - Inspector
 
-/// The GLANCE panel — 44pt head colinear with the conversation header.
+/// The GLANCE panel — 44pt head colinear with the terminal header.
 private struct PadInspector: View {
     let project: Project?
     let contextRepo: Repo?

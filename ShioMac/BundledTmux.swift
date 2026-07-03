@@ -1,7 +1,7 @@
 import Foundation
 
 /// The tmux Shio carries so a Mac that never installed one still gets
-/// standing conversations, agent watching, and cross-device continuity.
+/// standing sessions, agent watching, and cross-device continuity.
 ///
 /// Precedence is sacred: the user's own tmux ALWAYS wins (their config, their
 /// running server — tmux clients and servers must speak the same protocol, so
