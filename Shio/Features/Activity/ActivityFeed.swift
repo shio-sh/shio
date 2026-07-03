@@ -67,11 +67,16 @@ enum ActivityFeed {
     /// is one, else the sovereign CloudKit Action the watching Mac injects —
     /// the same path as the lock-screen Approve/Deny buttons.
     static func reply(_ item: ActivityItem, key: String) {
-        if let sid = item.sessionID,
+        reply(repoName: item.repoName, sessionID: item.sessionID, key: key)
+    }
+
+    /// Same answer path when all you hold is a dashboard row, not a feed item.
+    static func reply(repoName: String, sessionID: UUID?, key: String) {
+        if let sid = sessionID,
            let session = SessionStore.shared.sessions.first(where: { $0.id == sid }) {
             session.viewModel.terminal.onInput?("\(key)\n")
         } else {
-            let tmux = "shio-\(TmuxResume.scrubName(item.repoName))"
+            let tmux = "shio-\(TmuxResume.scrubName(repoName))"
             Task { await CloudKitSignalService.shared.sendAction(sessionId: tmux, key: key) }
         }
     }
@@ -83,5 +88,84 @@ enum ActivityFeed {
         case .finished: return 2
         case .none:     return 3
         }
+    }
+}
+
+// MARK: - Dashboard builder (iOS)
+
+/// The iOS twin of the Mac's `ProjectRows` builder — same shapes, no local
+/// tmux: agent state comes from `presence(for:)` (open phone sessions + the
+/// remotes seen by the status fetch), git/PRs from the shared status store.
+extension ActivityFeed {
+
+    static func rows(for project: Project) -> [RepoRowVM] {
+        project.sortedRepos.map { repo in
+            let p = presence(for: repo)
+            return RepoRowVM(id: repo.persistentModelID, repo: repo, name: repo.name,
+                             machines: machinesText(repo), git: gitProbe(repo),
+                             gitStale: gitStale(repo),
+                             agent: p?.snap.activity ?? .none,
+                             agentName: p?.snap.agentName,
+                             agentDetail: p?.snap.detail,
+                             prs: prList(repo))
+        }
+    }
+
+    static func glance(for project: Project, rows: [RepoRowVM]) -> ProjectGlance {
+        .make(for: project, rows: rows)
+    }
+
+    /// One row per machine carrying this project. There is no "This Mac" from
+    /// a phone — a checkout with no Host record lives somewhere Shio can't
+    /// reach from here, so it can't become a row (never reachable-looking).
+    static func machines(for project: Project) -> [MachineSummary] {
+        var order: [String] = []
+        var repoNames: [String: Set<String>] = [:]
+        var reachable: [String: Bool] = [:]
+        for repo in project.sortedRepos {
+            for c in (repo.checkouts ?? []) {
+                guard let h = c.host else { continue }
+                if repoNames[h.name] == nil {
+                    order.append(h.name)
+                    repoNames[h.name] = []
+                    // Same freshness window as the Mac builder — "seen lately",
+                    // not a live probe.
+                    reachable[h.name] = (h.lastConnectedAt ?? .distantPast)
+                        .timeIntervalSinceNow > -3 * 24 * 3600
+                }
+                repoNames[h.name]?.insert(repo.name)
+            }
+        }
+        return order.map { name in
+            let repos = repoNames[name] ?? []
+            return MachineSummary(id: name, name: name,
+                                  detail: repos.count == 1 ? (repos.first ?? "")
+                                      : "\(repos.count) repo\(repos.count == 1 ? "" : "s")",
+                                  reachable: reachable[name] ?? false)
+        }
+    }
+
+    /// "mini · pi" — where the repo lives. Hosts only; a checkout with no
+    /// Host record is unreachable from here (same fallback as the Home cards).
+    private static func machinesText(_ repo: Repo) -> String {
+        let names = (repo.checkouts ?? []).compactMap { $0.host?.name }
+        var seen = Set<String>(); var unique: [String] = []
+        for n in names where !seen.contains(n) { seen.insert(n); unique.append(n) }
+        return unique.isEmpty ? "no machine" : unique.joined(separator: " · ")
+    }
+
+    private static func gitProbe(_ repo: Repo) -> GitProbe? {
+        guard let c = repo.activeCheckout else { return nil }
+        return ProjectStatusStore.shared.status(forHost: c.host, path: c.path)?.probe
+    }
+
+    private static func gitStale(_ repo: Repo) -> Bool {
+        guard let c = repo.activeCheckout else { return false }
+        return ProjectStatusStore.shared.isStale(forHost: c.host, path: c.path)
+    }
+
+    private static func prList(_ repo: Repo) -> [PullRequest] {
+        guard let c = repo.activeCheckout else { return [] }
+        return ProjectStatusStore.shared.prList(forHost: c.host, path: c.path)
     }
 }

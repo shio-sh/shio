@@ -1,35 +1,9 @@
 import SwiftUI
 import SwiftData
 
-/// Display data for one repo row — shared by the rail (REPOS/AGENTS groups)
-/// and the dashboard's repos card.
-struct RepoRowVM: Identifiable {
-    let id: PersistentIdentifier
-    let repo: Repo
-    let name: String
-    let machines: String
-    let git: GitProbe?
-    /// True when `git` is a last-known cache past the stale window — the row
-    /// dims its git segs so old numbers never read as live.
-    var gitStale: Bool = false
-    let agent: AgentActivity
-    var agentName: String? = nil
-    var agentDetail: String? = nil
-    var prs: [PullRequest] = []
-}
-
-/// The aggregate one-liner shown on the dashboard's glance strip.
-struct ProjectGlance {
-    var changes: Int
-    var working: Int
-    var needsYou: Int
-    var prs: Int
-    var repoCount: Int
-    var age: String
-}
-
-/// Builds the live row/glance view-models for a project from the shared
-/// singletons (local tmux agent monitor + git status store). Pure reads —
+/// Builds the live row/glance view-models (`RepoRowVM` / `ProjectGlance` /
+/// `MachineSummary`, shared in Core/Status) for a project from THIS Mac's
+/// singletons — the local tmux agent monitor + git status store. Pure reads —
 /// calling these during a view's `body` registers Observation dependencies,
 /// so rows re-render as agents flip state or git status lands.
 @MainActor
@@ -49,12 +23,7 @@ enum ProjectRows {
     }
 
     static func glance(for project: Project, rows: [RepoRowVM]) -> ProjectGlance {
-        let changes = rows.reduce(0) { $0 + (GitLineFormatter.make($1.git).dirty) }
-        let working = rows.filter { $0.agent == .running }.count
-        let needs   = rows.filter { $0.agent == .waiting }.count
-        let prCount = rows.reduce(0) { $0 + $1.prs.filter { $0.state == "OPEN" }.count }
-        return ProjectGlance(changes: changes, working: working, needsYou: needs,
-                             prs: prCount, repoCount: rows.count, age: shioShortAge(project.lastOpenedAt))
+        .make(for: project, rows: rows)
     }
 
     /// The project's loudest agent state — ⚑ wins over ⠋ wins over ✓.
@@ -100,13 +69,6 @@ enum ProjectRows {
 
     /// One row per machine carrying this project (the dashboard's machines
     /// card): This Mac first, each with its repo spread.
-    struct MachineSummary: Identifiable {
-        let id: String
-        let name: String
-        let detail: String      // "3 repos" or the lone repo's name
-        let reachable: Bool
-    }
-
     static func machines(for project: Project) -> [MachineSummary] {
         var order: [String] = []
         var repoNames: [String: Set<String>] = [:]

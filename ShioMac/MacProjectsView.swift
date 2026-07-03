@@ -340,7 +340,7 @@ private struct MacProjectDashboard: View {
 /// One machine in the machines card — clicking it lands on the Machines
 /// canvas (the card looked tappable; now it is).
 private struct MachineCardRow: View {
-    let summary: ProjectRows.MachineSummary
+    let summary: MachineSummary
     let open: () -> Void
     @State private var hovering = false
 
