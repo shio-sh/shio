@@ -16,6 +16,34 @@ import SwiftData
 /// checkout's `.claude/skills`. Symlinks are only ever created where nothing
 /// real exists or where we already own the symlink — a user's own skill dir is
 /// never clobbered.
+/// Remote materialize health, surfaced quietly in the Skills library — a
+/// phone-side edit that silently never landed on a machine is exactly the
+/// kind of ghost a user can't debug from a log line. Keyed by host; the next
+/// successful write to that host clears it.
+@MainActor
+@Observable
+final class SkillSyncHealth {
+    static let shared = SkillSyncHealth()
+    private init() {}
+
+    struct Failure: Identifiable {
+        var id: String { host }
+        let host: String
+        let detail: String   // "timed out", "exit 1", "unreachable"
+        let at: Date
+    }
+    private(set) var failuresByHost: [String: Failure] = [:]
+
+    var failures: [Failure] { failuresByHost.values.sorted { $0.host < $1.host } }
+
+    func recordFailure(host: String, detail: String) {
+        failuresByHost[host] = Failure(host: host, detail: detail, at: Date())
+    }
+    func recordSuccess(host: String) {
+        failuresByHost[host] = nil
+    }
+}
+
 @MainActor
 final class SkillMaterializer {
     static let shared = SkillMaterializer()
@@ -114,6 +142,13 @@ final class SkillMaterializer {
     /// materialize pass sweeps these dirs too. Per-device and capped; sweeping
     /// an absent dir costs nothing. A dir reclaimed by a live skill is
     /// filtered out at sweep time.
+    ///
+    /// KNOWN GAP (deliberate, deferred): tombstones are per-device
+    /// UserDefaults, so a skill deleted on the iPhone cleans every host the
+    /// *phone* later SSHes into — but never the Mac's own local
+    /// `~/.agents/skills` (the Mac never saw the delete, only the CloudKit
+    /// model removal). The real fix is a synced `SkillTombstone` @Model
+    /// (CloudKit schema addition) — its own slice, post-beta.
     nonisolated private static let tombstoneKey = "shio.skills.tombstones"
 
     nonisolated static func addTombstone(_ dir: String) {
@@ -331,10 +366,16 @@ final class SkillMaterializer {
             await client.disconnect()
             if result.timedOut || (result.exitStatus ?? 0) != 0 {
                 print("[shio] skills: materialize on \(config.host) failed (exit \(result.exitStatus.map(String.init) ?? "?")\(result.timedOut ? ", timed out" : "")): \(result.stderr.prefix(200))")
+                let detail = result.timedOut ? "timed out"
+                    : "exit \(result.exitStatus.map(String.init) ?? "?")"
+                await MainActor.run { SkillSyncHealth.shared.recordFailure(host: config.host, detail: detail) }
+            } else {
+                await MainActor.run { SkillSyncHealth.shared.recordSuccess(host: config.host) }
             }
         } catch {
             await client.disconnect()
             print("[shio] skills: materialize on \(config.host) unreachable: \(error.localizedDescription)")
+            await MainActor.run { SkillSyncHealth.shared.recordFailure(host: config.host, detail: "unreachable") }
         }
     }
 

@@ -46,10 +46,22 @@ final class Repo {
 
 extension Repo {
     /// The checkout most recently worked in, else the first available.
+    ///
+    /// On iOS, checkouts with a host always outrank host-less ones: a nil-host
+    /// checkout is a legacy Mac-local one — real on that Mac, but this device
+    /// can't open it (no local shell), so letting recency pick it makes the
+    /// repo tap a silent no-op while a perfectly reachable checkout hides
+    /// behind it. The Mac keeps pure recency (nil host = this mac is real
+    /// there, and MacSelfHost adopts provable ones anyway).
     var activeCheckout: ProjectCheckout? {
-        (checkouts ?? []).sorted {
+        let byRecency = (checkouts ?? []).sorted {
             ($0.lastOpenedAt ?? .distantPast) > ($1.lastOpenedAt ?? .distantPast)
-        }.first
+        }
+        #if os(macOS)
+        return byRecency.first
+        #else
+        return byRecency.first { $0.host != nil } ?? byRecency.first
+        #endif
     }
 
     func checkout(on host: Host) -> ProjectCheckout? {

@@ -82,6 +82,21 @@ enum MacSelfHost {
             context.delete(dup)
         }
 
+        // Adopt legacy host-less checkouts that verifiably live on THIS Mac's
+        // disk (pre-self-host local projects). Unadopted, they're unreachable
+        // from every other device — an iPhone tap on such a repo is a silent
+        // no-op. Once stamped they ride the normal path (local here, SSH from
+        // elsewhere). A path this Mac doesn't have stays untouched: it may be
+        // another Mac's legacy data, and guessing would mis-route it.
+        let orphans = ((try? context.fetch(FetchDescriptor<ProjectCheckout>())) ?? [])
+            .filter { $0.host == nil }
+        for orphan in orphans {
+            let expanded = (orphan.path as NSString).expandingTildeInPath
+            if !expanded.isEmpty, FileManager.default.fileExists(atPath: expanded) {
+                orphan.host = host
+            }
+        }
+
         host.name = computerName
         if let addr = reachableHost { host.hostname = addr }
         host.username = NSUserName()

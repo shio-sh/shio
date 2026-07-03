@@ -64,6 +64,20 @@ struct SkillsLibraryView: View {
                             .font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
                     }
                     .padding(.horizontal, 6).padding(.vertical, 9)
+                    // Machines the last remote write didn't land on — quiet,
+                    // but never silent: the library must not claim a skill is
+                    // everywhere when a host missed it. Clears on next success.
+                    ForEach(SkillSyncHealth.shared.failures) { failure in
+                        HStack(spacing: 8) {
+                            Text("⚑").font(.system(size: 11)).foregroundStyle(ShioTheme.warning)
+                            Text("\(failure.host) — last sync \(failure.detail)")
+                                .font(.system(size: 12)).foregroundStyle(ShioTheme.textSecondary)
+                            Spacer()
+                            Text("retries on next edit or connect")
+                                .font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
+                        }
+                        .padding(.horizontal, 6).padding(.vertical, 4)
+                    }
                 }
             }
             .padding(20)
