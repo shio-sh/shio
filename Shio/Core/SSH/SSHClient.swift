@@ -640,6 +640,19 @@ private func hostKeyFingerprint(_ key: NIOSSHPublicKey) -> String? {
     return "v1:" + Data(hasher.finalize()).base64EncodedString()
 }
 
+/// Test seam (ShioKitTests): fingerprint freshly-minted keys of the types
+/// NIOSSH can offer. The regression alarm for `hostKeyFingerprint`'s Mirror
+/// going stale after an NIOSSH bump — if these return nil, TOFU pinning has
+/// silently died and CI should scream before a user's pin ever fails closed.
+enum HostKeyFingerprintProbe {
+    static func ed25519(_ key: Curve25519.Signing.PrivateKey = .init()) -> String? {
+        hostKeyFingerprint(NIOSSHPrivateKey(ed25519Key: key).publicKey)
+    }
+    static func p256(_ key: P256.Signing.PrivateKey = .init()) -> String? {
+        hostKeyFingerprint(NIOSSHPrivateKey(p256Key: key).publicKey)
+    }
+}
+
 /// Validates the server's host key with trust-on-first-use: pin the key the
 /// first time we see a `host:port`, accept it unchanged thereafter, and refuse
 /// if it changes (MITM / reinstall — surfaced as `.hostKeyChanged`).
@@ -656,9 +669,16 @@ private final class SSHHostKeyDelegate: NIOSSHClientServerAuthenticationDelegate
         validationCompletePromise: EventLoopPromise<Void>
     ) {
         guard let fp = hostKeyFingerprint(hostKey) else {
-            // Fail-open by design (an NIOSSH internals change must not brick
-            // every connection) — but say so loudly: this silently disables
-            // TOFU pinning for the host.
+            if ShioKnownHosts.fingerprint(for: hostPort) != nil {
+                // A pin EXISTS but the offered key can't be fingerprinted.
+                // Failing open here would let any key through on exactly the
+                // hosts the user already trusts — fail closed as a key change.
+                validationCompletePromise.fail(SSHClient.SSHError.hostKeyChanged)
+                return
+            }
+            // No pin yet: fail-open by design (an NIOSSH internals change must
+            // not brick first contact) — but say so loudly: this silently
+            // disables TOFU pinning for the host.
             print("[shio] WARNING: host key for \(hostPort) could not be fingerprinted — accepting WITHOUT pinning (NIOSSH internals changed?)")
             validationCompletePromise.succeed(())
             return
