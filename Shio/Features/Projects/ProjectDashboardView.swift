@@ -94,7 +94,9 @@ struct ProjectDashboardView: View {
         HStack(spacing: 18) {
             if glance.changes > 0 {
                 glanceItem { ShioStatusDot(status: .warning) } label: {
-                    Text("\(glance.changes)").foregroundStyle(ShioTheme.warning) + Text(" changes")
+                    // Text interpolation, not `+` (deprecated in iOS 26) —
+                    // keeps the count warning-tinted inside a default-tinted label.
+                    Text("\(Text("\(glance.changes)").foregroundStyle(ShioTheme.warning)) changes")
                 }
             }
             if glance.working > 0 {
