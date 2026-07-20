@@ -10,12 +10,19 @@
 
 ## 1. The loop, watched in one sitting (the wedge)
 
-- [ ] Start a real agent (Claude Code) in a repo on the Mac (a `shio-*` tmux session).
-- [ ] Let it hit a y/n prompt → iPhone banners "… needs you" (Mac watcher fired the Signal).
-- [ ] **From the lock screen**, long-press → Approve → the keystroke lands in tmux and the agent proceeds.
-- [ ] Tap a fresh banner instead → the app opens INTO the right project/terminal (ConnectRouter, deviceID route).
-- [ ] Repeat with the app force-quit before the banner — approve must still land (delegate set in didFinishLaunching).
-- [ ] Two devices answering the same prompt in the same window → exactly one keystroke lands (dedupe + waiting-guard).
+The on-demand trigger is `scripts/agent-drill.sh` — a fake agent that walks
+running → y/n-prompt on cue and REPORTS what keystrokes land (including
+duplicates). Run it inside any Shio repo terminal on the Mac; each bullet is
+one drill round. Finish with one real Claude Code run as the final proof.
+
+- [ ] Drill round: ⚑ appears on the Mac dashboard/rail within ~4s of the prompt; iPhone banners "Claude Code needs you".
+- [ ] **From the lock screen**, long-press → Approve → the drill prints `received: 'y'` and `✓ no duplicate keystroke`.
+- [ ] Fresh round, tap the banner instead → the app opens INTO the right project/terminal (ConnectRouter, deviceID route).
+- [ ] Fresh round with the app force-quit before the banner — approve must still land (delegate set in didFinishLaunching).
+- [ ] Two devices answering the same prompt in the same window → the drill must NOT print `⚠ DUPLICATE INJECTION`.
+- [ ] Answer at the Mac keyboard, then immediately tap Approve on the phone → still no duplicate (the still-waiting guard).
+- [ ] `--tease` round: the phone stays silent for the whole round (false-ping bias).
+- [ ] The real thing once: Claude Code blocks on y/n → push → lock-screen Approve → it proceeds.
 
 ## 2. Reconnect truth (new since June — the Mac state machine)
 
