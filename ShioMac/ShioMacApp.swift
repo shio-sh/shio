@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import Sparkle
 
 /// Shio for Mac — a native AppKit/SwiftUI app hosting libghostty (NOT Mac
@@ -42,7 +43,10 @@ struct ShioMacApp: App {
             // copy:/paste: to the focused GhosttyMacSurface via the responder
             // chain, so no custom Edit items are needed.
             CommandGroup(after: .newItem) {
-                Button("New Shell") { model.newLocalTab() }
+                // The escape hatch: an EXTRA indexed shell on the current
+                // place's machine ("This Mac · 2") — its rail row lives
+                // exactly as long as it does.
+                Button("New Shell Here") { model.newShellHere() }
                     .keyboardShortcut("t", modifiers: .command)
                 Button("Command Palette…") { model.showingCommandPalette.toggle() }
                     .keyboardShortcut("k", modifiers: .command)
@@ -324,6 +328,72 @@ final class MacTerminalModel {
         addTab(.shell(GhosttyMacSurface(backend: .local)), title: "This Mac", isShell: true)
     }
 
+    /// This Mac's ONE shell — focus it if alive, else open it.
+    func openLocalShell() {
+        if let existing = tabs.first(where: { $0.isShellTab && $0.title == "This Mac" }) {
+            focus(existing)
+        } else {
+            newLocalTab()
+        }
+    }
+
+    /// The escape hatch (⌘T): an ADDITIONAL indexed shell on the current
+    /// place's machine — "This Mac · 2". Its rail row exists while the shell
+    /// does, then folds away. Anywhere that isn't a remote place means this
+    /// Mac; with no shell yet on the machine, this opens its first.
+    func newShellHere() {
+        var base = "This Mac"
+        var remote: MacSSHSession? = nil
+        if canvas == .terminal, let pane = selectedTab?.root.firstLeafPane,
+           case .ssh(let s) = pane.content {
+            base = shellTitle(matching: s)
+            remote = s
+        }
+        let next = nextShellIndex(base: base)
+        let title = next == 1 ? base : "\(base) · \(next)"
+        if let remote {
+            // Reuse the cross-device tmux naming (shio-<host>, shio-<host>-1,
+            // …) so the phone resumes these too.
+            let session = MacSSHSession(host: remote.hostName, port: remote.port,
+                                        username: remote.username, password: nil,
+                                        resumeCommand: TmuxResume.resumeCommand(for: remote.hostName,
+                                                                                index: next - 1))
+            openSSH(session, title: title, isShell: true)
+        } else {
+            addTab(.shell(GhosttyMacSurface(backend: .local)), title: title, isShell: true)
+        }
+    }
+
+    /// A machine's shell title on the rail ("This Mac" for the self host).
+    static func shellTitle(for host: Host) -> String {
+        MacSelfHost.isThisMac(host) ? "This Mac" : host.name
+    }
+
+    /// The saved machine's display name for an SSH place; the raw hostname
+    /// stands in when the machine isn't saved.
+    private func shellTitle(matching session: MacSSHSession) -> String {
+        let host = Self.fetchHosts().first {
+            $0.hostname == session.hostName && $0.username == session.username && $0.port == session.port
+        }
+        return host.map(Self.shellTitle(for:)) ?? session.hostName
+    }
+
+    /// 1 for the machine's first shell (the base, unsuffixed), else max + 1.
+    private func nextShellIndex(base: String) -> Int {
+        let indices = tabs.filter(\.isShellTab).compactMap { tab -> Int? in
+            if tab.title == base { return 1 }
+            guard tab.title.hasPrefix("\(base) · "),
+                  let n = Int(tab.title.dropFirst(base.count + 3)) else { return nil }
+            return n
+        }
+        return (indices.max() ?? 0) + 1
+    }
+
+    private static func fetchHosts() -> [Host] {
+        let d = FetchDescriptor<Host>(sortBy: [SortDescriptor(\.name)])
+        return ((try? ShioModelContainer.shared.mainContext.fetch(d)) ?? []).dedupedByIdentity
+    }
+
     /// A repo's terminal is STANDING — opening it again refocuses the
     /// existing tab instead of spawning a second one.
     private func focusTab(named name: String) -> Bool {
@@ -406,12 +476,24 @@ final class MacTerminalModel {
         Task { await session.connect() }
     }
 
-    /// Connect to a saved machine (key auth, or a one-shot password for the
-    /// first connect before the machine has authorized the key).
+    /// The machine's ONE shell — focus it if alive, else connect (key auth,
+    /// or a one-shot password for the first connect before the machine has
+    /// authorized the key). Connecting again never spawns a second shell;
+    /// that's what New Shell Here is for.
     func connect(to host: Host, password: String? = nil) {
+        let title = Self.shellTitle(for: host)
+        if let existing = tabs.first(where: { $0.isShellTab && $0.title == title }) {
+            // Fresh credentials mean a fresh connection — replace, don't stack.
+            guard password != nil else { focus(existing); return }
+            closeTab(existing.id)
+        }
+        if MacSelfHost.isThisMac(host) {
+            newLocalTab()   // never SSH into ourselves
+            return
+        }
         let session = MacSSHSession(host: host.hostname, port: host.port,
                                     username: host.username, password: password)
-        openSSH(session, title: host.name, isShell: true)
+        openSSH(session, title: title, isShell: true)
     }
 
     // MARK: Hibernation (the RAM lever tmux makes safe)
@@ -503,6 +585,7 @@ final class MacTerminalModel {
     func go(to place: RailMap.Place) {
         switch place {
         case .repo(let repo): open(repo: repo)
+        case .machine(let host): connect(to: host)
         case .shell(let tab): focus(tab)
         }
     }
@@ -512,6 +595,7 @@ final class MacTerminalModel {
         guard canvas == .terminal, let tab = selectedTab else { return false }
         switch place {
         case .repo(let repo): return !tab.isShellTab && tab.title == repo.name
+        case .machine(let host): return tab.isShellTab && tab.title == Self.shellTitle(for: host)
         case .shell(let t): return t.id == tab.id
         }
     }
@@ -523,7 +607,27 @@ final class MacTerminalModel {
         let rows = selectedProject.map { ProjectRows.rows(for: $0) } ?? []
         map.agents = rows.filter { $0.agent != .none }
         map.repos = rows
-        map.shells = tabs.filter(\.isShellTab).map { .tab($0) }
+
+        // SHELLS is the permanent machine map (This Mac leads), each row the
+        // machine's one shell; indexed escape-hatch shells ride under their
+        // machine while they exist.
+        var claimed = Set<UUID>()
+        let shellTabs = tabs.filter(\.isShellTab)
+        for host in Self.fetchHosts().sorted(by: { a, _ in MacSelfHost.isThisMac(a) }) {
+            map.shells.append(.machine(host))
+            let base = Self.shellTitle(for: host)
+            claimed.formUnion(shellTabs.filter { $0.title == base }.map(\.id))
+            for tab in shellTabs where tab.title.hasPrefix("\(base) · ") {
+                map.shells.append(.tab(tab))
+                claimed.insert(tab.id)
+            }
+        }
+        // A shell whose machine record is gone still gets a row while it
+        // lives — nothing on screen may silently vanish.
+        for tab in shellTabs where !claimed.contains(tab.id) {
+            map.shells.append(.tab(tab))
+        }
+
         let shellPlaces = map.shells.map(\.place)
         map.places = map.agents.map { .repo($0.repo) }
             + map.repos.map { .repo($0.repo) }
@@ -538,19 +642,24 @@ final class MacTerminalModel {
 struct RailMap {
     enum Place {
         case repo(Repo)
+        case machine(Host)
         case shell(WorkspaceTab)
     }
 
-    /// A row in the SHELLS group.
+    /// A row in the SHELLS group: a machine (permanent — its one shell), or
+    /// an indexed escape-hatch shell (alive only while it exists).
     enum ShellRow: Identifiable {
+        case machine(Host)
         case tab(WorkspaceTab)
         var id: AnyHashable {
             switch self {
+            case .machine(let h): return h.persistentModelID
             case .tab(let t): return t.id
             }
         }
         var place: Place {
             switch self {
+            case .machine(let h): return .machine(h)
             case .tab(let t): return .shell(t)
             }
         }

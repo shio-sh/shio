@@ -148,7 +148,8 @@ struct CommandPalette: View {
         var c: [ShioCommand] = []
 
         // Terminal
-        c.append(.init(title: "New Shell", symbol: "plus.square", shortcut: "⌘T") { model.newLocalTab() })
+        c.append(.init(title: "New Shell Here", subtitle: "an extra shell on this machine",
+                       symbol: "plus.square", shortcut: "⌘T") { model.newShellHere() })
         c.append(.init(title: "Split Right", symbol: "rectangle.split.2x1", shortcut: "⌘D") { model.splitFocused(.horizontal) })
         c.append(.init(title: "Split Down", symbol: "rectangle.split.1x2", shortcut: "⇧⌘D") { model.splitFocused(.vertical) })
         c.append(.init(title: "Leave Place", subtitle: "free the terminal — tmux keeps it alive",
@@ -156,7 +157,7 @@ struct CommandPalette: View {
         c.append(.init(title: "Clear Terminal", symbol: "clear", shortcut: "⌃L") {
             NSApp.sendAction(#selector(GhosttyMacSurface.terminalClearScreen(_:)), to: nil, from: nil)
         })
-        c.append(.init(title: "Open Terminal on This Mac", symbol: "laptopcomputer") { model.newLocalTab() })
+        c.append(.init(title: "Open Terminal on This Mac", symbol: "laptopcomputer") { model.openLocalShell() })
 
         // Navigate
         c.append(.init(title: "Go to Dashboard", symbol: "square.grid.2x2", shortcut: "⇧⌘P") { model.canvas = .dashboard })

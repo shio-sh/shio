@@ -137,6 +137,12 @@ struct TerminalWorkspaceView: View {
                 ShioPresenceGlyph(activity: act == .finished ? .none : act, size: 12)
             }
         } trailing: {
+            // The escape hatch's small in-place affordance — shell places only.
+            if tab.isShellTab {
+                MacHeaderIconButton(systemImage: "plus.square", help: "New shell here (⌘T)") {
+                    model.newShellHere()
+                }
+            }
             MacHeaderIconButton(systemImage: "rectangle.split.2x1", help: "Split right (⌘D)") {
                 model.splitFocused(.horizontal)
             }
@@ -175,9 +181,9 @@ struct TerminalWorkspaceView: View {
             if let tab = model.selectedTab {
                 SplitContainer(tab: tab, node: tab.root).id(tab.id)
             } else {
-                // Closing the last tab lands here — an intentional empty state,
-                // never a blank pane (which read as "the app closed").
-                EmptyTerminalState { model.newLocalTab() }
+                // Leaving the last place lands here — an intentional empty
+                // state, never a blank pane (which read as "the app closed").
+                EmptyTerminalState { model.openLocalShell() }
             }
         }
         .overlay(alignment: .topTrailing) {

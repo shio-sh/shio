@@ -92,13 +92,14 @@ struct MacRail: View {
             ForEach(map.repos) { repoRow($0) }
         }
 
-        railHeader("shells", add: { model.newLocalTab() }, help: "New shell on this Mac (⌘T)")
+        railHeader("shells", add: { model.newShellHere() }, help: "New shell here (⌘T)")
             .padding(.top, map.agents.isEmpty && model.selectedProject == nil ? 0 : 6)
         ForEach(map.shells) { shellRow($0) }
     }
 
     @ViewBuilder private func shellRow(_ row: RailMap.ShellRow) -> some View {
         switch row {
+        case .machine(let host): MachineShellRow(model: model, host: host)
         case .tab(let tab): ShellRailRow(model: model, tab: tab)
         }
     }
@@ -308,7 +309,28 @@ private struct RailRow<Icon: View, Trailing: View>: View {
     }
 }
 
-/// A loose shell in the rail — select on click, ✕ reveals on hover.
+/// A machine's permanent shell row — part of the map, not a lifecycle:
+/// clicking focuses the machine's one shell (connecting if needed). No ✕ —
+/// you leave a place (⌘W); the row stays.
+private struct MachineShellRow: View {
+    @Bindable var model: MacTerminalModel
+    let host: Host
+
+    var body: some View {
+        let title = MacTerminalModel.shellTitle(for: host)
+        let isSel = model.canvas == .terminal
+            && model.selectedTab?.isShellTab == true
+            && model.selectedTab?.title == title
+        RailRow(title: title, selected: isSel, action: { model.connect(to: host) }) {
+            Text("%")
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textTertiary)
+        } trailing: { EmptyView() }
+    }
+}
+
+/// An indexed escape-hatch shell ("This Mac · 2") — its row lives while the
+/// shell does; ✕ (or ⌘W) leaves it and the row folds away.
 private struct ShellRailRow: View {
     @Bindable var model: MacTerminalModel
     let tab: WorkspaceTab
@@ -336,7 +358,7 @@ private struct ShellRailRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help("Close shell (⌘W)")
+                    .help("Leave — the row folds away (⌘W)")
                 }
             }
             .padding(.horizontal, 10)
