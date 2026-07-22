@@ -178,21 +178,9 @@ struct PadRootView: View {
                 }
             }
         }
-        if !dedupedHosts.isEmpty {
-            railHeader("shells")
-                .padding(.top, items.isEmpty ? 0 : 6)
-            ForEach(dedupedHosts) { host in
-                railRow(title: host.name,
-                        selected: isOpenShell(host),
-                        action: { openShell(host) }) {
-                    Text("%").font(.system(size: 11.5, design: .monospaced))
-                        .foregroundStyle(ShioTheme.textTertiary)
-                } trailing: { EmptyView() }
-            }
-        }
         if let project = selected, !project.sortedRepos.isEmpty {
             railHeader("repos")
-                .padding(.top, 6)
+                .padding(.top, items.isEmpty ? 0 : 6)
             ForEach(project.sortedRepos) { repo in
                 railRow(title: repo.name,
                         selected: isOpenRepo(named: repo.name),
@@ -204,6 +192,28 @@ struct PadRootView: View {
                     if m.dirty > 0 {
                         ShioGitStatusLine(model: m, compact: true, size: 11)
                     }
+                }
+            }
+        }
+        if !dedupedHosts.isEmpty {
+            railHeader("shells")
+                .padding(.top, 6)
+            ForEach(dedupedHosts) { host in
+                railRow(title: host.name,
+                        selected: isOpenShell(host),
+                        action: { openShell(host) }) {
+                    Text("%").font(.system(size: 11.5, design: .monospaced))
+                        .foregroundStyle(ShioTheme.textTertiary)
+                } trailing: { EmptyView() }
+                // Indexed escape-hatch shells ("name · 2") ride under their
+                // machine while they exist, then fold away.
+                ForEach(extraShells(host)) { session in
+                    railRow(title: session.displayName,
+                            selected: canvas == .terminal(session.id),
+                            action: { openExtraShell(session) }) {
+                        Text("%").font(.system(size: 11.5, design: .monospaced))
+                            .foregroundStyle(ShioTheme.textTertiary)
+                    } trailing: { EmptyView() }
                 }
             }
         }
@@ -340,10 +350,26 @@ struct PadRootView: View {
         return session.displayName == name
     }
 
+    /// The machine row lights only for its BASE shell — an indexed shell has
+    /// its own row to light.
     private func isOpenShell(_ host: Host) -> Bool {
         guard case .terminal(let id) = canvas,
               let session = sessionStore.sessions.first(where: { $0.id == id }) else { return false }
         return session.projectID == nil && session.hostID == host.persistentModelID
+            && session.viewModel.sessionIndex == 0
+    }
+
+    /// Indexed escape-hatch shells alive on this machine (beyond the base).
+    private func extraShells(_ host: Host) -> [SessionStore.Session] {
+        sessionStore.sessions.filter {
+            $0.projectID == nil && $0.hostID == host.persistentModelID
+                && $0.viewModel.sessionIndex > 0
+        }
+    }
+
+    private func openExtraShell(_ session: SessionStore.Session) {
+        sessionStore.switchTo(session)
+        canvas = .terminal(session.id)
     }
 
     private func select(_ project: Project) {

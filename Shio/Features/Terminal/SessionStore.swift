@@ -210,7 +210,8 @@ final class SessionStore {
             startDirectory: startDir,
             cloneURL: cloneURL
         )
-        let displayName = nextIndex == 0 ? baseName : "\(baseName) (\(nextIndex + 1))"
+        // Places vocabulary: indexed escape-hatch shells read "name · 2".
+        let displayName = nextIndex == 0 ? baseName : "\(baseName) · \(nextIndex + 1)"
         let session = Session(
             hostID: host.persistentModelID,
             projectID: project?.persistentModelID,
