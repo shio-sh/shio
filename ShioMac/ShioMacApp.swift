@@ -76,17 +76,22 @@ struct ShioMacApp: App {
                 Button("Files") { model.canvas = .files }
                     .keyboardShortcut("f", modifiers: [.command, .shift])
             }
-            CommandMenu("Repos") {
-                Button("Close Pane") { model.closeSelectedTab() }
-                    .keyboardShortcut("w", modifiers: .command)
+            CommandMenu("Places") {
+                // ⌘W: furniture closes (a split pane); a place is LEFT — the
+                // renderer frees, tmux keeps it alive, the rail row remains.
+                Button(model.selectedTab?.isSinglePane == false ? "Close Pane" : "Leave Place") {
+                    model.leavePlace()
+                }
+                .keyboardShortcut("w", modifiers: .command)
                 Divider()
-                Button("Next") { model.selectAdjacentTab(1) }
+                Button("Next Place") { model.selectAdjacentPlace(1) }
                     .keyboardShortcut("]", modifiers: [.command, .shift])
-                Button("Previous") { model.selectAdjacentTab(-1) }
+                Button("Previous Place") { model.selectAdjacentPlace(-1) }
                     .keyboardShortcut("[", modifiers: [.command, .shift])
                 Divider()
+                // ⌘1–9 mirror the rail top-to-bottom (agents → repos → shells).
                 ForEach(1...9, id: \.self) { n in
-                    Button("Select \(n)") { model.selectTab(at: n - 1) }
+                    Button("Place \(n)") { model.selectPlace(at: n - 1) }
                         .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
                 }
             }
@@ -455,31 +460,108 @@ final class MacTerminalModel {
         persistTabs()
     }
 
-    /// ⌘W. Closes the focused **pane**; if that was the tab's only pane, closes
-    /// the tab. Only acts when a terminal is showing, so it never invisibly
-    /// kills a background tab/pane while you're on the dashboard or in Files.
-    /// Closing the last tab lands on the empty-terminal state (the window
-    /// stays — the red traffic light closes the window).
-    func closeSelectedTab() {
+    /// ⌘W. On a split it closes the focused **pane** — furniture. On a
+    /// single-pane place it LEAVES: the renderer frees (the closeTab
+    /// machinery; tmux keeps the place alive) and you land back on the
+    /// dashboard. The rail row remains — places don't close; only an indexed
+    /// escape-hatch shell's row folds away with it. Only acts while a
+    /// terminal is showing, so it never invisibly kills background work.
+    func leavePlace() {
         guard canvas == .terminal, let tab = selectedTab else { return }
         if tab.isSinglePane {
             closeTab(tab.id)
+            canvas = .dashboard
         } else {
             tab.closeFocusedPane()
         }
     }
 
-    func selectTab(at index: Int) {
-        if tabs.indices.contains(index) { selectedTabID = tabs[index].id }
+    // MARK: The rail map (places)
+
+    /// Go to the n-th rail row (⌘1–9) — the rail order IS the shortcut order.
+    func selectPlace(at index: Int) {
+        let places = railMap().places
+        guard places.indices.contains(index) else { return }
+        go(to: places[index])
     }
 
-    /// Cycle the selection by `delta` (wraps around).
-    func selectAdjacentTab(_ delta: Int) {
-        guard !tabs.isEmpty,
-              let id = selectedTabID,
-              let i = tabs.firstIndex(where: { $0.id == id }) else { return }
-        let n = tabs.count
-        selectedTabID = tabs[((i + delta) % n + n) % n].id
+    /// Walk the map (⇧⌘] / ⇧⌘[) — cycles the unique places in rail order
+    /// (the agents group mirrors repos, so it's skipped).
+    func selectAdjacentPlace(_ delta: Int) {
+        let cycle = railMap().cycle
+        guard !cycle.isEmpty else { return }
+        let next: Int
+        if let i = cycle.firstIndex(where: isCurrent) {
+            let n = cycle.count
+            next = ((i + delta) % n + n) % n
+        } else {
+            next = delta > 0 ? 0 : cycle.count - 1
+        }
+        go(to: cycle[next])
     }
+
+    func go(to place: RailMap.Place) {
+        switch place {
+        case .repo(let repo): open(repo: repo)
+        case .shell(let tab): focus(tab)
+        }
+    }
+
+    /// Whether a place is the one on screen.
+    private func isCurrent(_ place: RailMap.Place) -> Bool {
+        guard canvas == .terminal, let tab = selectedTab else { return false }
+        switch place {
+        case .repo(let repo): return !tab.isShellTab && tab.title == repo.name
+        case .shell(let t): return t.id == tab.id
+        }
+    }
+
+    /// ONE builder feeds both what the rail draws and what ⌘1–9 / ⇧⌘]
+    /// target, so the keys can never drift from the pixels.
+    func railMap() -> RailMap {
+        var map = RailMap()
+        let rows = selectedProject.map { ProjectRows.rows(for: $0) } ?? []
+        map.agents = rows.filter { $0.agent != .none }
+        map.repos = rows
+        map.shells = tabs.filter(\.isShellTab).map { .tab($0) }
+        let shellPlaces = map.shells.map(\.place)
+        map.places = map.agents.map { .repo($0.repo) }
+            + map.repos.map { .repo($0.repo) }
+            + shellPlaces
+        map.cycle = map.repos.map { .repo($0.repo) } + shellPlaces
+        return map
+    }
+}
+
+/// The rail's display model: the three groups in display order (agents →
+/// repos → shells) plus the flattened `places` the shortcuts index into.
+struct RailMap {
+    enum Place {
+        case repo(Repo)
+        case shell(WorkspaceTab)
+    }
+
+    /// A row in the SHELLS group.
+    enum ShellRow: Identifiable {
+        case tab(WorkspaceTab)
+        var id: AnyHashable {
+            switch self {
+            case .tab(let t): return t.id
+            }
+        }
+        var place: Place {
+            switch self {
+            case .tab(let t): return .shell(t)
+            }
+        }
+    }
+
+    var agents: [RepoRowVM] = []
+    var repos: [RepoRowVM] = []
+    var shells: [ShellRow] = []
+    /// Every visible row top-to-bottom — the ⌘1–9 targets.
+    var places: [Place] = []
+    /// Mirror-free places for next/previous cycling.
+    var cycle: [Place] = []
 }
 

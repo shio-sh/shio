@@ -74,30 +74,33 @@ struct MacRail: View {
 
     // MARK: groups
 
+    // The map, in place order (agents → repos → shells) — the same RailMap
+    // the ⌘1–9 shortcuts index, so keys and pixels can't drift.
     @ViewBuilder private var groups: some View {
-        let rows = model.selectedProject.map { ProjectRows.rows(for: $0) } ?? []
-        let live = rows.filter { $0.agent != .none }
+        let map = model.railMap()
 
         // Empty-states law: AGENTS only exists while presence is live.
-        if !live.isEmpty {
+        if !map.agents.isEmpty {
             railHeader("agents")
-            ForEach(live) { agentRow($0) }
+            ForEach(map.agents) { agentRow($0) }
         }
-
-        railHeader("shells", add: { model.newLocalTab() }, help: "New shell on this Mac (⌘T)")
-            .padding(.top, live.isEmpty ? 0 : 6)
-        ForEach(shellTabs) { ShellRailRow(model: model, tab: $0) }
 
         if let project = model.selectedProject {
             railHeader("repos", add: { model.addRepoToProject = project },
                        help: "Add a repo to \(project.name)")
-                .padding(.top, 6)
-            ForEach(rows) { repoRow($0) }
+                .padding(.top, map.agents.isEmpty ? 0 : 6)
+            ForEach(map.repos) { repoRow($0) }
         }
+
+        railHeader("shells", add: { model.newLocalTab() }, help: "New shell on this Mac (⌘T)")
+            .padding(.top, map.agents.isEmpty && model.selectedProject == nil ? 0 : 6)
+        ForEach(map.shells) { shellRow($0) }
     }
 
-    private var shellTabs: [WorkspaceTab] {
-        model.tabs.filter(\.isShellTab)
+    @ViewBuilder private func shellRow(_ row: RailMap.ShellRow) -> some View {
+        switch row {
+        case .tab(let tab): ShellRailRow(model: model, tab: tab)
+        }
     }
 
     private func agentRow(_ row: RepoRowVM) -> some View {
