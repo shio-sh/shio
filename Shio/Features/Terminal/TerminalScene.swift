@@ -16,6 +16,8 @@ struct TerminalScene: View {
     @State private var showingDiagnose: Bool = false
     @State private var showingKeyReview: Bool = false
     @State private var showingInspector: Bool = false
+    /// The map (tap the title): the rail's grammar as a sheet.
+    @State private var showingMap: Bool = false
     @State private var presentedLink: IdentifiableURL?
     /// Live SSH forward backing a loopback OAuth redirect, torn down when the
     /// in-app browser closes.
@@ -101,6 +103,14 @@ struct TerminalScene: View {
                     .presentationDragIndicator(.visible)
             }
         }
+        // The map — the same grammar as every rail: AGENTS / REPOS / SHELLS
+        // for the current project. Tapping a row switches this terminal in
+        // place; the fullscreen never tears down.
+        .sheet(isPresented: $showingMap) {
+            PlaceMapSheet()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
         .onAppear { store.isTerminalPresented = true }
         .onDisappear { store.isTerminalPresented = false }
         // Broadcast the current session as a Handoff activity so iPad /
@@ -184,18 +194,30 @@ struct TerminalScene: View {
 
             presenceGlyph
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(store.activeSession?.displayName ?? "")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(ShioTheme.textPrimary)
-                    .lineLimit(1).truncationMode(.middle)
-                if let sub = terminalSub {
-                    Text(sub)
-                        .font(.system(size: 11, design: .monospaced))
+            // The title is the way to the map — tap the name, get the rail's
+            // grammar as a sheet.
+            Button { Haptics.tap(); showingMap = true } label: {
+                HStack(spacing: 6) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(store.activeSession?.displayName ?? "")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(ShioTheme.textPrimary)
+                            .lineLimit(1).truncationMode(.middle)
+                        if let sub = terminalSub {
+                            Text(sub)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(ShioTheme.textTertiary)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                    }
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
                         .foregroundStyle(ShioTheme.textTertiary)
-                        .lineLimit(1).truncationMode(.middle)
                 }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open the map")
 
             Spacer(minLength: 0)
 
@@ -241,28 +263,11 @@ struct TerminalScene: View {
         return [agent, "tmux", machine].compactMap(\.self).joined(separator: " · ")
     }
 
-    /// The right-side menu button. Lists all live terminals across machines
-    /// and offers "New terminal on <current machine>". Tap selects; long
-    /// press / swipe-to-delete closes.
+    /// The ⋯ menu. Switching lives in the map (tap the title) — this keeps
+    /// only the escape hatch ("New shell here") and leaving.
     @ViewBuilder
     private var sessionsMenu: some View {
         Menu {
-            if !store.sessions.isEmpty {
-                Section("Active") {
-                    ForEach(store.sessions) { session in
-                        Button {
-                            Haptics.tap()
-                            store.switchTo(session)
-                        } label: {
-                            Label(
-                                session.displayName,
-                                systemImage: session.id == store.activeSession?.id ? "checkmark" : "circle"
-                            )
-                        }
-                    }
-                }
-            }
-
             if let currentHostID = store.activeSession?.hostID,
                let host = currentHost(id: currentHostID) {
                 Section {
@@ -270,7 +275,7 @@ struct TerminalScene: View {
                         Haptics.light()
                         store.createNewSession(on: host)
                     } label: {
-                        Label("New terminal on \(host.name)", systemImage: "plus")
+                        Label("New shell on \(host.name)", systemImage: "plus")
                     }
                 }
             }
@@ -286,13 +291,13 @@ struct TerminalScene: View {
                 }
             }
         } label: {
-            Image(systemName: store.sessions.count > 1 ? "rectangle.stack.fill" : "ellipsis.circle")
+            Image(systemName: "ellipsis.circle")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(ShioTheme.textPrimary)
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
         }
-        .accessibilityLabel("Open terminals")
+        .accessibilityLabel("More")
     }
 
     /// Look up a Host by its SwiftData PersistentIdentifier. Used by the
@@ -453,6 +458,194 @@ struct TerminalScene: View {
         guard let m = viewModel?.hostKeyMismatch else { return base }
         let offered = m.offered.map(ShioKnownHosts.shortFingerprint) ?? "unreadable"
         return "Pinned \(ShioKnownHosts.shortFingerprint(m.pinned)) → offered \(offered). " + base
+    }
+}
+
+// MARK: - The map (tap the title)
+
+/// The rail's grammar as a sheet under the fullscreen terminal: AGENTS
+/// (live, needs-you badged) / REPOS / SHELLS for the scoped project, plus
+/// the project switcher. Tapping a row switches the terminal to that place
+/// in place — the fullscreen never tears down.
+private struct PlaceMapSheet: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
+    /// A switcher pick; nil scopes to the active place's project.
+    @State private var scopedID: PersistentIdentifier?
+    @Bindable private var store = SessionStore.shared
+    private let status = ProjectStatusStore.shared
+
+    private var project: Project? {
+        if let scopedID, let p = context.model(for: scopedID) as? Project { return p }
+        if let pid = store.activeSession?.projectID,
+           let p = context.model(for: pid) as? Project { return p }
+        return projects.first
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                switcher
+                if let project {
+                    let live = ActivityFeed.items(projects: [project])
+                    // Empty-states law: AGENTS only exists while presence is live.
+                    if !live.isEmpty {
+                        header("agents")
+                        ForEach(live) { agentRow($0) }
+                    }
+                    if !project.sortedRepos.isEmpty {
+                        header("repos")
+                        ForEach(project.sortedRepos) { repoRow($0) }
+                    }
+                    let machines = project.allCheckouts.compactMap(\.host).dedupedByIdentity
+                    if !machines.isEmpty {
+                        header("shells")
+                        ForEach(machines) { shellRow($0) }
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+            .padding(.bottom, 18)
+        }
+        .background(ShioTheme.surface)
+    }
+
+    // MARK: switcher
+
+    private var switcher: some View {
+        Menu {
+            ForEach(projects) { p in
+                Button { scopedID = p.persistentModelID } label: {
+                    if p.persistentModelID == project?.persistentModelID {
+                        Label(p.name, systemImage: "checkmark")
+                    } else {
+                        Text(p.name)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 9) {
+                if let project { ProjectAvatar(project, size: 22) }
+                Text(project?.name ?? "No project")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(ShioTheme.textPrimary)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(ShioTheme.textSecondary)
+                Spacer(minLength: 4)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Switch project")
+    }
+
+    // MARK: rows
+
+    private func agentRow(_ item: ActivityItem) -> some View {
+        row(title: "\(item.agentName) · \(item.repoName)",
+            selected: isOpen(repoNamed: item.repoName),
+            action: { open(item.repo) }) {
+            ShioPresenceGlyph(activity: item.activity, size: 11.5, idle: nil)
+        } trailing: {
+            if item.activity == .waiting {
+                Text("needs you")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(ShioTheme.warning)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .overlay(Capsule().strokeBorder(ShioTheme.warning.opacity(0.4), lineWidth: 1))
+            }
+        }
+    }
+
+    private func repoRow(_ repo: Repo) -> some View {
+        row(title: repo.name,
+            selected: isOpen(repoNamed: repo.name),
+            action: { open(repo) }) {
+            ShioPresenceGlyph(activity: .none, size: 11.5)
+        } trailing: {
+            let m = GitLineFormatter.make(repo.activeCheckout.flatMap {
+                status.status(forHost: $0.host, path: $0.path)?.probe
+            })
+            if m.dirty > 0 {
+                ShioGitStatusLine(model: m, compact: true, size: 11)
+            }
+        }
+    }
+
+    private func shellRow(_ host: Host) -> some View {
+        row(title: host.name,
+            selected: isOpenShell(host),
+            action: { open(host) }) {
+            Text("%")
+                .font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
+        } trailing: { EmptyView() }
+    }
+
+    private func row<Icon: View, Trailing: View>(
+        title: String, selected: Bool, action: @escaping () -> Void,
+        @ViewBuilder icon: () -> Icon, @ViewBuilder trailing: () -> Trailing) -> some View {
+        Button(action: action) {
+            HStack(spacing: 9) {
+                icon().frame(width: 15)
+                Text(title)
+                    .font(.system(size: 13.5, design: .monospaced))
+                    .foregroundStyle(selected ? ShioTheme.accent : ShioTheme.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 6)
+                trailing()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .frame(minHeight: 44)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(selected ? ShioTheme.accentBg : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func header(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+            .tracking(2)
+            .foregroundStyle(ShioTheme.textTertiary)
+            .padding(.horizontal, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+    }
+
+    // MARK: selection + actions
+
+    private func isOpen(repoNamed name: String) -> Bool {
+        guard let active = store.activeSession else { return false }
+        return active.projectID != nil && active.displayName == name
+    }
+
+    private func isOpenShell(_ host: Host) -> Bool {
+        guard let active = store.activeSession else { return false }
+        return active.projectID == nil && active.hostID == host.persistentModelID
+    }
+
+    private func open(_ repo: Repo) {
+        guard store.openOrCreate(repo: repo) != nil else { return }
+        Haptics.tap()
+        dismiss()
+    }
+
+    private func open(_ host: Host) {
+        store.openOrCreate(host: host)
+        Haptics.tap()
+        dismiss()
     }
 }
 
