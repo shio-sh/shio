@@ -358,7 +358,7 @@ private struct ShellRailRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .help("Leave — the row folds away (⌘W)")
+                    .help("Leave. The row folds away (⌘W)")
                 }
             }
             .padding(.horizontal, 10)

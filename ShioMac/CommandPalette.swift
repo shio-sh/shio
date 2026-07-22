@@ -152,7 +152,7 @@ struct CommandPalette: View {
                        symbol: "plus.square", shortcut: "⌘T") { model.newShellHere() })
         c.append(.init(title: "Split Right", symbol: "rectangle.split.2x1", shortcut: "⌘D") { model.splitFocused(.horizontal) })
         c.append(.init(title: "Split Down", symbol: "rectangle.split.1x2", shortcut: "⇧⌘D") { model.splitFocused(.vertical) })
-        c.append(.init(title: "Leave Place", subtitle: "free the terminal — tmux keeps it alive",
+        c.append(.init(title: "Leave Place", subtitle: "tmux keeps it alive",
                        symbol: "xmark.square", shortcut: "⌘W") { model.leavePlace() })
         c.append(.init(title: "Clear Terminal", symbol: "clear", shortcut: "⌃L") {
             NSApp.sendAction(#selector(GhosttyMacSurface.terminalClearScreen(_:)), to: nil, from: nil)
