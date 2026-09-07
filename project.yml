@@ -272,6 +272,9 @@ targets:
       # Shared project dashboard (the bento) — ONE body for the Mac and iPad
       # canvases; each platform's builder + closures feed it.
       - path: Shio/Features/Projects/ProjectDashboardView.swift
+      # The repair sheet the dashboard opens for a repo that isn't checked out
+      # on any machine — shared with iOS, which reaches it from ProjectView.
+      - path: Shio/Features/Projects/RepoRepairSheet.swift
     dependencies:
       # libghostty's macOS slice uses Carbon's Text Input Source (TIS) APIs
       # for keyboard-layout handling; link it explicitly.

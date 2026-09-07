@@ -154,7 +154,7 @@ struct AddProjectSheet: View {
                 Label("Memory", systemImage: "sparkles")
             }
         } footer: {
-            Text("Travels with the project — every agent you start here begins with the same context.")
+            Text("Notes that travel with the project, on every machine you open it from.")
         }
     }
 

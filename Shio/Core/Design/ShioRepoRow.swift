@@ -15,7 +15,8 @@ struct ShioRepoRow: View {
                 Text(row.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary).lineLimit(1)
                 Spacer(minLength: 8)
                 if hovering {
-                    Text("open ›").font(.system(size: 12)).foregroundStyle(ShioTheme.textSecondary)
+                    Text(row.isPlaced ? "open ›" : "place ›")
+                        .font(.system(size: 12)).foregroundStyle(ShioTheme.textSecondary)
                 }
             }
             secondLine
@@ -30,12 +31,15 @@ struct ShioRepoRow: View {
     }
 
     private var secondLine: some View {
-        let m = GitLineFormatter.make(row.git, stale: row.gitStale)
+        let m = GitLineFormatter.make(row.git, stale: row.gitStale, placed: row.isPlaced)
         return HStack(spacing: 12) {
             ShioGitStatusLine(model: m, cleanMark: "clean")
             Spacer(minLength: 0)
-            Text(row.machines).foregroundStyle(ShioTheme.textTertiary)
-                .lineLimit(1).truncationMode(.middle)
+            // An unplaced repo has no machine to name — saying one would be a lie.
+            if !row.machines.isEmpty {
+                Text(row.machines).foregroundStyle(ShioTheme.textTertiary)
+                    .lineLimit(1).truncationMode(.middle)
+            }
         }
         .font(.system(size: 12, design: .monospaced))
         .monospacedDigit()

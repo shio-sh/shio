@@ -20,6 +20,7 @@ struct ShioGitStatusLine: View {
                     Text("⎇").foregroundStyle(ShioTheme.textTertiary)
                     Text(model.branchLabel).lineLimit(1).truncationMode(.middle)
                         .foregroundStyle(model.state == .loading || model.state == .unreachable
+                                         || model.state == .notPlaced
                                          ? ShioTheme.textTertiary : ShioTheme.textSecondary)
                 }
                 if model.hasTracking {

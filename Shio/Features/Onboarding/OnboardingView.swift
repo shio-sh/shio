@@ -122,8 +122,8 @@ struct OnboardingView: View {
 
         case .welcome:
             stepLayout(
-                title: "Your agents, in your pocket.",
-                body: "Run coding agents on your own machines and drive them from anywhere. Add a machine to begin — scan the QR it shows and Shio is in.",
+                title: "Your machines, in your pocket.",
+                body: "A real terminal for Mac, iPhone, and iPad, organized by project. Add a machine to begin — scan the QR it shows and Shio is in.",
                 primary: "Add a machine",
                 primaryAction: { showingPairing = true },
                 secondary: "Set up with Tailscale instead",

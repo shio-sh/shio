@@ -30,13 +30,21 @@ struct RepoRepairSheet: View {
                 if hosts.isEmpty {
                     // No machines at all — the repair starts one level up.
                     Section {
+                        #if os(iOS)
                         Button {
                             pairing = true
                         } label: {
                             Label("Pair your first machine…", systemImage: "qrcode.viewfinder")
                         }
+                        #else
+                        // The Mac adds machines from its own Machines canvas
+                        // (⇧⌘M), so point there rather than ship a second flow.
+                        Label("Add a machine first — Machines (⇧⌘M)",
+                              systemImage: "desktopcomputer")
+                            .foregroundStyle(ShioTheme.textSecondary)
+                        #endif
                     } footer: {
-                        Text("\(repo.name) lives on a machine Shio can't reach yet. Pair one and this repo opens right after.")
+                        Text("\(repo.name) lives on a machine Shio can't reach yet. Add one and this repo opens right after.")
                     }
                 } else {
                     Section("Machine") {
@@ -48,10 +56,7 @@ struct RepoRepairSheet: View {
                     }
                     if clones {
                         Section {
-                            TextField("/Users/you/code/\(repo.name)", text: $path)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .font(ShioFont.Mono.inline)
+                            pathField
                         } header: {
                             Text("Clone into")
                         } footer: {
@@ -59,6 +64,7 @@ struct RepoRepairSheet: View {
                         }
                     } else {
                         Section {
+                            #if os(iOS)
                             NavigationLink {
                                 if let host = selectedHost {
                                     DirectoryPickerView(host: host,
@@ -78,6 +84,16 @@ struct RepoRepairSheet: View {
                                 }
                             }
                             .disabled(selectedHost == nil)
+                            #else
+                            // The Mac's SFTP browser isn't a pushable view here,
+                            // so type the path; a local machine gets Browse…
+                            HStack {
+                                pathField
+                                if isLocalSelection {
+                                    Button("Browse…") { browseLocalFolder() }
+                                }
+                            }
+                            #endif
                         } header: {
                             Text("Repo folder")
                         } footer: {
@@ -87,7 +103,9 @@ struct RepoRepairSheet: View {
                 }
             }
             .navigationTitle("\(repo.name) isn’t on a machine yet")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 if !hosts.isEmpty {
@@ -98,9 +116,39 @@ struct RepoRepairSheet: View {
                 }
             }
             .onAppear { if selectedHost == nil { selectedHost = hosts.dedupedByIdentity.first } }
+            #if os(iOS)
             .sheet(isPresented: $pairing) { PairingView() }
+            #endif
         }
     }
+
+    /// The path field, shared by the clone-into and pick-a-folder cases.
+    /// Autocapitalization is an iOS-only modifier.
+    private var pathField: some View {
+        let field = TextField("/Users/you/code/\(repo.name)", text: $path)
+            .autocorrectionDisabled()
+            .font(ShioFont.Mono.inline)
+        #if os(iOS)
+        return field.textInputAutocapitalization(.never)
+        #else
+        return field
+        #endif
+    }
+
+    #if os(macOS)
+    /// True when the chosen machine is this Mac, where a real folder picker beats
+    /// typing a path.
+    private var isLocalSelection: Bool { MacSelfHost.isThisMac(selectedHost) }
+
+    private func browseLocalFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Use folder"
+        if panel.runModal() == .OK, let url = panel.url { path = url.path }
+    }
+    #endif
 
     private func place() {
         guard let host = selectedHost else { return }

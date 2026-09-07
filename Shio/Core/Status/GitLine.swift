@@ -4,7 +4,11 @@ import Foundation
 /// (no SwiftUI/colors) so it's shared across iOS and Mac, which render it in
 /// their own dialects. `nil` probe = not fetched yet.
 struct GitLineModel: Equatable {
-    enum State: Equatable { case clean, dirty, noRepo, gitMissing, loading, unreachable }
+    /// `notPlaced` = the repo exists but has no checkout on any machine, so
+    /// there is nothing to probe. Distinct from `loading` (a probe is coming)
+    /// and `unreachable` (a machine we can't reach right now) — those two both
+    /// resolve on their own, this one only resolves when the user places it.
+    enum State: Equatable { case clean, dirty, noRepo, gitMissing, loading, unreachable, notPlaced }
     var branch: String
     var ahead: Int
     var behind: Int
@@ -23,7 +27,14 @@ struct GitLineModel: Equatable {
 }
 
 enum GitLineFormatter {
-    static func make(_ probe: GitProbe?, stale: Bool = false) -> GitLineModel {
+    /// `placed` is false when the repo has no checkout anywhere. Without it an
+    /// unplaced repo sits on "—" forever, reading as a probe that never lands
+    /// rather than as a repo that was never given a location.
+    static func make(_ probe: GitProbe?, stale: Bool = false, placed: Bool = true) -> GitLineModel {
+        guard placed else {
+            return GitLineModel(branch: "not on any machine", ahead: 0, behind: 0,
+                                dirty: 0, state: .notPlaced)
+        }
         guard let probe else {
             return GitLineModel(branch: "—", ahead: 0, behind: 0, dirty: 0, state: .loading)
         }

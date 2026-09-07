@@ -153,7 +153,7 @@ private struct AboutView: View {
             Text("shio")
                 .font(ShioFont.wordmark(size: 32))
                 .foregroundStyle(ShioTheme.textPrimary)
-            Text("A real terminal for the agent era.")
+            Text("A real terminal for Mac, iPhone, and iPad.")
                 .font(ShioFont.callout)
                 .foregroundStyle(ShioTheme.textSecondary)
             Spacer()

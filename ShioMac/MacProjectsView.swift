@@ -5,7 +5,7 @@ import SwiftData
 /// project's overview: a 48pt header (name + quiet counts + Rename/New repo)
 /// over the shared `ProjectDashboardView` bento — outline-only cards that
 /// fill on hover, laid on a real grid so every edge lands (repos beside
-/// grounding; machines full-width below).
+/// memory; machines full-width below).
 struct MacDashboardCanvas: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context

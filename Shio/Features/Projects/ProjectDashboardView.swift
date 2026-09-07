@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// The project dashboard body — ONE bento for the Mac and iPad canvases: the
-/// glance strip, repos, machines full-width below. Rows/glance/machines
+/// glance strip, repos beside memory, machines full-width below. Rows/glance/machines
 /// arrive pre-built (`ProjectRows` on the Mac, the `ActivityFeed` builder on
 /// iOS); everything platform-bound — opening a repo, "is this host me" — is
 /// injected, so the dashboard itself stays a pure read of the shared stores.
@@ -21,12 +21,24 @@ struct ProjectDashboardView: View {
     @Environment(\.modelContext) private var context
     @State private var renameTarget: Repo?
     @State private var renameDraft = ""
+    /// A repo with no checkout anywhere. Tapping it can't open a terminal, so
+    /// it opens the repair sheet instead — the Mac had no route to this at all
+    /// before, which left an unplaced repo as a dead row.
+    @State private var repoNeedingHome: Repo?
+    @State private var editingMemory = false
+    @State private var memoryDraft = ""
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 glanceBar
-                reposCard
+                // Repos beside memory — memory is the only thing the create
+                // form captures that had no home after grounding was cut, so
+                // it both fixes a write-once field and refills the row.
+                BentoRow(ratios: [1.5, 1]) {
+                    reposCard
+                    memoryCard
+                }
                 // Machines run full-width below. No machines (no repos yet)
                 // → the card is non-existent, never a placeholder.
                 if !machines.isEmpty {
@@ -48,6 +60,19 @@ struct ProjectDashboardView: View {
             }
             Button("Cancel", role: .cancel) { renameTarget = nil }
         }
+        .sheet(item: $repoNeedingHome) { repo in
+            RepoRepairSheet(repo: repo) { _ in openRepo(repo) }
+        }
+        .sheet(isPresented: $editingMemory) {
+            MemoryEditor(text: $memoryDraft) {
+                let trimmed = memoryDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                project.notes = trimmed.isEmpty ? nil : trimmed
+                try? context.save()
+                editingMemory = false
+            } cancel: {
+                editingMemory = false
+            }
+        }
     }
 
     // MARK: glance strip (unboxed, above the bento)
@@ -61,8 +86,15 @@ struct ProjectDashboardView: View {
                     Text("\(Text("\(glance.changes)").foregroundStyle(ShioTheme.warning)) changes")
                 }
             }
-            if glance.changes == 0 {
-                Text("all quiet").font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
+            // "all quiet" used to earn its place by contrasting with an agent
+            // needing you. With nothing to contrast against it never said
+            // anything, so the strip now carries the project's actual shape.
+            Text(shapeSummary).font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
+            if unplacedCount > 0 {
+                glanceItem { ShioStatusDot(status: .warning) } label: {
+                    Text(unplacedCount == 1 ? "1 repo not placed"
+                                            : "\(unplacedCount) repos not placed")
+                }
             }
             Spacer()
             #if os(macOS)
@@ -80,6 +112,18 @@ struct ProjectDashboardView: View {
         .padding(.bottom, 18)
     }
 
+    /// Repos with no checkout on any machine — they can't be opened or probed.
+    private var unplacedCount: Int { repos.filter { !$0.isPlaced }.count }
+
+    /// "3 repos · 2 machines" — the one line that's true whatever else is going on.
+    private var shapeSummary: String {
+        let r = repos.count
+        let m = machines.count
+        let repoPart = r == 1 ? "1 repo" : "\(r) repos"
+        guard m > 0 else { return repoPart }
+        return "\(repoPart) · \(m == 1 ? "1 machine" : "\(m) machines")"
+    }
+
     private func glanceItem<Icon: View, Label: View>(@ViewBuilder icon: () -> Icon,
                                                       @ViewBuilder label: () -> Label) -> some View {
         HStack(spacing: 7) { icon(); label().foregroundStyle(ShioTheme.textSecondary) }
@@ -93,7 +137,9 @@ struct ProjectDashboardView: View {
                 cardHint("No repos yet — add one.")
             } else {
                 ForEach(repos) { row in
-                    ShioRepoRow(row: row, open: { openRepo(row.repo) })
+                    ShioRepoRow(row: row, open: {
+                        if row.isPlaced { openRepo(row.repo) } else { repoNeedingHome = row.repo }
+                    })
                         .contextMenu { rowMenu(row) }
                 }
             }
@@ -120,6 +166,24 @@ struct ProjectDashboardView: View {
 
     private func machineLabel(_ c: ProjectCheckout) -> String {
         isLocalHost(c.host) ? "This Mac" : (c.host?.name ?? "Unknown")
+    }
+
+    /// The project's memory. Captured in the create form and, until now, never
+    /// readable or editable again anywhere in the app.
+    private var memoryCard: some View {
+        BentoCard(title: "memory",
+                  addLabel: (project.notes?.isEmpty ?? true) ? "+ note" : "edit",
+                  addAction: { memoryDraft = project.notes ?? ""; editingMemory = true }) {
+            if let notes = project.notes, !notes.isEmpty {
+                Text(notes)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(ShioTheme.textSecondary)
+                    .lineLimit(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                cardHint("Context that travels with this project.")
+            }
+        }
     }
 
     private var machinesCard: some View {
@@ -164,5 +228,36 @@ private struct MachineCardRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+    }
+}
+
+/// Editing sheet for a project's memory — the free-text context that travels
+/// with the project. Shared by the Mac and iPad dashboards.
+private struct MemoryEditor: View {
+    @Binding var text: String
+    let save: () -> Void
+    let cancel: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("MEMORY")
+                .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                .tracking(2)
+                .foregroundStyle(ShioTheme.textTertiary)
+            TextEditor(text: $text)
+                .font(.system(size: 13))
+                .scrollContentBackground(.hidden)
+                .frame(minWidth: 380, minHeight: 220)
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(ShioTheme.hover))
+            HStack {
+                Spacer()
+                Button("Cancel", action: cancel).keyboardShortcut(.cancelAction)
+                Button("Save", action: save).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .background(ShioTheme.surface)
     }
 }

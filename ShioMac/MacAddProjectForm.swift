@@ -79,7 +79,7 @@ struct MacAddProjectForm: View {
                 } header: {
                     Text("Memory")
                 } footer: {
-                    Text("Travels with the project — every agent you start here begins with it.")
+                    Text("Notes that travel with the project, on every machine you open it from.")
                         .font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
                 }
             }

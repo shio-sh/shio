@@ -59,8 +59,7 @@ struct RootView: View {
                 .tint(ShioTheme.textPrimary)
                 .transition(.opacity)
         } else {
-            // The Slack frame, mobile grammar: 塩 Home / ⚑ Activity / ⋯ More
-            // on Shio's own mono tab bar.
+            // The Slack frame, mobile grammar: Home / Machines / Files.
             MainTabsView()
                 .tint(ShioTheme.textPrimary)
                 .transition(.opacity)

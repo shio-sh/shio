@@ -157,7 +157,7 @@ struct TerminalScene: View {
     // MARK: - Top chrome
 
     /// The terminal's header — the Mac chead on a phone: presence
-    /// glyph (⚑/⠋/⎇/%) + repo name + "agent · tmux · machine" + ▤.
+    /// glyph (⎇/%) + repo name + "tmux · machine" + ▤.
     @ViewBuilder
     private var topBar: some View {
         HStack(spacing: 9) {

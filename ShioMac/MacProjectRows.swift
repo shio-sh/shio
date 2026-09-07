@@ -12,7 +12,7 @@ enum ProjectRows {
         project.sortedRepos.map { repo in
             RepoRowVM(id: repo.persistentModelID, repo: repo, name: repo.name,
                      machines: machinesText(repo), git: gitProbe(repo),
-                     gitStale: gitStale(repo))
+                     gitStale: gitStale(repo), isPlaced: repo.activeCheckout != nil)
         }
     }
 
@@ -41,8 +41,9 @@ enum ProjectRows {
             repoNames[name]?.insert(repo)
         }
         for repo in project.sortedRepos {
+            // A repo with no checkout lives on no machine yet — listing it under
+            // "This Mac" invented a location and hid the fact it needs placing.
             let checkouts = repo.checkouts ?? []
-            if checkouts.isEmpty { add("This Mac", repo: repo.name, fresh: true) }
             for c in checkouts {
                 if let h = c.host, !MacSelfHost.isThisMac(h) {
                     let fresh = (h.lastConnectedAt ?? .distantPast).timeIntervalSinceNow > -3 * 24 * 3600
@@ -70,6 +71,9 @@ enum ProjectRows {
         }
         var seen = Set<String>(); var unique: [String] = []
         for n in names where !seen.contains(n) { seen.insert(n); unique.append(n) }
-        return unique.isEmpty ? "this mac" : unique.joined(separator: " · ")
+        // Empty means the repo genuinely isn't checked out anywhere. Defaulting
+        // to "this mac" here claimed a location that doesn't exist, which read
+        // as a broken git probe rather than a repo waiting to be placed.
+        return unique.joined(separator: " · ")
     }
 }

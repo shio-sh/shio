@@ -14,6 +14,10 @@ struct RepoRowVM: Identifiable {
     /// True when `git` is a last-known cache past the stale window — the row
     /// dims its git segs so old numbers never read as live.
     var gitStale: Bool = false
+    /// False when the repo has no checkout on any machine. Such a repo can't be
+    /// probed or opened, so the row says so and offers to place it instead of
+    /// showing an empty git line next to a machine name it doesn't actually have.
+    var isPlaced: Bool = true
 }
 
 /// The aggregate one-liner shown on the dashboard's glance strip.

@@ -110,14 +110,6 @@ struct HomeTabView: View {
         }
     }
 
-    private func machinesSummary(_ project: Project) -> String {
-        let names = project.allCheckouts.compactMap { $0.host?.name }
-        var seen = Set<String>(); var unique: [String] = []
-        for n in names where !seen.contains(n) { seen.insert(n); unique.append(n) }
-        if unique.isEmpty, let legacy = project.host?.name { return legacy }
-        return unique.isEmpty ? "no machine" : unique.joined(separator: " · ")
-    }
-
     private var emptyState: some View {
         VStack(spacing: ShioSpace.lg) {
             Text("塩")
@@ -214,12 +206,29 @@ private struct HomeProjectCard: View {
 
     private var whisperText: String {
         let repo = project.sortedRepos.first
+        let placed = repo?.activeCheckout != nil
         let probe = repo?.activeCheckout.flatMap { status.status(forHost: $0.host, path: $0.path)?.probe }
-        let m = GitLineFormatter.make(probe)
+        let m = GitLineFormatter.make(probe, placed: placed)
         if project.sortedRepos.isEmpty { return "⎇ no repos yet" }
-        if changes > 0 { return "⎇ \(m.branch) · \(changes) uncommitted" }
-        if m.hasTracking { return "⎇ \(m.branch) · clean" }
-        return "⎇ \(m.branch)"
+        // An unplaced repo has no branch and no machine to name — say that
+        // plainly rather than showing a dash that reads as a stalled probe.
+        if !placed { return "⎇ \(m.branch)" }
+        let head: String
+        if changes > 0 { head = "⎇ \(m.branch) · \(changes) uncommitted" }
+        else if m.hasTracking { head = "⎇ \(m.branch) · clean" }
+        else { head = "⎇ \(m.branch)" }
+        return machines.isEmpty ? head : "\(head) · \(machines)"
+    }
+
+    /// Which machines carry this project. Restored to the card: it was computed
+    /// on the parent and never rendered, so the card silently stopped saying
+    /// where the work actually lives.
+    private var machines: String {
+        let names = project.allCheckouts.compactMap { $0.host?.name }
+        var seen = Set<String>(); var unique: [String] = []
+        for n in names where !seen.contains(n) { seen.insert(n); unique.append(n) }
+        if unique.isEmpty, let legacy = project.host?.name { return legacy }
+        return unique.joined(separator: " · ")
     }
 }
 

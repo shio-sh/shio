@@ -41,7 +41,6 @@ final class ConnectRouter {
         var opened: SessionStore.Session?
         if let tmux = userInfo["sessionId"] as? String,
            let (project, checkout) = checkout(forTmuxSession: tmux, on: host) {
-            // openOrCreate grounds the checkout's skills on the way in.
             opened = SessionStore.shared.openOrCreate(project: project, checkout: checkout)
         }
         if opened == nil {

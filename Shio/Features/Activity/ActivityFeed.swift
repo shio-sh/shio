@@ -10,7 +10,7 @@ enum ActivityFeed {
         project.sortedRepos.map { repo in
             RepoRowVM(id: repo.persistentModelID, repo: repo, name: repo.name,
                      machines: machinesText(repo), git: gitProbe(repo),
-                     gitStale: gitStale(repo))
+                     gitStale: gitStale(repo), isPlaced: repo.activeCheckout != nil)
         }
     }
 
