@@ -35,14 +35,6 @@ struct TerminalScene: View {
         store.activeSession?.viewModel
     }
 
-    /// The active terminal's blocked agent, if any — drives the answer bar.
-    private var waitingSnapshot: AgentSnapshot? {
-        guard let id = store.activeSession?.id,
-              let snap = AgentStateStore.shared.snapshot(for: id),
-              snap.activity == .waiting else { return nil }
-        return snap
-    }
-
     var body: some View {
         ZStack {
             Color(hex: LibGhosttyBridge.terminalBackgroundHex)
@@ -84,18 +76,6 @@ struct TerminalScene: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             topBar
         }
-        // The agent's question is in the scrollback right above — this is the
-        // one-keystroke answer, injected straight into the live terminal.
-        .overlay(alignment: .bottom) {
-            if let viewModel, let waiting = waitingSnapshot {
-                ShioNeedsYouBar(agentName: waiting.agentName ?? "Your agent",
-                                approve: { Haptics.medium(); viewModel.terminal.onInput?("y\n") },
-                                deny: { Haptics.medium(); viewModel.terminal.onInput?("n\n") })
-                    .shadow(color: .black.opacity(0.25), radius: 10, y: 3)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
-            }
-        }
         .sheet(isPresented: $showingInspector) {
             if let session = store.activeSession {
                 TerminalGlanceSheet(session: session)
@@ -103,9 +83,9 @@ struct TerminalScene: View {
                     .presentationDragIndicator(.visible)
             }
         }
-        // The map — the same grammar as every rail: AGENTS / REPOS / SHELLS
-        // for the current project. Tapping a row switches this terminal in
-        // place; the fullscreen never tears down.
+        // The map — the same grammar as every rail: REPOS / SHELLS for the
+        // current project. Tapping a row switches this terminal in place;
+        // the fullscreen never tears down.
         .sheet(isPresented: $showingMap) {
             PlaceMapSheet()
                 .presentationDetents([.medium, .large])
@@ -240,27 +220,18 @@ struct TerminalScene: View {
         .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1) }
     }
 
-    /// Presence on this terminal — ⚑ needs-you / ⠋ working / ⎇ repo at
-    /// rest, or % for a loose shell. Mirrors the Mac terminal header.
-    /// .finished stays quiet here — the header idles at ⎇.
-    @ViewBuilder
+    /// Presence on this terminal — ⎇ repo at rest, or % for a loose shell.
+    /// Mirrors the Mac terminal header.
     private var presenceGlyph: some View {
-        if store.activeSession?.projectID == nil {
-            ShioPresenceGlyph(activity: .none, size: 13, idle: "%")
-        } else {
-            let act = store.activeSession.flatMap { AgentStateStore.shared.snapshot(for: $0.id)?.activity } ?? .none
-            ShioPresenceGlyph(activity: act == .finished ? .none : act, size: 13)
-        }
+        Text(store.activeSession?.projectID == nil ? "%" : "⎇")
+            .font(.system(size: 13, design: .monospaced))
+            .foregroundStyle(ShioTheme.textTertiary)
     }
 
-    /// "Codex · tmux · this mac" — agent (if any), the standing transport, the
-    /// machine. Drops the agent for a shell.
+    /// "tmux · this mac" — the standing transport, the machine.
     private var terminalSub: String? {
         guard let session = store.activeSession else { return nil }
-        let agent = session.projectID == nil ? nil
-            : AgentStateStore.shared.snapshot(for: session.id)?.agentName
-        let machine = session.viewModel.hostName
-        return [agent, "tmux", machine].compactMap(\.self).joined(separator: " · ")
+        return "tmux · \(session.viewModel.hostName)"
     }
 
     /// The ⋯ menu. Switching lives in the map (tap the title) — this keeps
@@ -463,10 +434,10 @@ struct TerminalScene: View {
 
 // MARK: - The map (tap the title)
 
-/// The rail's grammar as a sheet under the fullscreen terminal: AGENTS
-/// (live, needs-you badged) / REPOS / SHELLS for the scoped project, plus
-/// the project switcher. Tapping a row switches the terminal to that place
-/// in place — the fullscreen never tears down.
+/// The rail's grammar as a sheet under the fullscreen terminal: REPOS /
+/// SHELLS for the scoped project, plus the project switcher. Tapping a row
+/// switches the terminal to that place in place — the fullscreen never
+/// tears down.
 private struct PlaceMapSheet: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -488,12 +459,6 @@ private struct PlaceMapSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 switcher
                 if let project {
-                    let live = ActivityFeed.items(projects: [project])
-                    // Empty-states law: AGENTS only exists while presence is live.
-                    if !live.isEmpty {
-                        header("agents")
-                        ForEach(live) { agentRow($0) }
-                    }
                     if !project.sortedRepos.isEmpty {
                         header("repos")
                         ForEach(project.sortedRepos) { repoRow($0) }
@@ -547,28 +512,12 @@ private struct PlaceMapSheet: View {
 
     // MARK: rows
 
-    private func agentRow(_ item: ActivityItem) -> some View {
-        row(title: "\(item.agentName) · \(item.repoName)",
-            selected: isOpen(repoNamed: item.repoName),
-            action: { open(item.repo) }) {
-            ShioPresenceGlyph(activity: item.activity, size: 11.5, idle: nil)
-        } trailing: {
-            if item.activity == .waiting {
-                Text("needs you")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(ShioTheme.warning)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .overlay(Capsule().strokeBorder(ShioTheme.warning.opacity(0.4), lineWidth: 1))
-            }
-        }
-    }
-
     private func repoRow(_ repo: Repo) -> some View {
         row(title: repo.name,
             selected: isOpen(repoNamed: repo.name),
             action: { open(repo) }) {
-            ShioPresenceGlyph(activity: .none, size: 11.5)
+            Text("⎇").font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
         } trailing: {
             let m = GitLineFormatter.make(repo.activeCheckout.flatMap {
                 status.status(forHost: $0.host, path: $0.path)?.probe
@@ -661,9 +610,6 @@ private struct TerminalGlanceSheet: View {
     private var checkout: ProjectCheckout? {
         session.checkoutID.flatMap { context.model(for: $0) as? ProjectCheckout }
     }
-    private var snapshot: AgentSnapshot? {
-        AgentStateStore.shared.snapshot(for: session.id)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -690,18 +636,6 @@ private struct TerminalGlanceSheet: View {
             VStack(alignment: .leading, spacing: 0) {
                 kv("Repo") { Text(session.displayName).foregroundStyle(ShioTheme.textPrimary) }
                 kv("Machine") { Text(session.viewModel.hostName).foregroundStyle(ShioTheme.textPrimary) }
-                if let snap = snapshot, snap.activity != .none {
-                    kv("Agent") {
-                        switch snap.activity {
-                        case .waiting:
-                            Text("⚑ \(snap.agentName ?? "agent") needs you").foregroundStyle(ShioTheme.warning)
-                        case .running:
-                            Text("⠿ \(snap.agentName ?? "agent") working").foregroundStyle(ShioTheme.info)
-                        default:
-                            Text("✓ finished").foregroundStyle(ShioTheme.success)
-                        }
-                    }
-                }
                 if let checkout {
                     let m = GitLineFormatter.make(
                         ProjectStatusStore.shared.status(forHost: checkout.host, path: checkout.path)?.probe)

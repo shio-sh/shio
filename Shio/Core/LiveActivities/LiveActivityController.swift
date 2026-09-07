@@ -76,16 +76,10 @@ final class LiveActivityController {
     /// screen stops claiming "Connected" when we have no idea.
     func update(
         sessionID: UUID,
-        connectionState: String,
-        agentName: String? = nil,
-        agentActivity: String? = nil
+        connectionState: String
     ) async {
         guard let activity = lookupActivity(sessionID) else { return }
-        let state = ShioSessionAttributes.ContentState(
-            connectionState: connectionState,
-            agentName: agentName,
-            agentActivity: agentActivity
-        )
+        let state = ShioSessionAttributes.ContentState(connectionState: connectionState)
         let stale: TimeInterval = connectionState == "disconnected"
             ? Self.disconnectedStaleSeconds
             : Self.defaultStaleSeconds

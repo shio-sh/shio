@@ -38,8 +38,6 @@ struct ShioSessionLiveActivity: Widget {
                         .lineLimit(1)
                     secondaryLine(
                         state: context.state.connectionState,
-                        agentName: context.state.agentName,
-                        agentActivity: context.state.agentActivity,
                         startedAt: context.attributes.startedAt
                     )
                     .font(.system(.caption, design: .monospaced))
@@ -69,8 +67,6 @@ struct ShioSessionLiveActivity: Widget {
                             .lineLimit(1)
                         secondaryLine(
                             state: context.state.connectionState,
-                            agentName: context.state.agentName,
-                            agentActivity: context.state.agentActivity,
                             startedAt: context.attributes.startedAt
                         )
                         .font(.system(.caption, design: .monospaced))
@@ -105,11 +101,10 @@ struct ShioSessionLiveActivity: Widget {
         }
     }
 
-    /// Secondary line. Connection trouble takes priority over agent state —
-    /// a stale "waiting on you" during a drop would mislead. When connected,
-    /// show the agent glance if there is one, else a live session timer.
+    /// Secondary line. Connection trouble takes priority; when connected, a
+    /// live session timer.
     @ViewBuilder
-    private func secondaryLine(state: String, agentName: String?, agentActivity: String?, startedAt: Date) -> some View {
+    private func secondaryLine(state: String, startedAt: Date) -> some View {
         switch state {
         case "reconnecting":
             Text("Hang tight, picking the session back up…")
@@ -118,26 +113,8 @@ struct ShioSessionLiveActivity: Widget {
         case "ended":
             Text("Disconnected.")
         default:
-            if let line = agentStatusText(name: agentName, activity: agentActivity) {
-                Text(line)
-            } else {
-                Text("Live · \(startedAt, style: .timer)")
-            }
+            Text("Live · \(startedAt, style: .timer)")
         }
-    }
-
-    /// Agent glance, e.g. "Claude Code · waiting on you", or nil when idle.
-    private func agentStatusText(name: String?, activity: String?) -> String? {
-        guard let activity, !activity.isEmpty else { return nil }
-        let label: String
-        switch activity {
-        case "waiting":  label = "waiting on you"
-        case "running":  label = "working…"
-        case "finished": label = "finished — your turn"
-        default:         return nil
-        }
-        if let name { return "\(name) · \(label)" }
-        return "Agent \(label)"
     }
 
     /// Status dot — lock screen / expanded only, never the compact pill.

@@ -73,20 +73,17 @@ final class MacSSHSession: Identifiable {
     private func wire(_ client: SSHClient) {
         // SSH → terminal. ghostty_surface_write_bytes is thread-safe, but hop
         // to main to be consistent with AppKit. `DispatchQueue.main.async` is
-        // strictly FIFO so chunks render in order; the rolling tail also
-        // classifies agent activity (running / waiting / finished).
+        // strictly FIFO so chunks render in order.
         client.onOutput = { [weak self] data in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self?.surface.writeBytes(data)
-                    self?.observeForAgent(data)
                 }
             }
         }
         client.onDisconnect = { [weak self] error in
             Task { @MainActor in
                 guard let self else { return }
-                AgentStateStore.shared.clear(self.id)
                 guard !self.userInitiatedStop else {
                     self.state = .closed
                     return
@@ -94,15 +91,6 @@ final class MacSSHSession: Identifiable {
                 self.handleUnexpectedDisconnect(reason: error?.localizedDescription)
             }
         }
-    }
-
-    /// Rolling ANSI-stripped tail → AgentDetector → shared store (keyed by id).
-    private var tail = ""
-    private func observeForAgent(_ data: Data) {
-        tail += String(decoding: data, as: UTF8.self)
-        if tail.count > 8000 { tail = String(tail.suffix(8000)) }
-        let clean = AgentDetector.strip(tail)
-        AgentStateStore.shared.update(sessionID: id, AgentDetector.classify(cleanTail: clean))
     }
 
     func connect() async {
@@ -313,7 +301,6 @@ final class MacSSHSession: Identifiable {
         userInitiatedStop = true
         reconnectTask?.cancel()
         reconnectTask = nil
-        AgentStateStore.shared.clear(id)
         await client.disconnect()
         state = .closed
     }

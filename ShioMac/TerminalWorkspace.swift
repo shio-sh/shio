@@ -111,8 +111,8 @@ struct TabDescriptor: Codable {
 }
 
 /// The terminal canvas: the selected tab's terminal under its 48pt header
-/// (presence glyph + name + quiet "agent · tmux · machine" metadata). The rail
-/// owns tab switching; splits stay ⌘D / ⇧⌘D inside the canvas.
+/// (idle glyph + name + quiet "tmux · machine" metadata). The rail owns tab
+/// switching; splits stay ⌘D / ⇧⌘D inside the canvas.
 struct TerminalWorkspaceView: View {
     @Bindable var model: MacTerminalModel
 
@@ -128,14 +128,10 @@ struct TerminalWorkspaceView: View {
 
     private func terminalHead(_ tab: WorkspaceTab) -> some View {
         MacCanvasHeader(title: tab.title, sub: sub(for: tab)) {
-            // ⚑ needs-you / ⠋ working / ⎇ quiet repo / % shell — the agent's
-            // presence on this terminal. .finished stays quiet (idles at ⎇).
-            if tab.isShellTab {
-                ShioPresenceGlyph(activity: .none, size: 12, idle: "%")
-            } else {
-                let act = MacProjectAgentMonitor.shared.snapshot(forProjectNamed: tab.title)?.activity ?? .none
-                ShioPresenceGlyph(activity: act == .finished ? .none : act, size: 12)
-            }
+            // ⎇ quiet repo / % shell — a static idle mark for this terminal.
+            Text(tab.isShellTab ? "%" : "⎇")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
         } trailing: {
             // The escape hatch's small in-place affordance — shell places only.
             if tab.isShellTab {
@@ -153,25 +149,21 @@ struct TerminalWorkspaceView: View {
         }
     }
 
-    /// Quiet terminal-ish metadata: "Claude · tmux · this mac" — carrying the
+    /// Quiet terminal-ish metadata: "tmux · this mac" — carrying the
     /// connection state when it isn't the happy path.
     private func sub(for tab: WorkspaceTab) -> String {
-        let agent = tab.isShellTab ? nil
-            : MacProjectAgentMonitor.shared.snapshot(forProjectNamed: tab.title)?.agentName
-        let place: String?
         switch tab.root.firstLeafPane?.content {
-        case .shell:          place = "zsh · this mac"
-        case .project:        place = "tmux · this mac"
+        case .shell:          return "zsh · this mac"
+        case .project:        return "tmux · this mac"
         case .ssh(let s):
             switch s.state {
-            case .reconnecting: place = "reconnecting… · \(s.hostName)"
-            case .failed:       place = "disconnected · \(s.hostName)"
-            case .connecting:   place = "connecting… · \(s.hostName)"
-            default:            place = "tmux · \(s.hostName)"
+            case .reconnecting: return "reconnecting… · \(s.hostName)"
+            case .failed:       return "disconnected · \(s.hostName)"
+            case .connecting:   return "connecting… · \(s.hostName)"
+            default:            return "tmux · \(s.hostName)"
             }
-        case .none:           place = nil
+        case .none:           return ""
         }
-        return [agent, place].compactMap(\.self).joined(separator: " · ")
     }
 
     private var workspace: some View {
@@ -194,23 +186,10 @@ struct TerminalWorkspaceView: View {
         .overlay(alignment: .bottom) { bottomOverlay }
     }
 
-    /// One bottom slot, in priority order: a blocked agent's answer bar, then
-    /// connection state (a reconnecting chip, or a Reconnect affordance once
-    /// the retry budget is spent). Never two at once.
+    /// One bottom slot: connection state (a reconnecting chip, or a Reconnect
+    /// affordance once the retry budget is spent).
     @ViewBuilder private var bottomOverlay: some View {
-        if let tab = model.selectedTab, !tab.isShellTab,
-           let session = MacProjectAgentMonitor.shared.waitingSessionName(forProjectNamed: tab.title) {
-            // The agent's question is in the scrollback right above — this is
-            // the one-keystroke answer. Local tmux only; a remote agent is
-            // answered in its terminal directly.
-            ShioNeedsYouBar(
-                agentName: MacProjectAgentMonitor.shared.byTmux[session]?.agentName ?? "Your agent",
-                approve: { MacProjectAgentMonitor.shared.send(key: "y", toSession: session) },
-                deny: { MacProjectAgentMonitor.shared.send(key: "n", toSession: session) }
-            )
-            .padding(14)
-            .shadow(color: .black.opacity(0.18), radius: 10, y: 3)
-        } else if let session = focusedSSHSession {
+        if let session = focusedSSHSession {
             switch session.state {
             case .reconnecting:
                 HStack(spacing: 8) {

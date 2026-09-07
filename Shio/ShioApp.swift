@@ -4,7 +4,6 @@ import SwiftData
 @main
 struct ShioApp: App {
     @Environment(\.scenePhase) private var scenePhase
-    @UIApplicationDelegateAdaptor(ShioAppDelegate.self) private var appDelegate
 
     var body: some Scene {
         WindowGroup {
@@ -16,15 +15,6 @@ struct ShioApp: App {
                     // Project-first migration: backfill a ProjectCheckout for each
                     // legacy single-host project. Idempotent + safe every launch.
                     ProjectMigration.run(in: ShioModelContainer.shared.mainContext)
-                    // The PERMISSION prompt stays contextual (hostile at first
-                    // run), but registering for remote notifications and the
-                    // CloudKit away-push subscription are both SILENT — and must
-                    // happen on every launch or the push has nowhere to land.
-                    // (Previously gated on hasKey(), which silently broke away-
-                    // push for anyone who hadn't generated a key yet — e.g. when
-                    // testing the notification before connecting.)
-                    await PushService.shared.registerIfAuthorized()
-                    await CloudKitSignalService.shared.ensureSubscription()
                 }
                 .onOpenURL { url in
                     handleDeepLink(url)

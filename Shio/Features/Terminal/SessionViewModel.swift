@@ -77,14 +77,10 @@ final class SessionViewModel {
     /// the remote so the shell/TUI isn't thrashed mid-animation.
     private var resizeDebounce: Task<Void, Never>?
 
-    // MARK: Agent detection
-    /// Set by `SessionStore` so output-watching can key `AgentStateStore` by
-    /// the owning session's id (same id the Live Activity uses).
+    // MARK: Session identity
+    /// Set by `SessionStore` so the Live Activity can be keyed by the owning
+    /// session's id.
     var ownerSessionID: UUID?
-    /// Rolling, ANSI-stripped tail of recent output fed to the classifier.
-    private var agentTail = ""
-    /// Last activity we pushed, so we only update on transitions.
-    private var lastAgentActivity: AgentActivity = .none
 
     // MARK: Link detection
     /// The most recent http(s) URL seen in output, surfaced so the user can
@@ -154,32 +150,25 @@ final class SessionViewModel {
         }
     }
 
-    /// Feed a chunk of raw output into the output-watching agent classifier,
-    /// update the shared `AgentStateStore`, and surface activity transitions
-    /// (especially → waiting) on the Live Activity.
-    private func ingestForAgentDetection(_ raw: String) {
-        guard let id = ownerSessionID else { return }
-        let cleaned = AgentDetector.strip(raw)
-        agentTail += cleaned
-        if agentTail.count > 4000 { agentTail = String(agentTail.suffix(4000)) }
-
-        detectLatestURL(in: cleaned)
-
-        let snapshot = AgentDetector.classify(cleanTail: agentTail)
-        AgentStateStore.shared.update(sessionID: id, snapshot)
-
-        guard snapshot.activity != lastAgentActivity else { return }
-        lastAgentActivity = snapshot.activity
-        if case .connected = state {
-            Task {
-                await LiveActivityController.shared.update(
-                    sessionID: id,
-                    connectionState: "connected",
-                    agentName: snapshot.agentName,
-                    agentActivity: snapshot.activity == .none ? nil : snapshot.activity.rawValue
-                )
-            }
-        }
+    /// Strip ANSI/VT escape sequences and carriage-return overwrites so URL
+    /// detection sees plain text.
+    private static func stripANSI(_ s: String) -> String {
+        var out = s
+        // CSI sequences: ESC [ … final-byte
+        out = out.replacingOccurrences(
+            of: "\u{001B}\\[[0-9;?]*[ -/]*[@-~]",
+            with: "", options: .regularExpression)
+        // OSC sequences: ESC ] … BEL  or  ESC ] … ST
+        out = out.replacingOccurrences(
+            of: "\u{001B}\\][^\u{0007}\u{001B}]*(\u{0007}|\u{001B}\\\\)",
+            with: "", options: .regularExpression)
+        // Other two-byte escapes.
+        out = out.replacingOccurrences(
+            of: "\u{001B}[@-Z\\\\-_]",
+            with: "", options: .regularExpression)
+        // Carriage returns (progress-bar overwrites) → newlines.
+        out = out.replacingOccurrences(of: "\r", with: "\n")
+        return out
     }
 
     /// Scan a freshly arrived (ANSI-stripped) chunk for an http(s) URL and
@@ -365,7 +354,7 @@ final class SessionViewModel {
                     ].joined(separator: "\r\n")
                     self.terminal.write(hint)
                 }
-                if let str { self.ingestForAgentDetection(str) }
+                if let str { self.detectLatestURL(in: Self.stripANSI(str)) }
                 }
             }
         }

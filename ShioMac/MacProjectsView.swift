@@ -27,7 +27,6 @@ struct MacDashboardCanvas: View {
                         openRepo: { model.open(repo: $0) },
                         addRepo: { model.addRepoToProject = project },
                         openMachines: { model.canvas = .machines },
-                        reply: { replyAction($0, key: $1) },
                         // nil host = a pre-self-host local checkout — still this Mac.
                         isLocalHost: { $0.map(MacSelfHost.isThisMac) ?? true }
                     )
@@ -39,15 +38,6 @@ struct MacDashboardCanvas: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ShioTheme.background)
-    }
-
-    /// Inline Approve/Deny exists only when the blocked agent is in THIS Mac's
-    /// tmux — a remote one answers from inside its terminal.
-    private func replyAction(_ row: RepoRowVM, key: String) -> (() -> Void)? {
-        guard row.agent == .waiting,
-              let session = MacProjectAgentMonitor.shared.waitingSessionName(forProjectNamed: row.name)
-        else { return nil }
-        return { MacProjectAgentMonitor.shared.send(key: key, toSession: session) }
     }
 
     // MARK: header (48pt — the alignment law)
