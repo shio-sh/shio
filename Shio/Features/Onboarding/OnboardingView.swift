@@ -123,7 +123,7 @@ struct OnboardingView: View {
         case .welcome:
             stepLayout(
                 title: "Your machines, in your pocket.",
-                body: "A real terminal for Mac, iPhone, and iPad, organized by project. Add a machine to begin — scan the QR it shows and Shio is in.",
+                body: "A real terminal for Mac, iPhone, and iPad, organized by project. Add a machine to begin. Scan the QR it shows and Shio is in.",
                 primary: "Add a machine",
                 primaryAction: { showingPairing = true },
                 secondary: "Set up with Tailscale instead",
