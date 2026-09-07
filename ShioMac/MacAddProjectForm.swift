@@ -82,22 +82,6 @@ struct MacAddProjectForm: View {
                     Text("Travels with the project — every agent you start here begins with it.")
                         .font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
                 }
-
-                Section("Skills") {
-                    ForEach($draft.skills) { $skill in
-                        HStack {
-                            TextField("Skill name", text: $skill.name)
-                            Button { draft.skills.removeAll { $0.id == skill.id } } label: {
-                                Image(systemName: "minus.circle.fill")
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(ShioTheme.textTertiary)
-                        }
-                    }
-                    Button { draft.skills.append(SkillSpec()) } label: {
-                        Label("Add a skill", systemImage: "plus")
-                    }
-                }
             }
             .formStyle(.grouped)
 

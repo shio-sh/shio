@@ -2,9 +2,8 @@ import SwiftUI
 import SwiftData
 
 /// Home — the command center: an OVERVIEW of every project across every
-/// machine, supervision-first (the one that needs you floats to the top with
-/// its agent's question inline). You land here, not inside a project; tap one
-/// to drop into its dashboard. Titled ~/shio — your root.
+/// machine. You land here, not inside a project; tap one to drop into its
+/// dashboard. Titled ~/shio — your root.
 struct HomeTabView: View {
 
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
@@ -12,26 +11,7 @@ struct HomeTabView: View {
     @State private var showingSettings = false
     @State private var isAddingProject = false
     @State private var selectedProject: Project?
-    private let sessionStore = SessionStore.shared
-    private let agents = AgentStateStore.shared
     private let status = ProjectStatusStore.shared
-
-    /// Needs-you first, then running, then most-recently-opened.
-    private var sortedProjects: [Project] {
-        projects.sorted { a, b in
-            let ra = rank(a), rb = rank(b)
-            if ra != rb { return ra < rb }
-            return (a.lastOpenedAt ?? .distantPast) > (b.lastOpenedAt ?? .distantPast)
-        }
-    }
-
-    private func rank(_ p: Project) -> Int {
-        switch agentActivity(for: p) {
-        case .waiting: return 0
-        case .running: return 1
-        default:       return 2
-        }
-    }
 
     var body: some View {
         NavigationStack {
@@ -41,10 +21,9 @@ struct HomeTabView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            ForEach(sortedProjects) { project in
+                            ForEach(projects) { project in
                                 HomeProjectCard(
                                     project: project,
-                                    activity: agentActivity(for: project),
                                     changes: totalChanges(project),
                                     isMostRecent: project.persistentModelID == projects.first?.persistentModelID,
                                     open: { selectedProject = project }
@@ -96,8 +75,8 @@ struct HomeTabView: View {
             .sheet(isPresented: $showingSettings) { NavigationStack { SettingsView() } }
             .sheet(isPresented: $isAddingProject) { AddProjectSheet() }
             .onAppear { refreshStatus() }
-            // Cheap keep-fresh while the overview is on screen: needs-you cards
-            // appear/clear without a manual pull. warmOnly so it never wakes a
+            // Cheap keep-fresh while the overview is on screen — git state
+            // updates without a manual pull. warmOnly so it never wakes a
             // sleeping remote.
             .task {
                 while !Task.isCancelled {
@@ -112,16 +91,15 @@ struct HomeTabView: View {
 
     /// Remove a project from Shio (the repo on the machine is left alone).
     private func remove(_ project: Project) {
-        ModelCascade.delete(project: project, context: context, isLocalHost: { _ in false })
+        ModelCascade.delete(project: project, context: context)
         try? context.save()
     }
 
-    // MARK: - Status + agent reads
+    // MARK: - Status reads
 
     private func refreshStatus() {
         let targets = ProjectStatusStore.targets(for: projects, isLocalHost: { _ in false })
         status.refresh(targets)
-        status.refreshPRs(targets)
     }
 
     /// Total uncommitted changes across the project's repos — the list indicator.
@@ -139,31 +117,6 @@ struct HomeTabView: View {
         if unique.isEmpty, let legacy = project.host?.name { return legacy }
         return unique.isEmpty ? "no machine" : unique.joined(separator: " · ")
     }
-
-    /// Worst-case agent snapshot across this project's open sessions (waiting
-    /// outranks running outranks finished).
-    private func agentSnapshot(for project: Project) -> AgentSnapshot? {
-        var snaps = sessionStore.sessions(forProject: project.persistentModelID)
-            .compactMap { agents.snapshot(for: $0.id) }
-        // Also any agent detected on a machine during the status fetch — so a
-        // project with an agent working on a remote you aren't viewing still
-        // floats up (the supervision-first away case).
-        for repo in project.sortedRepos {
-            for c in (repo.checkouts ?? []) {
-                if let h = c.host, let r = status.remoteAgent(host: h, repoName: repo.name) {
-                    snaps.append(r)
-                }
-            }
-        }
-        return snaps.first { $0.activity == .waiting }
-            ?? snaps.first { $0.activity == .running }
-            ?? snaps.first { $0.activity == .finished }
-    }
-
-    private func agentActivity(for project: Project) -> AgentActivity {
-        agentSnapshot(for: project)?.activity ?? .none
-    }
-
 
     private var emptyState: some View {
         VStack(spacing: ShioSpace.lg) {
@@ -187,59 +140,31 @@ struct HomeTabView: View {
 }
 
 
-// MARK: - Home project card (A resting · B active)
+// MARK: - Home project card
 
-/// One project in the overview. At rest it's a calm whisper card — the
-/// identity-tinted mark, the name, and one faint terminal line (the project's
-/// git state); the most-recent project carries a live blinking cursor. The
-/// moment an agent is live it expands into a hero: the repos inline with
-/// presence, plus a needs-you bar you can answer in place. (His call: A
-/// resting + B active.)
+/// One project in the overview — a calm whisper card: the identity-tinted
+/// mark, the name, and one faint terminal line (the project's git state);
+/// the most-recent project carries a live blinking cursor.
 private struct HomeProjectCard: View {
     let project: Project
-    let activity: AgentActivity
     let changes: Int
     let isMostRecent: Bool
     let open: () -> Void
     private let status = ProjectStatusStore.shared
 
-    private var needsYou: Bool { activity == .waiting }
-    private var isLive: Bool { activity == .running || activity == .waiting }
-    /// Every blocked repo in the project — two agents waiting means two bars,
-    /// each answerable, not one bar hiding the other.
-    private var waitingItems: [ActivityItem] {
-        ActivityFeed.items(projects: [project]).filter { $0.activity == .waiting }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header.padding(.horizontal, 14).padding(.top, 13)
-            if isLive {
-                ForEach(waitingItems) { item in
-                    ShioNeedsYouBar(
-                        agentName: item.agentName,
-                        detail: item.detail,
-                        approve: { Haptics.medium(); ActivityFeed.reply(item, key: "y") },
-                        deny: { Haptics.medium(); ActivityFeed.reply(item, key: "n") },
-                        jump: { jump(item) }
-                    )
-                    .padding(.horizontal, 14).padding(.top, 10)
-                }
-                Rectangle().fill(ShioTheme.line).frame(height: 1).padding(.top, 11)
-                ForEach(project.sortedRepos) { repo in heroRepoRow(repo) }
-                foot.padding(.horizontal, 14).padding(.top, 9).padding(.bottom, 12)
-            } else {
-                whisper.padding(.horizontal, 14).padding(.top, 8).padding(.bottom, 12)
-            }
+            whisper.padding(.horizontal, 14).padding(.top, 8).padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(needsYou ? ShioTheme.warningBg.opacity(0.5) : .clear)
+                .fill(.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .strokeBorder(needsYou ? ShioTheme.warning.opacity(0.4) : ShioTheme.line2, lineWidth: 1)
+                .strokeBorder(ShioTheme.line2, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onTapGesture { open() }
@@ -274,15 +199,6 @@ private struct HomeProjectCard: View {
         ProjectAvatar(project, size: 30)
     }
 
-    /// Straight into the terminal that's asking — the same app-wide cover the
-    /// push tap uses (RootView presents when ConnectRouter raises it).
-    private func jump(_ item: ActivityItem) {
-        guard SessionStore.shared.openOrCreate(repo: item.repo) != nil else { return }
-        if !SessionStore.shared.isTerminalPresented {
-            ConnectRouter.shared.showTerminal = true
-        }
-    }
-
     // MARK: resting whisper (A)
 
     private var whisper: some View {
@@ -304,54 +220,6 @@ private struct HomeProjectCard: View {
         if changes > 0 { return "⎇ \(m.branch) · \(changes) uncommitted" }
         if m.hasTracking { return "⎇ \(m.branch) · clean" }
         return "⎇ \(m.branch)"
-    }
-
-    // MARK: active hero (B)
-
-    private func heroRepoRow(_ repo: Repo) -> some View {
-        let presence = ActivityFeed.presence(for: repo)
-        let act = presence?.snap.activity ?? .none
-        let m = GitLineFormatter.make(gitProbe(repo))
-        let pr = repo.activeCheckout.flatMap { c in
-            status.prList(forHost: c.host, path: c.path).first { $0.state == "OPEN" }
-        }
-        return HStack(spacing: 10) {
-            ShioPresenceGlyph(activity: act, size: 11.5).frame(width: 14)
-            Text(repo.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary).lineLimit(1)
-            Group {
-                switch act {
-                case .running: Text(presence?.snap.detail ?? "working").foregroundStyle(ShioTheme.info)
-                case .waiting: Text("waiting on you").foregroundStyle(ShioTheme.warning)
-                default:       Text(m.branch).foregroundStyle(ShioTheme.textTertiary)
-                }
-            }
-            .font(.system(size: 11, design: .monospaced)).lineLimit(1).truncationMode(.tail)
-            Spacer(minLength: 6)
-            ShioGitStatusLine(model: m, openPR: pr, compact: true, size: 10.5)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 9)
-    }
-
-    private var foot: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "desktopcomputer").font(.system(size: 10)).foregroundStyle(ShioTheme.textTertiary)
-            let n = project.sortedRepos.count
-            Text("\(machinesText) · \(n) repo\(n == 1 ? "" : "s")")
-                .font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
-                .lineLimit(1).truncationMode(.middle)
-        }
-    }
-
-    private var machinesText: String {
-        let names = project.allCheckouts.compactMap { $0.host?.name }
-        var seen = Set<String>(); var out: [String] = []
-        for nm in names where !seen.contains(nm) { seen.insert(nm); out.append(nm) }
-        return out.isEmpty ? "this mac" : out.joined(separator: " · ")
-    }
-
-    private func gitProbe(_ repo: Repo) -> GitProbe? {
-        guard let c = repo.activeCheckout else { return nil }
-        return status.status(forHost: c.host, path: c.path)?.probe
     }
 }
 

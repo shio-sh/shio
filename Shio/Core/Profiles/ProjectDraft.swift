@@ -3,8 +3,7 @@ import SwiftData
 
 /// An in-progress new project, assembled in the create form and committed in
 /// one save. Shared by the iOS and Mac forms so they behave identically: a name
-/// + logo + context (memory), any number of repos across machines, and any
-/// project-scoped skills.
+/// + logo + context (memory), and any number of repos across machines.
 struct ProjectDraft {
     var name: String = ""
     /// Memory / context — what this project is, conventions, links the agents
@@ -12,7 +11,6 @@ struct ProjectDraft {
     var memory: String = ""
     var imageData: Data?
     var repos: [RepoSpec] = []
-    var skills: [SkillSpec] = []
 
     var canCreate: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
 }
@@ -30,16 +28,10 @@ struct RepoSpec: Identifiable, Hashable {
     var machineLabel: String
 }
 
-struct SkillSpec: Identifiable, Hashable {
-    let id = UUID()
-    var name: String = ""
-    var content: String = ""
-}
-
 extension Project {
-    /// Build a project + all its repos + skills from a draft, in one save.
-    /// `resolveHost` maps a spec's `hostID` to a `Host` (platform-specific: the
-    /// Mac form turns `nil` into `MacSelfHost`, iOS always has a real id).
+    /// Build a project + all its repos from a draft, in one save. `resolveHost`
+    /// maps a spec's `hostID` to a `Host` (platform-specific: the Mac form
+    /// turns `nil` into `MacSelfHost`, iOS always has a real id).
     @discardableResult
     @MainActor
     static func build(from draft: ProjectDraft,
@@ -57,10 +49,6 @@ extension Project {
         for spec in draft.repos {
             project.addRepo(name: spec.name, path: spec.path,
                             host: resolveHost(spec.hostID), cloneURL: spec.cloneURL, in: context)
-        }
-        for skill in draft.skills where !skill.name.trimmingCharacters(in: .whitespaces).isEmpty {
-            context.insert(Skill(name: skill.name.trimmingCharacters(in: .whitespaces),
-                                 content: skill.content, project: project))
         }
         project.lastOpenedAt = .now
         try? context.save()

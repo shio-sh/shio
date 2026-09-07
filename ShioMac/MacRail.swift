@@ -2,10 +2,10 @@ import SwiftUI
 import SwiftData
 
 /// THE rail — Shio's Slack frame on macOS. The project (team) switcher sits at
-/// the top; AGENTS (presence), SHELLS (loose per-machine terminals) and REPOS
-/// (each repo's standing terminal) are the live groups; Machines & Files
-/// are quiet utility rows at the bottom; 塩 signs the foot. The traffic lights
-/// and the ◧ toggle float above the rail at window level (MacShell owns them).
+/// the top; SHELLS (loose per-machine terminals) and REPOS (each repo's
+/// standing terminal) are the live groups; Machines & Files are quiet
+/// utility rows at the bottom; 塩 signs the foot. The traffic lights and the
+/// ◧ toggle float above the rail at window level (MacShell owns them).
 struct MacRail: View {
     @Bindable var model: MacTerminalModel
     @Query(sort: \Project.lastOpenedAt, order: .reverse) private var projects: [Project]
@@ -74,26 +74,19 @@ struct MacRail: View {
 
     // MARK: groups
 
-    // The map, in place order (agents → repos → shells) — the same RailMap
-    // the ⌘1–9 shortcuts index, so keys and pixels can't drift.
+    // The map, in place order (repos → shells) — the same RailMap the ⌘1–9
+    // shortcuts index, so keys and pixels can't drift.
     @ViewBuilder private var groups: some View {
         let map = model.railMap()
-
-        // Empty-states law: AGENTS only exists while presence is live.
-        if !map.agents.isEmpty {
-            railHeader("agents")
-            ForEach(map.agents) { agentRow($0) }
-        }
 
         if let project = model.selectedProject {
             railHeader("repos", add: { model.addRepoToProject = project },
                        help: "Add a repo to \(project.name)")
-                .padding(.top, map.agents.isEmpty ? 0 : 6)
             ForEach(map.repos) { repoRow($0) }
         }
 
         railHeader("shells", add: { model.newShellHere() }, help: "New shell here (⌘T)")
-            .padding(.top, map.agents.isEmpty && model.selectedProject == nil ? 0 : 6)
+            .padding(.top, model.selectedProject == nil ? 0 : 6)
         ForEach(map.shells) { shellRow($0) }
     }
 
@@ -104,41 +97,18 @@ struct MacRail: View {
         }
     }
 
-    private func agentRow(_ row: RepoRowVM) -> some View {
-        RailRow(title: "\(row.agentName ?? "Agent") · \(row.name)",
-                selected: isOpenRepo(row.name),
-                action: { model.open(repo: row.repo) }) {
-            ShioPresenceGlyph(activity: row.agent, size: 11.5, idle: nil)
-        } trailing: {
-            if row.agent == .waiting {
-                Text("needs you")
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(ShioTheme.warning)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .overlay(Capsule().strokeBorder(ShioTheme.warning.opacity(0.4), lineWidth: 1))
-            }
-        }
-    }
-
     private func repoRow(_ row: RepoRowVM) -> some View {
         RailRow(title: row.name,
                 selected: isOpenRepo(row.name),
                 action: { model.open(repo: row.repo) }) {
-            ShioPresenceGlyph(activity: .none, size: 11.5)
+            Text("⎇").font(.system(size: 11.5, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
         } trailing: {
             let m = GitLineFormatter.make(row.git)
-            HStack(spacing: 4) {
-                if m.dirty > 0 {
-                    Text("\(m.dirty)").foregroundStyle(ShioTheme.warning)
-                }
-                if let pr = row.prs.first(where: { $0.state == "OPEN" }) {
-                    if m.dirty > 0 { Text("·").foregroundStyle(ShioTheme.textTertiary) }
-                    Text("PR #\(pr.number)").foregroundStyle(ShioTheme.textTertiary)
-                }
+            if m.dirty > 0 {
+                Text("\(m.dirty)").font(.system(size: 11, design: .monospaced))
+                    .monospacedDigit().foregroundStyle(ShioTheme.warning)
             }
-            .font(.system(size: 11, design: .monospaced))
-            .monospacedDigit()
         }
     }
 
@@ -415,17 +385,11 @@ struct MacProjectMenu: View {
     }
 
     @ViewBuilder private func meta(_ project: Project) -> some View {
-        let act = ProjectRows.activity(project)
-        switch act {
-        case .waiting, .running:
-            ShioPresenceGlyph(activity: act, size: 11, idle: nil)
-        default:
-            let age = shioShortAge(project.lastOpenedAt)
-            if !age.isEmpty {
-                Text(age)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(ShioTheme.textTertiary)
-            }
+        let age = shioShortAge(project.lastOpenedAt)
+        if !age.isEmpty {
+            Text(age)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
         }
     }
 }

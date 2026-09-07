@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftData
 
 /// The GLANCE inspector — the right panel, open by default (it's almost
 /// always helpful; hiding it is focus mode, ⌘I or any header's ▤). Its head
@@ -8,7 +7,6 @@ import SwiftData
 /// single-line rows.
 struct MacInspector: View {
     @Bindable var model: MacTerminalModel
-    @Query(sort: \Skill.createdAt) private var allSkills: [Skill]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,16 +51,6 @@ struct MacInspector: View {
             if let repo = contextRepo(in: rows) {
                 repoGroup(repo)
             }
-
-            let global = allSkills.filter { $0.isGlobal && $0.enabled }
-            let scoped = allSkills.filter { $0.project?.persistentModelID == project.persistentModelID }
-            if !global.isEmpty || !scoped.isEmpty {
-                skillsGroup(global: global, scoped: scoped)
-            }
-
-            if project.notes?.isEmpty == false {
-                memoryGroup
-            }
         } else {
             Text("No project yet")
                 .font(.system(size: 12))
@@ -79,37 +67,14 @@ struct MacInspector: View {
 
     private func glanceGroup(_ glance: ProjectGlance) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if glance.changes == 0 && glance.working == 0 && glance.needsYou == 0 && glance.prs == 0 {
+            if glance.changes == 0 {
                 Text("all quiet")
                     .font(.system(size: 12))
                     .foregroundStyle(ShioTheme.textTertiary)
                     .padding(.vertical, 5)
             } else {
-                if glance.changes > 0 {
-                    kv("Changes") {
-                        Text("\(glance.changes)").foregroundStyle(ShioTheme.warning)
-                    }
-                }
-                if glance.working > 0 || glance.needsYou > 0 {
-                    kv("Agents") {
-                        HStack(spacing: 5) {
-                            if glance.working > 0 {
-                                ShioBrailleSpinner(status: .info, size: 11)
-                                Text("\(glance.working)").foregroundStyle(ShioTheme.info)
-                            }
-                            if glance.working > 0 && glance.needsYou > 0 {
-                                Text("·").foregroundStyle(ShioTheme.textTertiary)
-                            }
-                            if glance.needsYou > 0 {
-                                Text("⚑ \(glance.needsYou)").foregroundStyle(ShioTheme.warning)
-                            }
-                        }
-                    }
-                }
-                if glance.prs > 0 {
-                    kv("PRs open") {
-                        Text("\(glance.prs)").foregroundStyle(ShioTheme.textPrimary)
-                    }
+                kv("Changes") {
+                    Text("\(glance.changes)").foregroundStyle(ShioTheme.warning)
                 }
             }
             if PowerKeeper.shared.isHolding {
@@ -146,47 +111,6 @@ struct MacInspector: View {
                     }
                 }
             }
-            if let pr = repo.prs.first(where: { $0.state == "OPEN" }) {
-                ShioChip(text: "PR #\(pr.number)\(pr.isDraft ? " · draft" : "")",
-                         status: pr.isDraft ? .neutral : .info)
-                    .padding(.top, 8)
-            }
-        }
-    }
-
-    private func skillsGroup(global: [Skill], scoped: [Skill]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            groupHeader("skills")
-            ForEach(global) { skillRow($0, scope: "global") }
-            ForEach(scoped) { skillRow($0, scope: "project") }
-        }
-    }
-
-    private func skillRow(_ skill: Skill, scope: String) -> some View {
-        HStack(spacing: 8) {
-            Text("✓").font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.success)
-            Text(skill.name)
-                .font(.system(size: 12.5))
-                .foregroundStyle(ShioTheme.textPrimary)
-                .lineLimit(1)
-            Spacer(minLength: 6)
-            ShioChip(text: scope, status: scope == "project" ? .accent : .neutral)
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 2)
-    }
-
-    private var memoryGroup: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            groupHeader("memory & context")
-            HStack(spacing: 8) {
-                Text("✎").font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
-                Text("Notes").font(.system(size: 12.5)).foregroundStyle(ShioTheme.textPrimary)
-                Spacer(minLength: 6)
-                Text("edited").font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.textTertiary)
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 2)
         }
     }
 

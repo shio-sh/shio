@@ -14,18 +14,11 @@ struct RepoRowVM: Identifiable {
     /// True when `git` is a last-known cache past the stale window — the row
     /// dims its git segs so old numbers never read as live.
     var gitStale: Bool = false
-    let agent: AgentActivity
-    var agentName: String? = nil
-    var agentDetail: String? = nil
-    var prs: [PullRequest] = []
 }
 
 /// The aggregate one-liner shown on the dashboard's glance strip.
 struct ProjectGlance {
     var changes: Int
-    var working: Int
-    var needsYou: Int
-    var prs: Int
     var repoCount: Int
     var age: String
 }
@@ -36,11 +29,7 @@ extension ProjectGlance {
     @MainActor
     static func make(for project: Project, rows: [RepoRowVM]) -> ProjectGlance {
         let changes = rows.reduce(0) { $0 + (GitLineFormatter.make($1.git).dirty) }
-        let working = rows.filter { $0.agent == .running }.count
-        let needs   = rows.filter { $0.agent == .waiting }.count
-        let prCount = rows.reduce(0) { $0 + $1.prs.filter { $0.state == "OPEN" }.count }
-        return ProjectGlance(changes: changes, working: working, needsYou: needs,
-                             prs: prCount, repoCount: rows.count, age: shioShortAge(project.lastOpenedAt))
+        return ProjectGlance(changes: changes, repoCount: rows.count, age: shioShortAge(project.lastOpenedAt))
     }
 }
 

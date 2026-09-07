@@ -11,7 +11,7 @@ enum MacCanvas: Equatable {
     case files
 }
 
-/// The Shio window: ONE rail (project switcher + agents/shells/repos + utility
+/// The Shio window: ONE rail (project switcher + shells/repos + utility
 /// rows), a center canvas, and window-level chrome — the traffic lights float
 /// natively, the ◧ rail toggle sits FIXED beside them (same spot open or
 /// collapsed, ⌘\), and the project switcher's menu overlays the rail rather
@@ -21,9 +21,6 @@ struct MacShell: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @Query private var projects: [Project]
-    @AppStorage("shio.skills.crossAppExplained") private var skillsExplained = false
-    @AppStorage(SkillMaterializer.syncEnabledKey) private var skillSyncEnabled = true
-    @State private var showSkillsExplainer = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -79,20 +76,6 @@ struct MacShell: View {
         .sheet(item: $model.addRepoToProject) { project in
             MacAddProjectForm(model: model, targetProject: project)
         }
-        // Explain BEFORE the first cross-app write why macOS is about to ask to
-        // "access data from other apps" — Shio is syncing your skills into the
-        // agents' own folders. (The system prompt itself isn't customizable.)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            // A disable/edit made on another device while this Mac app was
-            // running reconciles on the next activation, not the next launch.
-            maybeSyncSkills()
-        }
-        .alert("Sync your skills to your coding agents?", isPresented: $showSkillsExplainer) {
-            Button("Sync skills") { skillsExplained = true; SkillMaterializer.shared.scheduleGlobalSync() }
-            Button("Don't sync", role: .cancel) { skillsExplained = true; skillSyncEnabled = false }
-        } message: {
-            Text("Shio writes your skills into the folders your coding agents read — Claude Code (~/.claude), Cursor, and Codex — so they follow your rules automatically. macOS will then ask permission to access those apps' folders; that's expected. You can change this anytime in Settings → Skills.")
-        }
         .overlay {
             if model.showingCommandPalette {
                 CommandPaletteContainer(model: model)
@@ -105,15 +88,13 @@ struct MacShell: View {
             // Project-first migration: backfill a ProjectCheckout per legacy
             // single-host project. Idempotent + safe to run every launch.
             ProjectMigration.run(in: context)
-            maybeSyncSkills()
             // Restore last run's tabs so SHELLS/REPOS rows light up without
             // having to visit the terminal first.
             model.ensureRestored()
             refreshStatus()
         }
-        // Watch local tmux sessions so a repo row lights up when its agent
-        // needs you — even though ghostty owns the local PTY.
-        .task { MacProjectAgentMonitor.shared.start() }
+        // Hold off sleep while a device is attached over SSH.
+        .task { PowerKeeper.shared.start() }
         // Release the renderer of terminals idle in the background —
         // tmux keeps the session, so reopening reattaches losslessly.
         .task { model.startHibernator() }
@@ -151,18 +132,6 @@ struct MacShell: View {
     private func refreshStatus() {
         let targets = ProjectStatusStore.targets(for: projects, isLocalHost: MacSelfHost.isThisMac)
         ProjectStatusStore.shared.refresh(targets)
-        ProjectStatusStore.shared.refreshPRs(targets)
-    }
-
-    /// Sync global skills into the agents' folders — but only when enabled and
-    /// there's something to write, and explain it the first time (so the macOS
-    /// "data from other apps" prompt isn't a surprise).
-    private func maybeSyncSkills() {
-        // hasGlobalWork, not "has enabled globals": a disable/delete made on
-        // another device still has to clean THIS Mac's folders.
-        guard skillSyncEnabled, SkillMaterializer.shared.hasGlobalWork() else { return }
-        if skillsExplained { SkillMaterializer.shared.scheduleGlobalSync() }
-        else { showSkillsExplainer = true }
     }
 }
 

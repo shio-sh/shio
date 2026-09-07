@@ -1,11 +1,10 @@
 import SwiftUI
 import SwiftData
 
-/// The project dashboard body — ONE bento for the Mac and iPad canvases:
-/// the glance strip, repos beside grounding (skills + memory), machines
-/// full-width below. Rows/glance/machines arrive pre-built (`ProjectRows` on
-/// the Mac, the `ActivityFeed` builder on iOS); everything platform-bound —
-/// opening a repo, answering a blocked agent, "is this host me" — is
+/// The project dashboard body — ONE bento for the Mac and iPad canvases: the
+/// glance strip, repos, machines full-width below. Rows/glance/machines
+/// arrive pre-built (`ProjectRows` on the Mac, the `ActivityFeed` builder on
+/// iOS); everything platform-bound — opening a repo, "is this host me" — is
 /// injected, so the dashboard itself stays a pure read of the shared stores.
 struct ProjectDashboardView: View {
     @Bindable var project: Project
@@ -15,37 +14,19 @@ struct ProjectDashboardView: View {
     let openRepo: (Repo) -> Void
     let addRepo: () -> Void
     let openMachines: () -> Void
-    /// The platform's answer path for a blocked row — nil when it can't be
-    /// answered from here (the Mac only answers agents in its own tmux).
-    let reply: (RepoRowVM, String) -> (() -> Void)?
     /// Whether a checkout's host is THIS machine (nil host = the Mac itself
-    /// on the Mac; never true on iOS) — picks the commit sheet's local/SSH path.
+    /// on the Mac; never true on iOS).
     let isLocalHost: (Host?) -> Bool
 
     @Environment(\.modelContext) private var context
-    @Query(sort: \Skill.createdAt) private var allSkills: [Skill]
-    @State private var addingSkill = false
-    @State private var editingSkill: Skill?
-    @State private var commitTarget: RepoRowVM?
     @State private var renameTarget: Repo?
     @State private var renameDraft = ""
-    @State private var editingNotes = false
-
-    private var globalSkills: [Skill] { allSkills.filter { $0.isGlobal && $0.enabled } }
-    private var projectSkills: [Skill] {
-        allSkills.filter { $0.project?.persistentModelID == project.persistentModelID }
-    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 glanceBar
-                // Repos spans the left; grounding (skills + memory — the
-                // agent's standing context) sits beside it, bottoms aligned.
-                BentoRow(ratios: [1.35, 1]) {
-                    reposCard
-                    groundingCard
-                }
+                reposCard
                 // Machines run full-width below. No machines (no repos yet)
                 // → the card is non-existent, never a placeholder.
                 if !machines.isEmpty {
@@ -56,25 +37,6 @@ struct ProjectDashboardView: View {
             .padding(.vertical, 20)
             .frame(maxWidth: 1180, alignment: .leading)
         }
-        .sheet(item: $commitTarget) { row in
-            let c = row.repo.activeCheckout
-            let host = c?.host
-            let config: SSHClient.Configuration? = (host != nil && !isLocalHost(host))
-                ? SSHClient.Configuration(host: host!.hostname, port: host!.port, username: host!.username,
-                                          authentication: .systemKeys, initialCols: 80, initialRows: 24)
-                : nil
-            CommitSheet(repoName: row.name, dirtyCount: GitLineFormatter.make(row.git).dirty,
-                        path: c?.path ?? "", config: config,
-                        onCommitted: {
-                            // Clear the dirty badge right away, not on the next tick.
-                            ProjectStatusStore.shared.refresh(ProjectStatusStore.targets(
-                                for: [project], isLocalHost: { isLocalHost($0) }))
-                        })
-            #if os(iOS)
-            .presentationDetents([.medium])
-            #endif
-        }
-        .sheet(isPresented: $editingNotes) { notesSheet }
         .alert("Rename repo", isPresented: Binding(
             get: { renameTarget != nil },
             set: { if !$0 { renameTarget = nil } })) {
@@ -99,17 +61,7 @@ struct ProjectDashboardView: View {
                     Text("\(Text("\(glance.changes)").foregroundStyle(ShioTheme.warning)) changes")
                 }
             }
-            if glance.working > 0 {
-                glanceItem { ShioBrailleSpinner(status: .info, size: 11) } label: {
-                    Text("\(glance.working) agent\(glance.working == 1 ? "" : "s") working").foregroundStyle(ShioTheme.info)
-                }
-            }
-            if glance.needsYou > 0 {
-                glanceItem { Text("⚑").foregroundStyle(ShioTheme.warning).shioNeedsPulse() } label: {
-                    Text("\(glance.needsYou) needs you").foregroundStyle(ShioTheme.warning)
-                }
-            }
-            if glance.changes == 0 && glance.working == 0 && glance.needsYou == 0 {
+            if glance.changes == 0 {
                 Text("all quiet").font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
             }
             Spacer()
@@ -121,10 +73,6 @@ struct ProjectDashboardView: View {
                     .foregroundStyle(ShioTheme.textTertiary)
             }
             #endif
-            if glance.prs > 0 {
-                Text("\(glance.prs) PR\(glance.prs == 1 ? "" : "s") open")
-                    .font(.system(size: 12.5)).foregroundStyle(ShioTheme.textTertiary)
-            }
         }
         .font(.system(size: 12.5))
         .padding(.vertical, 10)
@@ -145,10 +93,7 @@ struct ProjectDashboardView: View {
                 cardHint("No repos yet — add one.")
             } else {
                 ForEach(repos) { row in
-                    ShioRepoRow(row: row,
-                                open: { openRepo(row.repo) },
-                                approve: reply(row, "y"),
-                                deny: reply(row, "n"))
+                    ShioRepoRow(row: row, open: { openRepo(row.repo) })
                         .contextMenu { rowMenu(row) }
                 }
             }
@@ -171,88 +116,10 @@ struct ProjectDashboardView: View {
                 }
             }
         }
-        if GitLineFormatter.make(row.git).dirty > 0 {
-            Button("Commit & push…", systemImage: "arrow.up") { commitTarget = row }
-        }
     }
 
     private func machineLabel(_ c: ProjectCheckout) -> String {
         isLocalHost(c.host) ? "This Mac" : (c.host?.name ?? "Unknown")
-    }
-
-    /// Skills + memory in ONE card — "grounding", the same word ProjectView's
-    /// section and the create form's footer already use for standing context.
-    private var groundingCard: some View {
-        BentoCard(title: "grounding", addLabel: "+ skill", addAction: { addingSkill = true }) {
-            if globalSkills.isEmpty && projectSkills.isEmpty {
-                cardHint("No skills yet — add one here, or build the global library in Settings.")
-            } else {
-                ForEach(globalSkills) { skill in skillRow(skill, scope: "global") }
-                ForEach(projectSkills) { skill in skillRow(skill, scope: "project") }
-            }
-            memoryRow
-        }
-        .sheet(isPresented: $addingSkill) { SkillEditor(skill: nil, project: project) }
-        .sheet(item: $editingSkill) { skill in SkillEditor(skill: skill, project: skill.project) }
-    }
-
-    private func skillRow(_ skill: Skill, scope: String) -> some View {
-        Button { editingSkill = skill } label: {
-            HStack(spacing: 10) {
-                Text("✓").font(.system(size: 11, design: .monospaced)).foregroundStyle(ShioTheme.success)
-                Text(skill.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
-                Spacer()
-                ShioChip(text: scope, status: scope == "project" ? .accent : .neutral)
-            }
-            .padding(.horizontal, 8).padding(.vertical, 7)
-            .contentShape(Rectangle())
-        }.buttonStyle(.plain)
-    }
-
-    /// The project's memory in one row — the notes' first line when they have
-    /// one, the invitation when they don't; either way it opens the editor.
-    private var memoryRow: some View {
-        Button { editingNotes = true } label: {
-            HStack(spacing: 10) {
-                Text("✎").font(.system(size: 12)).foregroundStyle(ShioTheme.textTertiary).frame(width: 14)
-                if let snippet = notesSnippet {
-                    Text(snippet).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary)
-                        .lineLimit(1).truncationMode(.tail)
-                } else {
-                    Text("add context…").font(.system(size: 13)).foregroundStyle(ShioTheme.textTertiary)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 8).padding(.vertical, 8)
-            .contentShape(Rectangle())
-        }.buttonStyle(.plain)
-    }
-
-    private var notesSnippet: String? {
-        guard let notes = project.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !notes.isEmpty else { return nil }
-        return notes.split(whereSeparator: \.isNewline).first.map(String.init)
-    }
-
-    /// The notes editor — saves as you type, like every other project field.
-    private var notesSheet: some View {
-        NavigationStack {
-            TextEditor(text: Binding(
-                get: { project.notes ?? "" },
-                set: { project.notes = $0; try? context.save() }))
-                .font(ShioFont.Mono.inline)
-                .foregroundStyle(ShioTheme.textPrimary)
-                .scrollContentBackground(.hidden)
-                .padding(ShioSpace.md)
-                .background(ShioTheme.background)
-                .navigationTitle("Memory & context")
-                #if os(iOS)
-                .navigationBarTitleDisplayMode(.inline)
-                #endif
-        }
-        #if os(macOS)
-        .frame(minWidth: 420, minHeight: 320)
-        #endif
     }
 
     private var machinesCard: some View {

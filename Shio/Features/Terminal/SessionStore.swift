@@ -104,14 +104,6 @@ final class SessionStore {
     @discardableResult
     func openOrCreate(repo: Repo) -> Session? {
         guard let checkout = repo.activeCheckout, let host = checkout.host else { return nil }
-        // Ground the EXACT checkout being opened (the store-wide "active"
-        // one can still be the previous machine, or another repo entirely),
-        // on reattach too so edits made since creation still land. Every
-        // host is remote on iOS.
-        if let project = repo.project {
-            SkillMaterializer.shared.materialize(project: project, checkout: checkout,
-                                                 isLocalHost: { _ in false })
-        }
         if let existing = sessions.first(where: { $0.checkoutID == checkout.persistentModelID }) {
             activeSession = existing
             return existing
@@ -124,8 +116,6 @@ final class SessionStore {
     @discardableResult
     func openOrCreate(project: Project, checkout: ProjectCheckout) -> Session? {
         guard let host = checkout.host else { return nil }
-        SkillMaterializer.shared.materialize(project: project, checkout: checkout,
-                                             isLocalHost: { _ in false })
         if let existing = sessions.first(where: { $0.checkoutID == checkout.persistentModelID }) {
             activeSession = existing
             return existing
@@ -144,14 +134,6 @@ final class SessionStore {
     /// user's existing tmux session survives.
     @discardableResult
     func createNewSession(on host: Host, project: Project? = nil, checkout: ProjectCheckout? = nil, repoName: String? = nil) -> Session {
-        // Contextual notification opt-in: away-push is *for* sessions, so this
-        // is the moment to ask — not at first launch. The system prompts only
-        // once; subsequent calls are no-ops.
-        Task {
-            await PushService.shared.requestAuthorizationAndRegister()
-            await CloudKitSignalService.shared.ensureSubscription()
-        }
-
         // Opening a session is the warm signal on iOS (the Mac stamps on its
         // own connect path) — without it, warm-gated timer refreshes would
         // skip every host this device knows.
@@ -219,7 +201,7 @@ final class SessionStore {
             displayName: displayName,
             viewModel: vm
         )
-        vm.ownerSessionID = session.id   // lets output-watching key AgentStateStore
+        vm.ownerSessionID = session.id   // keys the Live Activity
         sessions.append(session)
         activeSession = session
         return session
@@ -230,7 +212,6 @@ final class SessionStore {
     /// session itself alive, so the user can reconnect later.
     func close(_ session: Session) async {
         await LiveActivityController.shared.end(sessionID: session.id, finalState: "ended")
-        AgentStateStore.shared.clear(session.id)
         await session.viewModel.stop()
         sessions.removeAll { $0.id == session.id }
         if activeSession?.id == session.id {

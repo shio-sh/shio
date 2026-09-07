@@ -17,7 +17,7 @@ enum StatusKey {
 /// Holds the latest git status for every visible checkout. Cache-first: cards
 /// render whatever's cached instantly; refreshes only ever *upgrade* it, and a
 /// failed refresh never discards the last good status — so a sleeping machine
-/// can't blank the grid. The analog of `AgentStateStore`.
+/// can't blank the grid.
 ///
 /// Economy (App Group disk cache, warm-host gating, the visible-tab timer) is M5.
 /// For now: refresh on appear + pull-to-refresh, capped fan-out, per-host timeouts.
@@ -85,10 +85,6 @@ final class ProjectStatusStore {
     }
 
     private(set) var statuses: [String: Cached] = [:]
-    /// Remote agents detected during the status fetch, keyed by host then tmux
-    /// session name (`shio-<scrubbed repo>`). Local agents come from the Mac's
-    /// own `MacProjectAgentMonitor`; this covers machines you aren't viewing.
-    private(set) var remoteAgents: [String: [String: AgentSnapshot]] = [:]
     private(set) var isRefreshing = false
     /// Checkout keys currently being probed — a new refresh skips these
     /// instead of cancelling the work (the old cancel-everything behavior let
@@ -101,69 +97,6 @@ final class ProjectStatusStore {
 
     func status(forHost host: Host?, path: String) -> Cached? {
         statuses[StatusKey.make(host: host, path: path)]
-    }
-
-    /// A remote agent for a repo by name on a given host, if one was detected.
-    /// Indexed sessions (`shio-<repo>-2`, a second terminal on the same repo)
-    /// match by prefix; one that needs you wins over one that's merely running.
-    func remoteAgent(host: Host, repoName: String) -> AgentSnapshot? {
-        guard let byTmux = remoteAgents["\(host.persistentModelID)"] else { return nil }
-        let base = "shio-\(TmuxResume.scrubName(repoName))"
-        if let exact = byTmux[base] { return exact }
-        let indexed = byTmux.filter { $0.key.hasPrefix("\(base)-") }.map(\.value)
-        return indexed.first { $0.activity == .waiting } ?? indexed.first
-    }
-
-    /// Open PRs per checkout (via the machine's `gh`), keyed like `statuses`.
-    private(set) var prs: [String: [PullRequest]] = [:]
-    private var prTask: Task<Void, Never>?
-
-    func prList(forHost host: Host?, path: String) -> [PullRequest] {
-        prs[StatusKey.make(host: host, path: path)] ?? []
-    }
-
-    /// Fetch open PRs for the given checkouts (rides each machine's `gh`).
-    /// Separate from the git refresh — `gh` is slower, so it never blocks the
-    /// status fan-out. Cheap and advisory; failures just yield no PRs.
-    func refreshPRs(_ targets: [Target]) {
-        prTask?.cancel()
-        guard !targets.isEmpty else { return }
-        prTask = Task { [weak self] in await self?.runPRs(targets) }
-    }
-
-    private func runPRs(_ targets: [Target]) async {
-        await withTaskGroup(of: (String, [PullRequest]?).self) { group in
-            let cap = 4
-            var pending = targets
-            var running = 0
-            func addNext() {
-                guard let t = pending.popLast() else { return }
-                group.addTask { (t.key, await Self.fetchPRs(t)) }
-                running += 1
-            }
-            for _ in 0..<min(cap, targets.count) { addNext() }
-            while running > 0 {
-                guard let (key, list) = await group.next() else { break }
-                running -= 1
-                // nil = indeterminate (gh missing / unreachable) — keep the
-                // last-known list instead of flickering the PR chips out.
-                if !Task.isCancelled, let list { prs[key] = list }
-                addNext()
-            }
-        }
-    }
-
-    private static func fetchPRs(_ t: Target) async -> [PullRequest]? {
-        switch t.location {
-        case .local:
-            #if os(macOS)
-            return await GitHubReader.prsLocal(path: t.path)
-            #else
-            return nil
-            #endif
-        case .remote(let config):
-            return await GitHubReader.prsRemote(config: config, path: t.path)
-        }
     }
 
     /// Refresh the given checkouts. Targets already being probed are skipped
@@ -202,17 +135,6 @@ final class ProjectStatusStore {
                 running -= 1
                 if !Task.isCancelled {
                     let now = Date()
-                    if let hostKey = result.hostKey {
-                        // Replace so a genuinely-finished agent clears — but
-                        // not when the whole probe failed (a transient timeout
-                        // must not wipe a real needs-you signal while the git
-                        // statuses next to it are kept).
-                        let probeFailed = !result.git.isEmpty
-                            && result.git.allSatisfy { isTransient($0.1) }
-                        if !probeFailed {
-                            remoteAgents[hostKey] = result.agents
-                        }
-                    }
                     // A host that answered a probe is awake — stamp it warm so
                     // the timer refresh keeps including it. (Without this, a
                     // device that never opens terminals to a host — or iOS
@@ -248,21 +170,16 @@ final class ProjectStatusStore {
         }
     }
 
-    /// Result of probing one host's group: git per checkout, plus any remote
-    /// agents (nil hostKey = the local group, which has no remote agents).
+    /// Result of probing one host's group: git per checkout.
     private struct GroupResult {
         var git: [(String, GitProbe)]
-        var hostKey: String?
         var hostID: PersistentIdentifier?
-        var agents: [String: AgentSnapshot]
     }
 
     private static func probeGroup(_ targets: [Target]) async -> GroupResult {
-        guard let first = targets.first else { return GroupResult(git: [], hostKey: nil, hostID: nil, agents: [:]) }
+        guard let first = targets.first else { return GroupResult(git: [], hostID: nil) }
         let paths = targets.map { $0.path }
         let byPath: [String: GitProbe]
-        var agents: [String: AgentSnapshot] = [:]
-        var hostKey: String? = nil
         switch first.location {
         case .local:
             #if os(macOS)
@@ -271,13 +188,10 @@ final class ProjectStatusStore {
             byPath = [:]
             #endif
         case .remote(let config):
-            let r = await GitStatusReader.probeRemoteWithAgents(config: config, paths: paths)
-            byPath = r.git
-            agents = r.agents
-            hostKey = first.hostKey
+            byPath = await GitStatusReader.probeRemote(config: config, paths: paths)
         }
         let git = targets.compactMap { t in byPath[t.path].map { (t.key, $0) } }
-        return GroupResult(git: git, hostKey: hostKey, hostID: first.hostID, agents: agents)
+        return GroupResult(git: git, hostID: first.hostID)
     }
 }
 

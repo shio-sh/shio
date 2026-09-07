@@ -150,22 +150,11 @@ struct AddProjectSheet: View {
                         .lineLimit(3...10)
                 }
                 .padding(.vertical, 4)
-
-                ForEach($draft.skills) { $skill in
-                    TextField("Skill name", text: $skill.name)
-                        .font(ShioFont.callout)
-                }
-                .onDelete { draft.skills.remove(atOffsets: $0) }
-
-                Button { draft.skills.append(SkillSpec()) } label: {
-                    Label("Add a skill", systemImage: "plus")
-                }
-                .font(ShioFont.callout)
             } label: {
-                Label("Memory & skills", systemImage: "sparkles")
+                Label("Memory", systemImage: "sparkles")
             }
         } footer: {
-            Text("Grounding travels with the project — every agent you start here begins with the same context.")
+            Text("Travels with the project — every agent you start here begins with the same context.")
         }
     }
 

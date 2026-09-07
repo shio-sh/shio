@@ -3,18 +3,16 @@ import SwiftData
 import Sparkle
 
 /// Shio for Mac — a native AppKit/SwiftUI app hosting libghostty (NOT Mac
-/// Catalyst). Shares the platform-agnostic core (SSH, profiles, keys, agents,
+/// Catalyst). Shares the platform-agnostic core (SSH, profiles, keys,
 /// design tokens) with the iOS app via target membership in project.yml.
 ///
 /// Current state: a working native local terminal, plus a minimal SSH session
 /// path that attaches the same tmux session the phone uses (continuity). The
-/// full Projects/Hosts/Agents/Files org + iCloud sync + the proper chrome land
+/// full Projects/Hosts/Files org + iCloud sync + the proper chrome land
 /// in the next milestones.
 @main
 struct ShioMacApp: App {
     @State private var model = MacTerminalModel()
-    // RC3 away-watcher: keeps the agent monitor alive (and the away-signal
-    // firing) when the window is closed, if the menu-bar watcher is enabled.
     @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var appDelegate
     // Sparkle: in-app auto-update. `startingUpdater: true` begins the background
     // update schedule at launch; the "Check for Updates…" menu item drives a
@@ -93,7 +91,7 @@ struct ShioMacApp: App {
                 Button("Previous Place") { model.selectAdjacentPlace(-1) }
                     .keyboardShortcut("[", modifiers: [.command, .shift])
                 Divider()
-                // ⌘1–9 mirror the rail top-to-bottom (agents → repos → shells).
+                // ⌘1–9 mirror the rail top-to-bottom (repos → shells).
                 ForEach(1...9, id: \.self) { n in
                     Button("Place \(n)") { model.selectPlace(at: n - 1) }
                         .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
@@ -164,11 +162,6 @@ final class MacTerminalModel {
         }
     }
 
-    /// Whether any locally watched agent is blocked.
-    var anyAgentNeedsYou: Bool {
-        MacProjectAgentMonitor.shared.byTmux.values.contains { $0.activity == .waiting }
-    }
-
     /// THE rail's collapse state (persisted). Toggled by the fixed ◧ beside
     /// the traffic lights, or ⌘\.
     var sidebarCollapsed: Bool = UserDefaults.standard.bool(forKey: "shio.mac.sidebarCollapsed") {
@@ -216,7 +209,7 @@ final class MacTerminalModel {
     var showingCommandPalette = false
     var showingPairing = false
     /// Context-aware find (⌘F): searches the *current* section — terminal
-    /// scrollback, or filters the Files/Machines/Projects/Agents list.
+    /// scrollback, or filters the Files/Machines/Projects list.
     var showingSearch = false
     var searchQuery = ""
 
@@ -423,12 +416,6 @@ final class MacTerminalModel {
         let host = checkout?.host
         let path = checkout?.path ?? ""
         checkout?.lastOpenedAt = .now
-        // Ground the exact checkout being opened — the store-wide "active"
-        // one can belong to another repo or the previously used machine.
-        if let project = repo.project {
-            SkillMaterializer.shared.materialize(project: project, checkout: checkout,
-                                                 isLocalHost: MacSelfHost.isThisMac)
-        }
         let tmuxName = "shio-\(TmuxResume.scrubName(repo.name))"
         if let host, !MacSelfHost.isThisMac(host) {
             let resume = TmuxResume.resumeCommand(named: tmuxName, startDir: path, cloneURL: repo.cloneURL)
@@ -449,8 +436,6 @@ final class MacTerminalModel {
         let host = checkout?.host ?? project.host
         let path = checkout?.path ?? project.path
         checkout?.lastOpenedAt = .now
-        SkillMaterializer.shared.materialize(project: project, checkout: checkout,
-                                             isLocalHost: MacSelfHost.isThisMac)
         // This Mac (its own host) or a legacy host-less project → local
         // invisible-tmux. A project on another machine → SSH.
         if let host, !MacSelfHost.isThisMac(host) {
@@ -518,18 +503,9 @@ final class MacTerminalModel {
         let cutoff = Date.now.addingTimeInterval(-Self.hibernateAfter)
         for tab in tabs where tab.id != selectedTabID
             && tab.isHibernatable
-            && tab.lastActiveAt < cutoff
-            && !agentBusy(tab) {
+            && tab.lastActiveAt < cutoff {
             closeTab(tab.id)
         }
-    }
-
-    /// Never hibernate a terminal whose agent is live — jumping to a
-    /// needs-you must be instant, not a reattach.
-    private func agentBusy(_ tab: WorkspaceTab) -> Bool {
-        guard let activity = MacProjectAgentMonitor.shared
-            .snapshot(forProjectNamed: tab.title)?.activity else { return false }
-        return activity == .running || activity == .waiting
     }
 
     func closeTab(_ id: UUID) {
@@ -567,8 +543,7 @@ final class MacTerminalModel {
         go(to: places[index])
     }
 
-    /// Walk the map (⇧⌘] / ⇧⌘[) — cycles the unique places in rail order
-    /// (the agents group mirrors repos, so it's skipped).
+    /// Walk the map (⇧⌘] / ⇧⌘[) — cycles the unique places in rail order.
     func selectAdjacentPlace(_ delta: Int) {
         let cycle = railMap().cycle
         guard !cycle.isEmpty else { return }
@@ -604,9 +579,7 @@ final class MacTerminalModel {
     /// target, so the keys can never drift from the pixels.
     func railMap() -> RailMap {
         var map = RailMap()
-        let rows = selectedProject.map { ProjectRows.rows(for: $0) } ?? []
-        map.agents = rows.filter { $0.agent != .none }
-        map.repos = rows
+        map.repos = selectedProject.map { ProjectRows.rows(for: $0) } ?? []
 
         // SHELLS is the permanent machine map (This Mac leads), each row the
         // machine's one shell; indexed escape-hatch shells ride under their
@@ -629,16 +602,14 @@ final class MacTerminalModel {
         }
 
         let shellPlaces = map.shells.map(\.place)
-        map.places = map.agents.map { .repo($0.repo) }
-            + map.repos.map { .repo($0.repo) }
-            + shellPlaces
+        map.places = map.repos.map { .repo($0.repo) } + shellPlaces
         map.cycle = map.repos.map { .repo($0.repo) } + shellPlaces
         return map
     }
 }
 
-/// The rail's display model: the three groups in display order (agents →
-/// repos → shells) plus the flattened `places` the shortcuts index into.
+/// The rail's display model: the two groups in display order (repos →
+/// shells) plus the flattened `places` the shortcuts index into.
 struct RailMap {
     enum Place {
         case repo(Repo)
@@ -665,7 +636,6 @@ struct RailMap {
         }
     }
 
-    var agents: [RepoRowVM] = []
     var repos: [RepoRowVM] = []
     var shells: [ShellRow] = []
     /// Every visible row top-to-bottom — the ⌘1–9 targets.

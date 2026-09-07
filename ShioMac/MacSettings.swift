@@ -8,7 +8,6 @@ enum MacSettings {
     static let cursorStyleKey = "shio.mac.cursorStyle"   // block | bar | underline
     static let themeKey = "shio.mac.theme"               // ghostty theme name ("" = default)
     static let shellKey = "shio.mac.defaultShell"
-    static let menubarWatcherKey = "shio.mac.menubarWatcher"
 
     static var fontSize: Double {
         let v = UserDefaults.standard.double(forKey: fontSizeKey)
@@ -33,15 +32,8 @@ struct MacSettingsView: View {
     @AppStorage(MacSettings.cursorStyleKey) private var cursorStyle: String = "block"
     @AppStorage(MacSettings.themeKey) private var theme: String = ""
     @AppStorage(MacSettings.shellKey) private var shell: String = ""
-    @AppStorage(TmuxResume.takeoverKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
-    private var takeover: Bool = false
-    @AppStorage(MacSettings.menubarWatcherKey) private var menubarWatcher: Bool = false
-    @AppStorage(SkillMaterializer.syncEnabledKey) private var skillSync: Bool = true
     @AppStorage(PowerKeeper.enabledKey) private var keepAwake: Bool = true
     @AppStorage(PowerKeeper.batteryKey) private var keepAwakeOnBattery: Bool = false
-    @State private var showingSkills = false
-    @State private var pinging = false
-    @State private var pingResult: String?
 
     var body: some View {
         Form {
@@ -59,8 +51,8 @@ struct MacSettingsView: View {
                     .font(.system(.body, design: .monospaced))
             }
             Section("Power") {
-                Toggle("Keep this Mac awake while agents run", isOn: $keepAwake)
-                Text("Holds off system sleep only while an agent is working or waiting, or a device is attached over SSH — released the moment they finish. The display still sleeps; sleep would freeze the agent and silence the needs-you push.")
+                Toggle("Keep this Mac awake while a device is attached over SSH", isOn: $keepAwake)
+                Text("Holds off system sleep only while a device is attached over SSH — released the moment it disconnects. The display still sleeps.")
                     .font(.footnote).foregroundStyle(.secondary)
                 Toggle("Also on battery", isOn: $keepAwakeOnBattery)
                     .disabled(!keepAwake)
@@ -70,33 +62,7 @@ struct MacSettingsView: View {
             .onChange(of: keepAwake) { _, _ in PowerKeeper.shared.reevaluate() }
             .onChange(of: keepAwakeOnBattery) { _, _ in PowerKeeper.shared.reevaluate() }
             Section("Remote control") {
-                Toggle("Take over on connect", isOn: $takeover)
-                Text("Mirror (default): every device sees the live terminal and shares control. Take over: connecting detaches the others so you have sole control.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Toggle("Keep watching in the menu bar", isOn: $menubarWatcher)
-                Text("Stay in the menu bar when the window is closed, so Shio still pushes your phone when an agent needs you. Off = Shio quits with its last window.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Button {
-                    Task { await pingPhone() }
-                } label: {
-                    HStack {
-                        Text("Send test push to your iPhone")
-                        if pinging { Spacer(); ProgressView().controlSize(.small) }
-                    }
-                }
-                .disabled(pinging)
-                if let pingResult {
-                    Text(pingResult).font(.footnote).foregroundStyle(.secondary)
-                }
-                Text("Writes a Signal through your own iCloud — the exact path a blocked agent uses. The banner lands on your iPhone (works locked), usually within a minute. It can never appear on this Mac: CloudKit doesn't push back to the device that wrote the record.")
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
-            Section("Skills") {
-                Button("Open Skills library…") { showingSkills = true }
-                Text("Your universal, vendor-neutral agent rules — global ∪ per-project.")
-                    .font(.footnote).foregroundStyle(.secondary)
-                Toggle("Sync skills to your coding agents", isOn: $skillSync)
-                Text("Writes your skills into the folders Claude Code (~/.claude), Cursor, and Codex read, so they're picked up automatically. macOS asks permission the first time (\"data from other apps\"). Off = Shio never touches those folders.")
+                Text("Mirror: every device that connects sees the live terminal and shares control.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section {
@@ -106,36 +72,5 @@ struct MacSettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 460, height: 380)
-        .sheet(isPresented: $showingSkills) {
-            VStack(spacing: 0) {
-                HStack {
-                    Spacer()
-                    Button("Done") { showingSkills = false }.keyboardShortcut(.defaultAction)
-                }
-                .padding(12)
-                SkillsLibraryView()
-            }
-            .frame(width: 560, height: 460)
-        }
-    }
-
-    /// The REAL end-to-end away-push test: this Mac writes a Signal (the exact
-    /// record a blocked agent produces) and the iPhone's subscription turns it
-    /// into a banner. Cross-device, so it isn't suppressed the way a phone's
-    /// own test Signal is.
-    private func pingPhone() async {
-        pinging = true
-        defer { pinging = false }
-        do {
-            try await CloudKitSignalService.shared.sendTestSignal(
-                hostId: MacSelfHost.deviceID,
-                sessionId: "shio-test",
-                title: "Test from your Mac",
-                body: "Away-push works end to end. 塩"
-            )
-            pingResult = "Signal written ✓ — your iPhone should show the banner within ~10–60s. Lock it to see the Approve/Deny buttons."
-        } catch {
-            pingResult = "Couldn't write the Signal: \(error.localizedDescription)"
-        }
     }
 }

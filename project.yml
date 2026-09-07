@@ -258,9 +258,7 @@ targets:
       - path: Shio/Core/SSH
       - path: Shio/Core/Keys
       - path: Shio/Core/Profiles
-      - path: Shio/Core/Agents
       - path: Shio/Core/Status
-      - path: Shio/Core/Skills
       - path: Shio/Core/Util
       - path: Shio/Core/Design
       # Platform-agnostic design tokens (spacing/radius/typography) so the Mac
@@ -269,13 +267,8 @@ targets:
       - path: Shio/DesignSystem/Tokens/Spacing+Tokens.swift
       - path: Shio/DesignSystem/Tokens/Typography+Tokens.swift
       - path: Shio/Core/Pairing/PairingPayload.swift
-      # Sovereign away-push: the Mac watcher writes a Signal when a local agent
-      # blocks; the phone's subscription turns it into an alert.
-      - path: Shio/Core/Push/CloudKitSignalService.swift
       # Reused SFTP browse engine (UIKit-free; owns its own SSH+SFTP).
       - path: Shio/Features/Files/FilesViewModel.swift
-      # Shared Skills library shell (UIKit-free; ShioTheme + kit only).
-      - path: Shio/Features/Skills/SkillsLibraryView.swift
       # Shared project dashboard (the bento) — ONE body for the Mac and iPad
       # canvases; each platform's builder + closures feed it.
       - path: Shio/Features/Projects/ProjectDashboardView.swift

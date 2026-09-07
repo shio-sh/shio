@@ -321,8 +321,8 @@ final class SSHClient: @unchecked Sendable {
     /// Result of a headless exec with integrity info the bare string can't
     /// carry: stdout and stderr separately, the remote exit status (nil when
     /// the channel closed without reporting one), and whether the timeout cut
-    /// the command off. Callers that mutate remote state (GitWriter, skills)
-    /// use this to distinguish "succeeded" from "produced some output".
+    /// the command off. Callers that mutate remote state use this to
+    /// distinguish "succeeded" from "produced some output".
     struct ExecResult: Sendable {
         var stdout: String
         var stderr: String

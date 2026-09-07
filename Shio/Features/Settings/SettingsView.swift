@@ -1,5 +1,4 @@
 import SwiftUI
-import UserNotifications
 
 /// Settings screen. Minimal by design — anything dangerous lives behind
 /// Pro Mode (one-time disclosure).
@@ -11,17 +10,9 @@ struct SettingsView: View {
     @AppStorage(AppLock.defaultsKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
     private var appLockEnabled: Bool = false
 
-    @AppStorage(TmuxResume.takeoverKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
-    private var takeoverMode: Bool = false
-
     @AppStorage("shio.key.useEnclave") private var useEnclaveKey: Bool = false
 
-    @AppStorage(SkillMaterializer.syncEnabledKey) private var skillSync: Bool = true
-
     @State private var showingProModeDisclosure = false
-    @State private var testPushResult: String?
-    @State private var sendingTestPush = false
-    @State private var creatingAction = false
 
     // NB: no NavigationStack here — every call site (Projects, Files,
     // Machines) presents SettingsView inside its own stack; nesting a second
@@ -41,11 +32,6 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    NavigationLink {
-                        SkillsLibraryView()
-                    } label: {
-                        Label("Skills", systemImage: "wrench.and.screwdriver.fill")
-                    }
                     NavigationLink {
                         PublicKeyView(mode: .settings)
                             .navigationTitle("SSH Key")
@@ -89,28 +75,6 @@ struct SettingsView: View {
                         .foregroundStyle(ShioTheme.textTertiary)
                 }
 
-                Section {
-                    Toggle(isOn: $takeoverMode) {
-                        Label("Take over on connect", systemImage: "rectangle.on.rectangle.angled")
-                    }
-                    Text("Mirror (default): every device sees the live terminal and shares control. Take over: connecting from a device detaches the others so you have sole control.")
-                        .font(ShioFont.footnote)
-                        .foregroundStyle(ShioTheme.textTertiary)
-                } header: {
-                    Text("Remote control")
-                }
-
-                Section {
-                    Toggle(isOn: $skillSync) {
-                        Label("Sync skills to your agents", systemImage: "wrench.and.screwdriver")
-                    }
-                    Text("Writes your skills into the folders the agents on your machines read (~/.claude, ~/.cursor, ~/.codex) when you open a project. Off = Shio never touches those folders.")
-                        .font(ShioFont.footnote)
-                        .foregroundStyle(ShioTheme.textTertiary)
-                } header: {
-                    Text("Skills")
-                }
-
                 if KeyManager.enclaveAvailable() {
                     Section {
                         Toggle(isOn: $useEnclaveKey) {
@@ -150,36 +114,6 @@ struct SettingsView: View {
                             .foregroundStyle(ShioTheme.textTertiary)
                     }
                 }
-
-                if proModeEnabled {
-                    Section {
-                        Button {
-                            Task { await sendTestPush() }
-                        } label: {
-                            HStack {
-                                Label("Send test notification", systemImage: "bell.badge")
-                                Spacer()
-                                if sendingTestPush { ProgressView() }
-                            }
-                        }
-                        .disabled(sendingTestPush)
-
-                        Button {
-                            Task { await createActionSchema() }
-                        } label: {
-                            HStack {
-                                Label("Create approve record", systemImage: "checkmark.message")
-                                Spacer()
-                                if creatingAction { ProgressView() }
-                            }
-                        }
-                        .disabled(creatingAction)
-                    } header: {
-                        Text("Notifications")
-                    } footer: {
-                        Text("\"Send test notification\" verifies away-push delivers. \"Create approve record\" writes one Action record so the CloudKit \"Action\" record type appears in Development — then make it Queryable and deploy it to Production (that's what powers lock-screen approve).")
-                    }
-                }
             }
             .scrollContentBackground(.hidden)
             .background(ShioTheme.background)
@@ -189,86 +123,6 @@ struct SettingsView: View {
             } message: {
                 Text("Pro Mode unlocks raw SSH, ProxyJump, custom ports, and manual key management. Shio can't protect you from misconfigurations in this mode.")
             }
-            .alert("Test notification", isPresented: Binding(get: { testPushResult != nil }, set: { if !$0 { testPushResult = nil } })) {
-                Button("OK") { testPushResult = nil }
-            } message: {
-                Text(testPushResult ?? "")
-            }
-    }
-
-    /// Write one Action record so CloudKit materializes the `Action` record type
-    /// in Development — the one-time step that makes it deployable to Production.
-    private func createActionSchema() async {
-        creatingAction = true
-        defer { creatingAction = false }
-        await CloudKitSignalService.shared.sendAction(sessionId: "shio-schema-probe", key: "y")
-        testPushResult = "Wrote a test Action. In CloudKit Console → Development → Record Types, the “Action” type should now appear. Make it Queryable, then Deploy Schema Changes to Production."
-    }
-
-    private func sendTestPush() async {
-        sendingTestPush = true
-        defer { sendingTestPush = false }
-        // REQUEST permission (prompts the first time), then register — not just
-        // registerIfAuthorized, which silently skips when status is notDetermined.
-        await PushService.shared.requestAuthorizationAndRegister()
-        // Denied is its own diagnosis — without permission there's no banner
-        // no matter what else is right, and "capability missing" would lie.
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        guard settings.authorizationStatus == .authorized
-            || settings.authorizationStatus == .provisional else {
-            testPushResult = "Notifications are denied for Shio. Enable them in Settings → Apps → Shio → Notifications, then try again."
-            return
-        }
-        // Server-side subscription check (the local latch can lie across
-        // reinstalls / Dev→Prod switches) — repairs it if missing.
-        let subscription = await CloudKitSignalService.shared.verifySubscription()
-        let subLine: String
-        switch subscription {
-        case .active:  subLine = "Subscription: active ✓"
-        case .created: subLine = "Subscription: was missing — created ✓"
-        case .unavailable(let why):
-            testPushResult = "CloudKit subscription problem: \(why)"
-            return
-        }
-        // The APNs token arrives via an async delegate callback — give it a
-        // moment instead of mis-diagnosing a missing capability on first tap.
-        var token = PushService.shared.deviceToken
-        for _ in 0..<10 where token == nil {
-            try? await Task.sleep(nanoseconds: 300_000_000)
-            token = PushService.shared.deviceToken
-        }
-        guard let token else {
-            testPushResult = "\(subLine)\nBUT this device has no APNs push token — registerForRemoteNotifications didn't complete. CloudKit has no way to deliver. Likely the Push Notifications capability isn't enabled on the sh.shio.app App ID. Check Xcode's Signing & Capabilities (add Push Notifications) and the log for 'APNs registration failed'."
-            return
-        }
-        do {
-            try await CloudKitSignalService.shared.sendTestSignal()
-            // Rehearse the banner locally (same category → the lock-screen
-            // Approve/Deny buttons), because the CloudKit push for the Signal
-            // we just wrote will NEVER arrive here: Apple doesn't deliver a
-            // subscription push to the device that originated the change.
-            await scheduleRehearsalBanner()
-            testPushResult = "\(subLine)\nSignal saved ✓\nPush token: …\(token.suffix(8)) ✓\n\nThis phone can't receive its own test Signal — CloudKit never pushes back to the device that wrote the record. A local rehearsal banner (same Approve/Deny category) arrives in ~3s; lock the phone to see it there.\n\nThe real end-to-end test is on your Mac: Settings → Remote control → “Send test push to your iPhone”."
-        } catch {
-            testPushResult = "\(subLine)\nCouldn't write the Signal: \(error.localizedDescription)"
-        }
-    }
-
-    /// A local stand-in for the away banner: same category, so the lock-screen
-    /// Approve / Deny buttons render exactly as the real push would show them.
-    private func scheduleRehearsalBanner() async {
-        let content = UNMutableNotificationContent()
-        content.title = "Claude Code needs you"
-        content.body = "Rehearsal banner — this is how an away-push looks. Approve/Deny work from the lock screen."
-        content.sound = .default
-        content.categoryIdentifier = CloudKitSignalService.needsYouCategory
-        content.userInfo = ["sessionId": "shio-test", "hostId": ""]
-        let request = UNNotificationRequest(
-            identifier: "shio-test-banner",
-            content: content,
-            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 3, repeats: false)
-        )
-        try? await UNUserNotificationCenter.current().add(request)
     }
 
     private var appLockToggleTitle: String {

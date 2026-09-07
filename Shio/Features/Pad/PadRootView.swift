@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 /// iPad = the Mac layout, touch-sized: ONE rail (project switcher +
-/// AGENTS/SHELLS/REPOS + utility rows + 塩 foot), a center canvas (the team's
+/// SHELLS/REPOS + utility rows + 塩 foot), a center canvas (the team's
 /// dashboard as the landing, a repo or shell terminal, Machines, Files), and
 /// the GLANCE inspector — open by default, ▤ everywhere, headers at one fixed
 /// height so the hairlines run as one line (the alignment law).
@@ -158,29 +158,8 @@ struct PadRootView: View {
     }
 
     @ViewBuilder private var groups: some View {
-        let items = presenceItems
-        if !items.isEmpty {
-            railHeader("agents")
-            ForEach(items) { item in
-                railRow(title: "\(item.agentName) · \(item.repoName)",
-                        selected: isOpenRepo(named: item.repoName),
-                        action: { jump(item.repo) }) {
-                    ShioPresenceGlyph(activity: item.activity, size: 11.5, idle: nil)
-                } trailing: {
-                    if item.activity == .waiting {
-                        Text("needs you")
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(ShioTheme.warning)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .overlay(Capsule().strokeBorder(ShioTheme.warning.opacity(0.4), lineWidth: 1))
-                    }
-                }
-            }
-        }
         if let project = selected, !project.sortedRepos.isEmpty {
             railHeader("repos")
-                .padding(.top, items.isEmpty ? 0 : 6)
             ForEach(project.sortedRepos) { repo in
                 railRow(title: repo.name,
                         selected: isOpenRepo(named: repo.name),
@@ -332,18 +311,6 @@ struct PadRootView: View {
 
     private var dedupedHosts: [Host] { hosts.dedupedByIdentity }
 
-    private var presenceItems: [ActivityItem] {
-        guard let project = selected else { return [] }
-        return project.sortedRepos.compactMap { repo -> ActivityItem? in
-            guard let p = ActivityFeed.presence(for: repo) else { return nil }
-            return ActivityItem(id: repo.name, activity: p.snap.activity,
-                                agentName: p.snap.agentName ?? "Agent",
-                                detail: p.snap.detail, repoName: repo.name,
-                                projectName: project.name, age: shioShortAge(p.at),
-                                repo: repo, sessionID: p.sessionID)
-        }
-    }
-
     private func isOpenRepo(named name: String) -> Bool {
         guard case .terminal(let id) = canvas,
               let session = sessionStore.sessions.first(where: { $0.id == id }) else { return false }
@@ -409,7 +376,6 @@ struct PadRootView: View {
     private func refreshStatus() {
         let targets = ProjectStatusStore.targets(for: projects, isLocalHost: { _ in false })
         status.refresh(targets)
-        status.refreshPRs(targets)
     }
 }
 
@@ -443,17 +409,6 @@ private struct PadDashboardCanvas: View {
                 openRepo: openRepo,
                 addRepo: { showingAddRepo = true },
                 openMachines: openMachines,
-                reply: { row, key in
-                    // Every blocked row is answerable from here — an open
-                    // session directly, anything else over CloudKit (#33).
-                    guard row.agent == .waiting else { return nil }
-                    return {
-                        Haptics.medium()
-                        ActivityFeed.reply(repoName: row.name,
-                                           sessionID: ActivityFeed.presence(for: row.repo)?.sessionID,
-                                           key: key)
-                    }
-                },
                 isLocalHost: { _ in false }
             )
         }
@@ -468,11 +423,10 @@ private struct PadDashboardCanvas: View {
             Button("Cancel", role: .cancel) {}
         }
         .onAppear {
-            // Fresh status + PRs for the project on landing (the canvas is
-            // .id'd per project, so switching teams re-probes too).
+            // Fresh status for the project on landing (the canvas is .id'd
+            // per project, so switching teams re-probes too).
             let targets = ProjectStatusStore.targets(for: [project], isLocalHost: { _ in false })
             status.refresh(targets)
-            status.refreshPRs(targets)
         }
     }
 
@@ -538,17 +492,12 @@ private struct PadDashboardCanvas: View {
 
 // MARK: - Terminal canvas
 
-/// A terminal inline on the iPad canvas: 44pt header (presence + name +
-/// quiet metadata + ▤), the terminal, and the answer bar while its agent is
-/// blocked.
+/// A terminal inline on the iPad canvas: 44pt header (name + quiet metadata +
+/// ▤) and the terminal.
 private struct PadTerminalView: View {
     let session: SessionStore.Session
     let inspectorOpen: Bool
     let toggleInspector: () -> Void
-
-    private var snapshot: AgentSnapshot? {
-        AgentStateStore.shared.snapshot(for: session.id)
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -572,17 +521,6 @@ private struct PadTerminalView: View {
                     }
                 }
             }
-            .overlay(alignment: .bottom) {
-                if let snap = snapshot, snap.activity == .waiting {
-                    ShioNeedsYouBar(
-                        agentName: snap.agentName ?? "Your agent",
-                        approve: { Haptics.medium(); session.viewModel.terminal.onInput?("y\n") },
-                        deny: { Haptics.medium(); session.viewModel.terminal.onInput?("n\n") }
-                    )
-                    .shadow(color: .black.opacity(0.25), radius: 10, y: 3)
-                    .padding(12)
-                }
-            }
         }
         .onAppear { SessionStore.shared.activeSession = session }
         .task(id: session.id) {
@@ -594,10 +532,9 @@ private struct PadTerminalView: View {
 
     private var head: some View {
         HStack(spacing: 10) {
-            // .finished stays quiet here — the header idles at ⎇/%.
-            let act = snapshot?.activity ?? .none
-            ShioPresenceGlyph(activity: act == .finished ? .none : act, size: 12,
-                              idle: session.projectID == nil ? "%" : "⎇")
+            Text(session.projectID == nil ? "%" : "⎇")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
             Text(session.displayName)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(ShioTheme.textPrimary)
@@ -629,9 +566,7 @@ private struct PadTerminalView: View {
     }
 
     private var sub: String {
-        let agent = snapshot?.agentName
-        let place = "tmux · \(session.viewModel.hostName)"
-        return [agent, place].compactMap(\.self).joined(separator: " · ")
+        "tmux · \(session.viewModel.hostName)"
     }
 }
 
@@ -685,40 +620,15 @@ private struct PadInspector: View {
 
     @ViewBuilder private var groups: some View {
         if let project {
-            let items = project.sortedRepos.compactMap { ActivityFeed.presence(for: $0) }
             let changes = project.sortedRepos.reduce(0) { $0 + dirtyCount($1) }
-            let working = items.filter { $0.snap.activity == .running }.count
-            let needs = items.filter { $0.snap.activity == .waiting }.count
-            let prs = project.sortedRepos.reduce(0) { $0 + openPRCount($1) }
 
-            if changes == 0 && working == 0 && needs == 0 && prs == 0 {
+            if changes == 0 {
                 Text("all quiet")
                     .font(.system(size: 11.5))
                     .foregroundStyle(ShioTheme.textTertiary)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
-                    if changes > 0 {
-                        kv("Changes") { Text("\(changes)").foregroundStyle(ShioTheme.warning) }
-                    }
-                    if working > 0 || needs > 0 {
-                        kv("Agents") {
-                            HStack(spacing: 5) {
-                                if working > 0 {
-                                    ShioBrailleSpinner(status: .info, size: 10)
-                                    Text("\(working)").foregroundStyle(ShioTheme.info)
-                                }
-                                if working > 0 && needs > 0 {
-                                    Text("·").foregroundStyle(ShioTheme.textTertiary)
-                                }
-                                if needs > 0 {
-                                    Text("⚑ \(needs)").foregroundStyle(ShioTheme.warning)
-                                }
-                            }
-                        }
-                    }
-                    if prs > 0 {
-                        kv("PRs open") { Text("\(prs)").foregroundStyle(ShioTheme.textPrimary) }
-                    }
+                    kv("Changes") { Text("\(changes)").foregroundStyle(ShioTheme.warning) }
                 }
             }
 
@@ -771,10 +681,5 @@ private struct PadInspector: View {
     private func dirtyCount(_ repo: Repo) -> Int {
         guard let c = repo.activeCheckout else { return 0 }
         return GitLineFormatter.make(status.status(forHost: c.host, path: c.path)?.probe).dirty
-    }
-
-    private func openPRCount(_ repo: Repo) -> Int {
-        guard let c = repo.activeCheckout else { return 0 }
-        return status.prList(forHost: c.host, path: c.path).filter { $0.state == "OPEN" }.count
     }
 }

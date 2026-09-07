@@ -18,13 +18,11 @@ enum ModelCascade {
     }
 
     /// Remove a project with its repos, checkouts, and project-scoped skills.
-    /// Skills are retired first (files cleaned up + tombstoned) — `.nullify`
-    /// would otherwise turn them into GLOBAL skills and fan them out to every
-    /// machine on the next sync.
+    /// Skills are deleted outright — `.nullify` would otherwise turn them into
+    /// GLOBAL skills, applying them to every other project.
     @MainActor
-    static func delete(project: Project, context: ModelContext, isLocalHost: (Host) -> Bool) {
+    static func delete(project: Project, context: ModelContext) {
         for skill in project.skills ?? [] {
-            SkillMaterializer.shared.retire(skill, isLocalHost: isLocalHost)
             context.delete(skill)
         }
         for checkout in project.allCheckouts {
