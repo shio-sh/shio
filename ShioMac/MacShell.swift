@@ -22,7 +22,47 @@ struct MacShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @Query private var projects: [Project]
 
+    /// First run only, and only with nothing to show. Someone whose projects
+    /// arrived from another device over iCloud has already met Shio, and
+    /// "start with a folder" would be wrong in front of three of them.
+    @State private var showingOnboarding =
+        !UserDefaults.standard.bool(forKey: MacOnboarding.completedKey)
+
+    /// Set by Help ▸ Show Welcome, so the pass can be re-read after first run
+    /// even once projects exist.
+    @State private var replaying = false
+
+    private var onboarding: Bool {
+        (showingOnboarding && projects.isEmpty) || replaying
+    }
+
+    /// The shell is ALWAYS the window's root view and onboarding covers it,
+    /// rather than the two swapping places. Returning a different view tree
+    /// from the root of the WindowGroup makes SwiftUI tear the window down and
+    /// rebuild it: finishing the pass closed the window instead of revealing
+    /// the app. Overlaying keeps one stable root, and lets the shell's launch
+    /// tasks (self-host registration, migration, status) run underneath while
+    /// the pass is still on screen.
     var body: some View {
+        shell
+            .overlay {
+                if onboarding {
+                    MacOnboarding(
+                        onOpenFolder:     { model.showingAddProject = true },
+                        onCloneFromLink:  { model.showingAddProject = true },
+                        onConnectMachine: { model.showingAddHost = true },
+                        onFinish: { showingOnboarding = false; replaying = false }
+                    )
+                    .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: onboarding)
+            .onReceive(NotificationCenter.default.publisher(for: .shioShowWelcome)) { _ in
+                replaying = true
+            }
+    }
+
+    private var shell: some View {
         ZStack(alignment: .topLeading) {
             HStack(spacing: 0) {
                 if !model.sidebarCollapsed {

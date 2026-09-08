@@ -57,6 +57,14 @@ struct ShioMacApp: App {
                 Button("Add Machine…") { model.showingAddHost = true }
                     .keyboardShortcut("k", modifiers: [.command, .shift])
             }
+            // A first run you can only ever see once is a first run nobody can
+            // check. Help ▸ Welcome is where Mac apps put this.
+            CommandGroup(replacing: .help) {
+                Button("Show Welcome") {
+                    UserDefaults.standard.removeObject(forKey: MacOnboarding.completedKey)
+                    NotificationCenter.default.post(name: .shioShowWelcome, object: nil)
+                }
+            }
             // Jump straight to a canvas. Mnemonic ⌘⇧+letter — plain ⌘+letter
             // is taken by Tab/Find/Minimize/SelectAll.
             CommandMenu("Go") {
