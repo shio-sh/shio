@@ -641,7 +641,7 @@ private struct TerminalGlanceSheet: View {
                         ProjectStatusStore.shared.status(forHost: checkout.host, path: checkout.path)?.probe)
                     if m.hasTracking {
                         kv("⎇ Branch") { Text(m.branch).foregroundStyle(ShioTheme.textPrimary) }
-                        kv("Dirty") {
+                        kv("Uncommitted") {
                             if m.dirty > 0 {
                                 Text("\(m.dirty) file\(m.dirty == 1 ? "" : "s")").foregroundStyle(ShioTheme.warning)
                             } else {

@@ -622,13 +622,18 @@ private struct PadInspector: View {
         if let project {
             let changes = project.sortedRepos.reduce(0) { $0 + dirtyCount($1) }
 
+            let repoCount = project.sortedRepos.count
             if changes == 0 {
-                Text("all quiet")
+                Text("Nothing uncommitted")
                     .font(.system(size: 11.5))
                     .foregroundStyle(ShioTheme.textTertiary)
-            } else {
+            } else if contextRepo == nil || repoCount > 1 {
+                // Suppressed when it would just restate the single repo below.
                 VStack(alignment: .leading, spacing: 0) {
-                    kv("Changes") { Text("\(changes)").foregroundStyle(ShioTheme.warning) }
+                    kv(repoCount > 1 ? "All \(repoCount) repos" : "Uncommitted") {
+                        Text("\(changes) file\(changes == 1 ? "" : "s")")
+                            .foregroundStyle(ShioTheme.warning)
+                    }
                 }
             }
 
@@ -656,7 +661,7 @@ private struct PadInspector: View {
                     .lineLimit(1).truncationMode(.middle)
             }
             if m.hasTracking {
-                kv("Dirty") {
+                kv("Uncommitted") {
                     if m.dirty > 0 {
                         Text("\(m.dirty) file\(m.dirty == 1 ? "" : "s")").foregroundStyle(ShioTheme.warning)
                     } else {

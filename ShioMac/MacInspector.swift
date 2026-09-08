@@ -46,11 +46,13 @@ struct MacInspector: View {
             let rows = ProjectRows.rows(for: project)
             let glance = ProjectRows.glance(for: project, rows: rows)
 
-            glanceGroup(glance)
+            let repo = contextRepo(in: rows)
+            // The project total only earns a line when it aggregates more than
+            // the repo shown below it. With a single repo it restated the same
+            // number under a different name, which read as two metrics.
+            glanceGroup(glance, showTotal: repo == nil || glance.repoCount > 1)
 
-            if let repo = contextRepo(in: rows) {
-                repoGroup(repo)
-            }
+            if let repo { repoGroup(repo) }
         } else {
             Text("No project yet")
                 .font(.system(size: 12))
@@ -65,16 +67,17 @@ struct MacInspector: View {
         return rows.first { $0.name == tab.title }
     }
 
-    private func glanceGroup(_ glance: ProjectGlance) -> some View {
+    private func glanceGroup(_ glance: ProjectGlance, showTotal: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if glance.changes == 0 {
-                Text("all quiet")
+                Text("Nothing uncommitted")
                     .font(.system(size: 12))
                     .foregroundStyle(ShioTheme.textTertiary)
                     .padding(.vertical, 5)
-            } else {
-                kv("Changes") {
-                    Text("\(glance.changes)").foregroundStyle(ShioTheme.warning)
+            } else if showTotal {
+                kv(glance.repoCount > 1 ? "All \(glance.repoCount) repos" : "Uncommitted") {
+                    Text("\(glance.changes) file\(glance.changes == 1 ? "" : "s")")
+                        .foregroundStyle(ShioTheme.warning)
                 }
             }
             if PowerKeeper.shared.isHolding {
@@ -95,7 +98,7 @@ struct MacInspector: View {
                     .lineLimit(1).truncationMode(.middle)
             }
             if m.hasTracking {
-                kv("Dirty") {
+                kv("Uncommitted") {
                     if m.dirty > 0 {
                         Text("\(m.dirty) file\(m.dirty == 1 ? "" : "s")").foregroundStyle(ShioTheme.warning)
                     } else {
