@@ -34,7 +34,13 @@ enum MacLocalLaunch {
         //    plain login shell there. `exec` so the terminal closes cleanly.
         // Everything rides $SHIO_* env vars (double quotes only, no single
         // quotes) so the path survives spaces and the outer single-quoting.
-        let script = #"[ -z "$SHIO_BUNDLED_TMUX" ] || PATH="$PATH:$SHIO_BUNDLED_TMUX"; [ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR"; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR" \; set mouse on \; setw -g window-size latest || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
+        // Session options come from TmuxResume.attachOptions, the same string the
+        // SSH path sends. They used to be duplicated here and had silently
+        // drifted: local sessions were missing `set status off` (so tmux drew its
+        // status bar, which the SSH path never shows) and `set -sg escape-time 0`
+        // (the escape-key lag fix). One constant, so the two paths can't diverge
+        // again.
+        let script = #"[ -z "$SHIO_BUNDLED_TMUX" ] || PATH="$PATH:$SHIO_BUNDLED_TMUX"; [ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR"; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR"\#(TmuxResume.attachOptions) || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
         let command = "\(shell) -lc '\(script)'"
 
         // Start in the repo's *parent* so the cwd is valid even before a clone
