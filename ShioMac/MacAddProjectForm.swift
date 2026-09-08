@@ -14,12 +14,21 @@ struct MacAddProjectForm: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Host.name) private var machines: [Host]
 
+    /// What the Machine picker offers. The picker already leads with a
+    /// synthetic "This Mac" (a nil host = open locally, no SSH), so this Mac's
+    /// OWN synced Host record has to come out or the machine is listed twice —
+    /// once by that label and once by its hostname. Duplicate records for one
+    /// machine (a QR pairing plus the self-host, say) collapse too.
+    private var selectableMachines: [Host] {
+        machines.dedupedByIdentity.filter { !MacSelfHost.isThisMac($0) }
+    }
+
     @State private var draft = ProjectDraft()
     @State private var editingRepo = false
 
     var body: some View {
         if let target = targetProject {
-            MacRepoEditor(machines: machines, title: "Add a repo to \(target.name)") { spec in
+            MacRepoEditor(machines: selectableMachines, title: "Add a repo to \(target.name)") { spec in
                 let repo = target.addRepo(name: spec.name, path: spec.path,
                                           host: resolveHost(spec.hostID),
                                           cloneURL: spec.cloneURL, in: context)
@@ -86,7 +95,7 @@ struct MacAddProjectForm: View {
         .frame(width: 520)
         .frame(maxHeight: 660)
         .sheet(isPresented: $editingRepo) {
-            MacRepoEditor(machines: machines) { draft.repos.append($0) }
+            MacRepoEditor(machines: selectableMachines) { draft.repos.append($0) }
         }
     }
 
