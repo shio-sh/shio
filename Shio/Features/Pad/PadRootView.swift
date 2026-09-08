@@ -309,7 +309,7 @@ struct PadRootView: View {
 
     // MARK: data + actions
 
-    private var dedupedHosts: [Host] { hosts.dedupedByIdentity }
+    private var dedupedHosts: [Host] { hosts.connectable.dedupedByIdentity }
 
     private func isOpenRepo(named name: String) -> Bool {
         guard case .terminal(let id) = canvas,

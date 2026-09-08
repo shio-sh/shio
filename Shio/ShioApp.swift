@@ -15,6 +15,10 @@ struct ShioApp: App {
                     // Project-first migration: backfill a ProjectCheckout for each
                     // legacy single-host project. Idempotent + safe every launch.
                     ProjectMigration.run(in: ShioModelContainer.shared.mainContext)
+                    // Register this phone/tablet as a machine of yours, so the
+                    // Mac can see the device that has been driving it. Marked
+                    // client-only: it is a machine, it just cannot be dialled.
+                    DeviceSelfHost.touch(in: ShioModelContainer.shared.mainContext)
                 }
                 .onOpenURL { url in
                     handleDeepLink(url)

@@ -49,7 +49,7 @@ struct RepoRepairSheet: View {
                 } else {
                     Section("Machine") {
                         Picker("Host", selection: $selectedHost) {
-                            ForEach(hosts.dedupedByIdentity) { host in
+                            ForEach(hosts.connectable.dedupedByIdentity) { host in
                                 Text(host.name).tag(host as Host?)
                             }
                         }
@@ -115,7 +115,7 @@ struct RepoRepairSheet: View {
                     }
                 }
             }
-            .onAppear { if selectedHost == nil { selectedHost = hosts.dedupedByIdentity.first } }
+            .onAppear { if selectedHost == nil { selectedHost = hosts.connectable.dedupedByIdentity.first } }
             #if os(iOS)
             .sheet(isPresented: $pairing) { PairingView() }
             #endif

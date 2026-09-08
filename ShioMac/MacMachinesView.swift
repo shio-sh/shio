@@ -15,7 +15,16 @@ struct MacMachinesView: View {
     /// The rail selection — the self-Mac is synthetic (not always a saved Host).
     enum SelectedMachine: Hashable { case thisMac, host(PersistentIdentifier) }
 
-    private var remotes: [Host] { hosts.filter { !MacSelfHost.isThisMac($0) } }
+    /// Machines you can open a terminal on.
+    private var remotes: [Host] {
+        hosts.filter { !MacSelfHost.isThisMac($0) && $0.isConnectable }
+    }
+
+    /// Your other devices — phones and tablets. They are machines and they
+    /// belong here, they just cannot be dialled, so they get their own group
+    /// rather than being hidden. Previously a phone actively driving this Mac
+    /// appeared nowhere in the app at all.
+    private var devices: [Host] { hosts.filter { !$0.isConnectable } }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,11 +71,52 @@ struct MacMachinesView: View {
                         Button("Remove from Shio", role: .destructive) { remove(host) }
                     }
                 }
+                devicesGroup
             }
             .padding(8)
         }
         .frame(width: 232)
         .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+
+    /// The devices group, shown under the connectable machines.
+    @ViewBuilder private var devicesGroup: some View {
+        if !devices.isEmpty {
+            Text("YOUR DEVICES")
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .tracking(1.6)
+                .foregroundStyle(ShioTheme.textTertiary)
+                .padding(.horizontal, 10)
+                .padding(.top, 14)
+                .padding(.bottom, 4)
+            ForEach(devices) { device in
+                HStack(spacing: 9) {
+                    Image(systemName: "iphone")
+                        .font(.system(size: 12))
+                        .foregroundStyle(ShioTheme.textTertiary)
+                        .frame(width: 16)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(device.name)
+                            .font(.system(size: 12.5))
+                            .foregroundStyle(ShioTheme.textPrimary)
+                            .lineLimit(1)
+                        Text(lastSeen(device))
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(ShioTheme.textTertiary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .help("A device of yours. You can't open a terminal on it — iOS runs no SSH server.")
+            }
+        }
+    }
+
+    private func lastSeen(_ device: Host) -> String {
+        let age = shioShortAge(device.lastConnectedAt)
+        return age.isEmpty ? "this device" : "last used \(age) ago"
     }
 
     private func machineItem(_ id: SelectedMachine, name: String, sub: String, reach: Reach) -> some View {

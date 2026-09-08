@@ -208,7 +208,7 @@ private struct RepoEditor: View {
             } else {
                 Section("Machine") {
                     Picker("Host", selection: $selectedHost) {
-                        ForEach(hosts.dedupedByIdentity) { host in
+                        ForEach(hosts.connectable.dedupedByIdentity) { host in
                             Text(host.name).tag(host as Host?)
                         }
                     }
@@ -278,7 +278,7 @@ private struct RepoEditor: View {
                 Button("Add") { commit() }.disabled(!canAdd)
             }
         }
-        .onAppear { if selectedHost == nil { selectedHost = hosts.dedupedByIdentity.first } }
+        .onAppear { if selectedHost == nil { selectedHost = hosts.connectable.dedupedByIdentity.first } }
         .sheet(isPresented: $pairing) { PairingView() }
     }
 

@@ -56,7 +56,12 @@ final class ConnectRouter {
     /// hostname (Siri / Handoff), then the display name as a last resort.
     /// Internal (not private) so the precedence order is unit-tested.
     func resolveHost(ref: String, context: ModelContext) -> Host? {
-        guard let hosts = try? context.fetch(FetchDescriptor<Host>()) else { return nil }
+        // Only machines that can accept a connection are routable. Your own
+        // phone is a machine and appears in the list, but "connect to it" is
+        // not a thing that exists, so a widget, Siri or a deep link naming it
+        // must resolve to nothing rather than open a session that cannot work.
+        guard let all = try? context.fetch(FetchDescriptor<Host>()) else { return nil }
+        let hosts = all.connectable
         if let h = hosts.first(where: { $0.deviceID == ref }) { return h }
         if let h = hosts.first(where: { "\($0.persistentModelID)" == ref }) { return h }
         if let h = hosts.first(where: { $0.hostname.caseInsensitiveCompare(ref) == .orderedSame }) { return h }

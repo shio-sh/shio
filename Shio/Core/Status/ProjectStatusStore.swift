@@ -206,7 +206,12 @@ extension ProjectStatusStore {
                         warmOnly: Bool = false) -> [Target] {
         var out: [Target] = []
         for project in projects {
-            for checkout in project.allCheckouts where !checkout.path.isEmpty {
+            // A checkout can name a device that cannot be dialled (a repo
+            // placed from a phone, say). Probing it would hang until timeout
+            // and then render as "unreachable", which is a lie: it is not
+            // unreachable, it is not a thing you connect to.
+            for checkout in project.allCheckouts
+            where !checkout.path.isEmpty && (checkout.host?.isConnectable ?? true) {
                 let host = checkout.host
                 let key = StatusKey.make(host: host, path: checkout.path)
                 if let host, !isLocalHost(host) {

@@ -11,6 +11,14 @@ final class Host {
         case tailscale
         /// Manually configured under Pro Mode.
         case directSSH
+        /// A device of yours that cannot accept an incoming connection — an
+        /// iPhone or iPad. It is still a machine: you own it, it shows up in
+        /// Machines, it syncs, and it reports when it last connected. You just
+        /// cannot open a terminal *on* it, because iOS runs no SSH server.
+        ///
+        /// The distinction is direction, not importance. Everything that dials
+        /// out must filter on `isConnectable`; nothing else needs to care.
+        case clientOnly
     }
 
     enum PersistenceMode: String, Codable, CaseIterable {
@@ -45,6 +53,12 @@ final class Host {
 
     /// Kind — controls which UI surfaces show this host.
     var kindRaw: String = Kind.tailscale.rawValue
+
+    /// Can Shio open a connection TO this machine? False for your own phones
+    /// and tablets. Every dial-out path filters on this — the status probe,
+    /// the machine pickers, routing, file browsing — so a device that cannot
+    /// accept connections is never offered as somewhere to connect.
+    var isConnectable: Bool { kind != .clientOnly }
 
     var kind: Kind {
         get { Kind(rawValue: kindRaw) ?? .tailscale }
@@ -118,6 +132,13 @@ extension Array where Element == Host {
     /// (name, hostname, user), preferring the record that carries a deviceID.
     /// The Mac merges these at the source; this keeps lists correct in the
     /// window before that delete syncs in.
+    /// Only the machines Shio can actually dial. Your own phones and tablets
+    /// belong in the machines LIST — they are your devices — but must never be
+    /// offered as somewhere to connect, check out a repo, probe git status, or
+    /// route a deep link to. Every such site filters through here so the rule
+    /// lives in one place instead of a kind check scattered across the app.
+    var connectable: [Host] { filter(\.isConnectable) }
+
     var dedupedByIdentity: [Host] {
         func key(_ h: Host) -> String {
             "\(h.name.lowercased())|\(h.hostname.lowercased())|\(h.username.lowercased())"
