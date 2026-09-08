@@ -10,6 +10,7 @@ struct MacDashboardCanvas: View {
     @Bindable var model: MacTerminalModel
     @Environment(\.modelContext) private var context
     @Environment(\.shioHeaderLeadingInset) private var headerInset
+    @Query private var projects: [Project]
     @State private var renaming = false
     /// The phone offer waits until a project exists, so it lands after Shio has
     /// actually done something rather than asking for a second device up front.
@@ -48,12 +49,58 @@ struct MacDashboardCanvas: View {
                     )
                     .id(project.persistentModelID)
                 }
-            } else {
+            } else if projects.isEmpty {
                 emptyState
+            } else {
+                // Nothing selected, but projects exist: the dashboard zoomed
+                // out. Not a fifth canvas — the same one, further back.
+                VStack(spacing: 0) {
+                    overviewHead
+                    ProjectsOverview(
+                        items: projects
+                            .sorted { ($0.lastOpenedAt ?? .distantPast) > ($1.lastOpenedAt ?? .distantPast) }
+                            .map { ProjectOverviewItem.make(project: $0, rows: ProjectRows.rows(for: $0)) },
+                        open: { model.select(project: $0) },
+                        addProject: { model.showingAddProject = true }
+                    )
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(ShioTheme.background)
+    }
+
+    /// Same 48pt header as a project's, so switching between zoomed-in and
+    /// zoomed-out doesn't shift the canvas.
+    private var overviewHead: some View {
+        HStack(spacing: 10) {
+            Text("All projects")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(ShioTheme.textPrimary)
+            Text(overviewSub)
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(ShioTheme.textTertiary)
+                .lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 10)
+            ShioButton("New project", .primary, compact: true) { model.showingAddProject = true }
+                .fixedSize()
+            MacHeaderIconButton(systemImage: "sidebar.trailing", help: "Inspector (⌘I)",
+                                on: model.inspectorOpen) { model.inspectorOpen.toggle() }
+        }
+        .padding(.leading, 18 + headerInset)
+        .padding(.trailing, 18)
+        .frame(maxWidth: .infinity)
+        .frame(height: MacChrome.headerHeight)
+        .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1) }
+    }
+
+    private var overviewSub: String {
+        let repos = projects.reduce(0) { $0 + $1.sortedRepos.count }
+        let machines = Set(projects.flatMap { $0.allCheckouts.compactMap { $0.host?.persistentModelID } }).count
+        var parts = ["\(projects.count) project\(projects.count == 1 ? "" : "s")"]
+        if repos > 0 { parts.append("\(repos) repo\(repos == 1 ? "" : "s")") }
+        if machines > 0 { parts.append("\(machines) machine\(machines == 1 ? "" : "s")") }
+        return parts.joined(separator: " · ")
     }
 
     // MARK: header (48pt — the alignment law)

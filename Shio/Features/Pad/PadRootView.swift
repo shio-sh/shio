@@ -21,6 +21,9 @@ struct PadRootView: View {
     @AppStorage("shio.pad.inspector") private var inspectorOpen = true
     @State private var canvas: Canvas = .dashboard
     @State private var isAddingProject = false
+    /// The dashboard zoomed out. Explicit state because `selected` falls back to
+    /// the first project, so "nothing selected" can never mean "show them all".
+    @State private var showingAllProjects = false
     @State private var repoNeedingHome: Repo?
     private let sessionStore = SessionStore.shared
     private let status = ProjectStatusStore.shared
@@ -108,6 +111,16 @@ struct PadRootView: View {
                     }
                 }
                 Divider()
+                // The way back out, matching the Mac's rail row. Only offered
+                // once a second project exists — with one it goes nowhere.
+                if projects.count > 1 {
+                    Button {
+                        showingAllProjects = true
+                        canvas = .dashboard
+                    } label: {
+                        Label("All projects", systemImage: "square.grid.2x2")
+                    }
+                }
                 Button { isAddingProject = true } label: {
                     Label("New project…", systemImage: "plus")
                 }
@@ -264,7 +277,22 @@ struct PadRootView: View {
     @ViewBuilder private var center: some View {
         switch canvas {
         case .dashboard:
-            if let project = selected {
+            if showingAllProjects, !projects.isEmpty {
+                // Same zoomed-out dashboard as the Mac, same cards, same model.
+                ProjectsOverview(
+                    items: projects
+                        .sorted { ($0.lastOpenedAt ?? .distantPast) > ($1.lastOpenedAt ?? .distantPast) }
+                        .map { ProjectOverviewItem.make(project: $0,
+                                                        rows: ActivityFeed.rows(for: $0)) },
+                    open: { project in
+                        selectedName = project.name
+        showingAllProjects = false
+                        project.lastOpenedAt = .now
+                        showingAllProjects = false
+                    },
+                    addProject: { isAddingProject = true }
+                )
+            } else if let project = selected {
                 PadDashboardCanvas(project: project,
                                    openRepo: { jump($0) },
                                    openTerminal: { if let r = project.activeRepo { jump(r) } },

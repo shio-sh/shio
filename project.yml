@@ -275,6 +275,8 @@ targets:
       # The repair sheet the dashboard opens for a repo that isn't checked out
       # on any machine — shared with iOS, which reaches it from ProjectView.
       - path: Shio/Features/Projects/RepoRepairSheet.swift
+      # The dashboard zoomed out — every project at once, shared with iPad.
+      - path: Shio/Features/Projects/ProjectsOverview.swift
     dependencies:
       # libghostty's macOS slice uses Carbon's Text Input Source (TIS) APIs
       # for keyboard-layout handling; link it explicitly.
