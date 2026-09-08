@@ -324,7 +324,7 @@ targets:
         # Product is "Shio" (Shio.app + executable + bundle name) even though the
         # target is ShioMac — so the dock, menu bar, and Finder all read "Shio".
         PRODUCT_NAME: Shio
-        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
         # Apple Silicon only — every Mac since 2020. Drops the x86_64 slice,
         # roughly halving the binary (the embedded libghostty engine is large).
         # Flip back to ARCHS_STANDARD for a universal public build if needed.
@@ -351,7 +351,7 @@ targets:
       - target: ShioMac
     settings:
       base:
-        MACOSX_DEPLOYMENT_TARGET: "26.0"
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.kittests
         # XcodeGen derives TEST_HOST from the target name (ShioMac), but the
