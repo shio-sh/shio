@@ -43,7 +43,7 @@ struct MacAddProjectForm: View {
                     TextField("Project name", text: $draft.name)
                         .textFieldStyle(.plain)
                         .font(.system(.title3, design: .monospaced).weight(.semibold))
-                    Text("A workspace for the repos and context below.")
+                    Text("A workspace for the repos below.")
                         .font(.system(size: 12))
                         .foregroundStyle(ShioTheme.textSecondary)
                 }
