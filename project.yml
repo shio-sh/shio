@@ -37,17 +37,17 @@ settings:
 packages:
   swift-nio-ssh:
     url: https://github.com/apple/swift-nio-ssh
-    from: 0.10.0
+    from: 0.15.0
   swift-nio:
     url: https://github.com/apple/swift-nio
-    from: 2.65.0
+    from: 2.102.0
   # In-app auto-update for the Mac app (notarized, non-MAS). The appcast it
   # checks is published per-release to GitHub mac-latest; the EdDSA public key
   # lives in ShioMac's Info.plist, the private key is the SPARKLE_ED_PRIVATE_KEY
   # CI secret.
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
-    from: 2.9.3
+    from: 2.9.6
 
 targets:
   Shio:
@@ -324,7 +324,7 @@ targets:
         # Product is "Shio" (Shio.app + executable + bundle name) even though the
         # target is ShioMac — so the dock, menu bar, and Finder all read "Shio".
         PRODUCT_NAME: Shio
-        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
         # Apple Silicon only — every Mac since 2020. Drops the x86_64 slice,
         # roughly halving the binary (the embedded libghostty engine is large).
         # Flip back to ARCHS_STANDARD for a universal public build if needed.
@@ -351,7 +351,7 @@ targets:
       - target: ShioMac
     settings:
       base:
-        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        MACOSX_DEPLOYMENT_TARGET: "26.0"
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: sh.shio.app.kittests
         # XcodeGen derives TEST_HOST from the target name (ShioMac), but the
