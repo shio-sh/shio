@@ -3,12 +3,11 @@ import SwiftData
 
 /// An in-progress new project, assembled in the create form and committed in
 /// one save. Shared by the iOS and Mac forms so they behave identically: a name
-/// + logo + context (memory), and any number of repos across machines.
+/// + logo, and any number of repos across machines.
 struct ProjectDraft {
     var name: String = ""
     /// Memory / context — what this project is, conventions, links the agents
     /// should read. Stored as the project's `notes`.
-    var memory: String = ""
     var imageData: Data?
     var repos: [RepoSpec] = []
 
@@ -41,8 +40,6 @@ extension Project {
         let project = Project(name: draft.name.trimmingCharacters(in: .whitespaces),
                               path: first?.path ?? "",
                               host: first.flatMap { resolveHost($0.hostID) })
-        let memo = draft.memory.trimmingCharacters(in: .whitespacesAndNewlines)
-        project.notes = memo.isEmpty ? nil : memo
         project.imageData = draft.imageData
         context.insert(project)
 

@@ -16,7 +16,6 @@ struct AddProjectSheet: View {
     @State private var draft = ProjectDraft()
     @State private var photoItem: PhotosPickerItem?
     @State private var editingRepo = false
-    @State private var groundingExpanded = false
     @State private var pairing = false
 
     var body: some View {
@@ -42,7 +41,6 @@ struct AddProjectSheet: View {
         Form {
             identitySection
             reposSection
-            groundingSection
         }
         .navigationTitle("New project")
         .navigationBarTitleDisplayMode(.inline)
@@ -136,25 +134,6 @@ struct AddProjectSheet: View {
             Text(hosts.isEmpty
                  ? "Repos live on machines. Pair one now, or create the project and add them later."
                  : "Add as many as the project spans, across any of your machines — or none for now.")
-        }
-    }
-
-    private var groundingSection: some View {
-        Section {
-            DisclosureGroup(isExpanded: $groundingExpanded) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("MEMORY").font(ShioFont.footnote).foregroundStyle(ShioTheme.textTertiary)
-                    TextField("What this project is, conventions, links the agent should read…",
-                              text: $draft.memory, axis: .vertical)
-                        .font(ShioFont.callout)
-                        .lineLimit(3...10)
-                }
-                .padding(.vertical, 4)
-            } label: {
-                Label("Memory", systemImage: "sparkles")
-            }
-        } footer: {
-            Text("Notes that travel with the project, on every machine you open it from.")
         }
     }
 

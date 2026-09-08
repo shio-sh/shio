@@ -71,17 +71,6 @@ struct MacAddProjectForm: View {
                         .font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
                 }
 
-                Section {
-                    TextField("What this project is, conventions, links the agent should read…",
-                              text: $draft.memory, axis: .vertical)
-                        .lineLimit(3...10)
-                        .font(.system(size: 12))
-                } header: {
-                    Text("Memory")
-                } footer: {
-                    Text("Notes that travel with the project, on every machine you open it from.")
-                        .font(.system(size: 11)).foregroundStyle(ShioTheme.textTertiary)
-                }
             }
             .formStyle(.grouped)
 
