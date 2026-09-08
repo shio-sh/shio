@@ -99,7 +99,7 @@ iPhone/iPad beta is on **TestFlight** and the Mac app is a free notarized downlo
 
 ## License
 
-App source license is not yet finalized — pending launch decisions. Bundled fonts (Departure Mono, DotGothic16) are OFL-licensed by their authors. Ghostty / libghostty is MIT-licensed by its authors.
+Shio is MIT licensed — see [LICENSE](LICENSE). Bundled fonts (Departure Mono, DotGothic16) are OFL-licensed by their authors. Ghostty / libghostty is MIT-licensed by its authors.
 
 ---
 
