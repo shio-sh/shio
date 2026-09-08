@@ -111,16 +111,6 @@ struct PadRootView: View {
                     }
                 }
                 Divider()
-                // The way back out, matching the Mac's rail row. Only offered
-                // once a second project exists — with one it goes nowhere.
-                if projects.count > 1 {
-                    Button {
-                        showingAllProjects = true
-                        canvas = .dashboard
-                    } label: {
-                        Label("All projects", systemImage: "square.grid.2x2")
-                    }
-                }
                 Button { isAddingProject = true } label: {
                     Label("New project…", systemImage: "plus")
                 }
@@ -213,6 +203,18 @@ struct PadRootView: View {
 
     private var utility: some View {
         VStack(alignment: .leading, spacing: 2) {
+            // Same placement as the Mac: Projects is a section of the app, like
+            // Machines and Files, not a shortcut hidden in the switcher menu.
+            railRow(title: "Projects", muted: true,
+                    selected: canvas == .dashboard && showingAllProjects,
+                    action: { showingAllProjects = true; canvas = .dashboard }) {
+                Text("▣").font(.system(size: 11.5, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
+            } trailing: {
+                Text("\(projects.count)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
+            }
             railRow(title: "Machines", muted: true,
                     selected: canvas == .machines,
                     action: { canvas = .machines }) {

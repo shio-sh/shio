@@ -79,14 +79,6 @@ struct MacRail: View {
     @ViewBuilder private var groups: some View {
         let map = model.railMap()
 
-        // The way back out. The Mac has never had one: the switcher could take
-        // you INTO a project but nothing took you above them. Only shown once a
-        // second project exists — with one, "all projects" is an empty gesture.
-        if model.hasSeveralProjects {
-            allProjectsRow
-                .padding(.bottom, 6)
-        }
-
         if let project = model.selectedProject {
             railHeader("repos", add: { model.addRepoToProject = project },
                        help: "Add a repo to \(project.name)")
@@ -96,32 +88,6 @@ struct MacRail: View {
         railHeader("shells", add: { model.newShellHere() }, help: "New shell here (⌘T)")
             .padding(.top, model.selectedProject == nil ? 0 : 6)
         ForEach(map.shells) { shellRow($0) }
-    }
-
-    /// Deselects, which is what puts the dashboard in its zoomed-out state.
-    private var allProjectsRow: some View {
-        let selected = model.selectedProject == nil
-        return Button {
-            model.showAllProjects()
-        } label: {
-            HStack(spacing: 8) {
-                Text("▣")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(selected ? ShioTheme.accent : ShioTheme.textTertiary)
-                    .frame(width: 13)
-                Text("All projects")
-                    .font(.system(size: 12.5))
-                    .foregroundStyle(selected ? ShioTheme.textPrimary : ShioTheme.textSecondary)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(selected ? ShioTheme.hover : .clear))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .help("Every project at once (⌘0)")
     }
 
     @ViewBuilder private func shellRow(_ row: RailMap.ShellRow) -> some View {
@@ -156,6 +122,21 @@ struct MacRail: View {
 
     private var utility: some View {
         VStack(alignment: .leading, spacing: 2) {
+            // Projects sits with Machines and Files because it is the same kind
+            // of thing: a section of the app. It was briefly a row above the
+            // project list, which put "step back out" in the same place as the
+            // things you step INTO.
+            RailRow(title: "Projects", muted: true,
+                    selected: model.canvas == .dashboard && model.selectedProject == nil,
+                    action: { model.showAllProjects() }) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 11))
+                    .foregroundStyle(ShioTheme.textTertiary)
+            } trailing: {
+                Text("\(projects.count)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(ShioTheme.textTertiary)
+            }
             RailRow(title: "Machines", muted: true,
                     selected: model.canvas == .machines,
                     action: { model.canvas = .machines }) {

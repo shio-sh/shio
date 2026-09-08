@@ -31,9 +31,14 @@ struct ProjectDashboardView: View {
             VStack(alignment: .leading, spacing: 0) {
                 glanceBar
                 reposCard
-                // Machines run full-width below. No machines (no repos yet)
-                // → the card is non-existent, never a placeholder.
-                if !machines.isEmpty {
+                // Machines run full-width below, but only when they say
+                // something the rest of the screen doesn't. With one reachable
+                // machine every repo row already names it and the header
+                // already counts it, so the card was the same fact a third
+                // time. It earns its place for a project spread across
+                // machines, or when something is unreachable — which is the one
+                // thing a repo row cannot tell you.
+                if machines.count > 1 || machines.contains(where: { !$0.reachable }) {
                     machinesCard.padding(.top, 14)
                 }
             }

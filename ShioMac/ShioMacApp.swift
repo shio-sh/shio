@@ -219,12 +219,6 @@ final class MacTerminalModel {
         }
     }
 
-    /// Are there enough projects for an overview to mean anything? With one,
-    /// "all projects" is a gesture with nothing on the other side of it.
-    var hasSeveralProjects: Bool {
-        ((try? ShioModelContainer.shared.mainContext.fetchCount(FetchDescriptor<Project>())) ?? 0) > 1
-    }
-
     /// Step back out to every project. Deselecting IS the zoomed-out state —
     /// the dashboard renders the overview when nothing is selected, so this
     /// needs no canvas of its own.
