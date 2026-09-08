@@ -90,6 +90,14 @@ enum TmuxResume {
         if let cloneURL, !cloneURL.isEmpty, let startDir, !startDir.isEmpty {
             cmd += "[ -d \(SSHClient.shellQuotedPath(startDir)) ] || git clone \(singleQuoted(cloneURL)) \(SSHClient.shellQuotedPath(startDir)); "
         }
+        // The exec channel runs NON-interactively, so PATH is the bare system
+        // default (/usr/bin:/bin:/usr/sbin:/sbin) — the login shell's PATH never
+        // ran. Homebrew tmux lives outside that, so `command -v tmux` failed and
+        // the `||` below silently dropped the user into a plain shell: no tmux,
+        // no session to share, no start directory. That is the cross-device
+        // promise quietly not working. Linux distros ship tmux in /usr/bin and
+        // were unaffected, which is why it hid for so long.
+        cmd += "PATH=\"$PATH:\(Self.commonBinDirs.joined(separator: ":"))\"; "
         cmd += "command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s \(name)"
         if let startDir, !startDir.isEmpty {
             cmd += " -c \(SSHClient.shellQuotedPath(startDir))"
@@ -97,6 +105,11 @@ enum TmuxResume {
         cmd += "\(sessionOptions) || exec \"${SHELL:-/bin/sh}\" -l"
         return cmd
     }
+
+    /// Where tmux actually lives when PATH hasn't been set up: Homebrew on
+    /// Apple Silicon, Homebrew on Intel, MacPorts. Appended (never prepended)
+    /// so a tmux the user put earlier on PATH still wins.
+    static let commonBinDirs = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"]
 
     /// tmux options applied on every attach (`\;`-chained onto `new-session`).
     /// `set mouse on` lets Shio's pan / page controls (mouse-scroll events) reach

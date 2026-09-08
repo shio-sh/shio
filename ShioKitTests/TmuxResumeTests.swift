@@ -64,3 +64,49 @@ struct TmuxResumeTests {
         #expect(!TmuxResume.looksLikeTmuxMissing("tmux 3.4, attached"))
     }
 }
+
+/// The bootstrap that broke the cross-device promise in the field.
+///
+/// `execLine` is the SSH exec command, run NON-interactively so a user's
+/// `.zshrc` cannot preempt Shio's session. The cost of that choice is a bare
+/// system PATH: the login shell's PATH never runs, so Homebrew's tmux was
+/// invisible, `command -v tmux` failed, and the `||` fallback dropped the user
+/// into a plain login shell — no tmux, no shared session, no start directory.
+/// The Mac looked fine because it launches tmux locally; only the phone hit it.
+struct TmuxExecLinePathTests {
+
+    @Test func extendsPathBeforeLookingForTmux() {
+        let line = TmuxResume.execLine(named: "shio-Infer")
+        for dir in TmuxResume.commonBinDirs {
+            #expect(line.contains(dir), "bootstrap must be able to find tmux in \(dir)")
+        }
+        // The PATH assignment has to come first or the lookup still misses.
+        let pathIndex = line.range(of: "PATH=")?.lowerBound
+        let lookupIndex = line.range(of: "command -v tmux")?.lowerBound
+        #expect(pathIndex != nil && lookupIndex != nil)
+        if let p = pathIndex, let l = lookupIndex { #expect(p < l) }
+    }
+
+    /// Appended, never prepended: a tmux the user deliberately put earlier on
+    /// PATH must still win over whatever Homebrew happens to have.
+    @Test func appendsRatherThanOverridingTheUsersPath() {
+        #expect(TmuxResume.execLine(named: "x").contains("PATH=\"$PATH:"))
+    }
+
+    /// tmux genuinely absent must still fall through to a usable shell.
+    @Test func keepsThePlainShellFallback() {
+        #expect(TmuxResume.execLine(named: "x").contains("exec \"${SHELL:-/bin/sh}\" -l"))
+    }
+
+    @Test func stillAttachesOrCreatesInTheStartDirectory() {
+        let line = TmuxResume.execLine(named: "shio-Infer", startDir: "/Users/am/Infer")
+        #expect(line.contains("new-session -A -s shio-Infer"))
+        #expect(line.contains("/Users/am/Infer"))
+    }
+
+    /// The exec form takes no trailing newline — it is the command, not typed
+    /// input — and a stray one would break the exec channel.
+    @Test func carriesNoTrailingNewline() {
+        #expect(TmuxResume.execLine(named: "x").hasSuffix("\n") == false)
+    }
+}
