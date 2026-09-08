@@ -23,7 +23,11 @@ struct MacDashboardCanvas: View {
                 let glance = ProjectRows.glance(for: project, rows: rows)
                 VStack(spacing: 0) {
                     head(project, glance: glance)
-                    if !phoneOfferDismissed {
+                    // Don't offer to set up a phone to someone whose phone is
+                    // already talking to this Mac. Shio has no "my devices"
+                    // model — an iPhone is not a Host — so a live SSH login is
+                    // the only honest evidence, and it is enough.
+                    if !phoneOfferDismissed, !PowerKeeper.hasEverSeenRemoteClient {
                         MacPhoneOffer(
                             onPair: { model.canvas = .machines; model.showingPairing = true },
                             onDismiss: { phoneOfferDismissed = true }

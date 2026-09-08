@@ -25,9 +25,22 @@ final class PowerKeeper {
     /// (invisibly preventing sleep erodes trust when discovered).
     private(set) var isHolding = false
 
-    // Internal plumbing — only `isHolding` is observed; tracking these would
-    // also force `any` into the @Observable-generated source.
-    @ObservationIgnored private var remoteClientPresent = false
+    /// A device is attached over SSH right now. Observed, because the Mac
+    /// otherwise has no idea any of your other devices exist: an iPhone is not
+    /// a Host (you cannot SSH into one), so nothing in the app ever noticed a
+    /// phone that was actively using this Mac. `who` knows — a remote login
+    /// carries its origin in parentheses.
+    private(set) var remoteClientPresent = false
+
+    /// Latched once a device has ever connected, so a one-off offer to set up
+    /// your phone stops being offered after you have plainly already done it.
+    static let sawRemoteClientKey = "shio.mac.sawRemoteClient"
+    static var hasEverSeenRemoteClient: Bool {
+        UserDefaults.standard.bool(forKey: sawRemoteClientKey)
+    }
+
+    // Internal plumbing — tracking these would force `any` into the
+    // @Observable-generated source.
     @ObservationIgnored private var activity: (any NSObjectProtocol)?
     @ObservationIgnored private var timer: Timer?
 
@@ -53,6 +66,9 @@ final class PowerKeeper {
     /// take effect within a tick.
     func update(remoteClientPresent: Bool) {
         self.remoteClientPresent = remoteClientPresent
+        if remoteClientPresent, !Self.hasEverSeenRemoteClient {
+            UserDefaults.standard.set(true, forKey: Self.sawRemoteClientKey)
+        }
         reevaluate()
     }
 

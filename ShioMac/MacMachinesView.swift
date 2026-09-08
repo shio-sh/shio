@@ -97,9 +97,17 @@ struct MacMachinesView: View {
     @ViewBuilder private var detail: some View {
         switch selected ?? .thisMac {
         case .thisMac:
+            // "devices attached" is the only place the Mac admits your other
+            // devices exist. An iPhone is not a Host — you cannot SSH into one
+            // — so it can never appear in the machines list, which made a
+            // working phone look invisible from the Mac.
             machineDetail(name: "This Mac", reachable: true,
                           rows: [("host", Self.localSubtitle),
                                  ("kind", "this device · self-host"),
+                                 ("devices attached",
+                                  PowerKeeper.shared.remoteClientPresent
+                                    ? "1 or more, over SSH now"
+                                    : (PowerKeeper.hasEverSeenRemoteClient ? "none right now" : "none yet")),
                                  ("last connected", "now")],
                           openTitle: "Open terminal", open: { model.newLocalTab() },
                           host: nil)
