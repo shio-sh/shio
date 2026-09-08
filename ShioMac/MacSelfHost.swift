@@ -172,8 +172,26 @@ enum MacSelfHost {
     }
 
     /// `tailscale status --json` → `Self.DNSName` (trailing dot stripped), only
-    /// if it's a `.ts.net` name. nil if the CLI isn't installed or Tailscale is
-    /// down. Blocking — call off the main thread.
+    /// if it's a `.ts.net` name AND the tailnet is actually up. Blocking — call
+    /// off the main thread.
+    ///
+    /// The state check is the whole point. A stopped Tailscale still reports its
+    /// cached `Self.DNSName`, so parsing the name alone let this overwrite a
+    /// perfectly good LAN address with a name nothing can resolve — the Mac then
+    /// advertised an unreachable host to every other device, on the same wifi,
+    /// with a working address sitting right there.
+    /// The decision, split out from the process plumbing so it can be tested:
+    /// a MagicDNS name is only usable when the backend is Running *and* this
+    /// node is Online. Either being false means the name will not resolve.
+    nonisolated static func magicDNSName(fromStatus json: [String: Any]) -> String? {
+        guard (json["BackendState"] as? String) == "Running" else { return nil }
+        guard let selfNode = json["Self"] as? [String: Any],
+              (selfNode["Online"] as? Bool) == true,
+              var dns = selfNode["DNSName"] as? String, !dns.isEmpty else { return nil }
+        if dns.hasSuffix(".") { dns.removeLast() }
+        return dns.hasSuffix(".ts.net") ? dns : nil
+    }
+
     nonisolated private static func tailscaleMagicDNSName() -> String? {
         let candidates = [
             "/usr/local/bin/tailscale",
@@ -193,11 +211,10 @@ enum MacSelfHost {
             try proc.run()
             let data = out.fileHandleForReading.readDataToEndOfFile()
             proc.waitUntilExit()
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let selfNode = json["Self"] as? [String: Any],
-                  var dns = selfNode["DNSName"] as? String, !dns.isEmpty else { return nil }
-            if dns.hasSuffix(".") { dns.removeLast() }
-            return dns.hasSuffix(".ts.net") ? dns : nil
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return nil
+            }
+            return magicDNSName(fromStatus: json)
         } catch {
             return nil
         }
