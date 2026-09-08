@@ -19,9 +19,13 @@ struct TmuxResumeTests {
 
     @Test func execLineShape() {
         let line = TmuxResume.execLine(named: "shio-app", startDir: "~/Code/app")
-        // Non-interactive exec bootstrap: probe tmux, exec it, fall back to a
-        // login shell — and never end with a newline (it's the command).
-        #expect(line.hasPrefix("command -v tmux"))
+        // Non-interactive exec bootstrap: make tmux findable, probe it, exec it,
+        // fall back to a login shell — and never end with a newline (it's the
+        // command). The PATH extension leads because a non-interactive shell
+        // gets the bare system PATH and would otherwise miss Homebrew's tmux
+        // entirely, silently dropping the user into a shell with no session.
+        #expect(line.hasPrefix("PATH="))
+        #expect(line.contains("command -v tmux"))
         #expect(line.contains("exec tmux new-session -A -s shio-app"))
         #expect(line.contains("-c \"$HOME\"/'Code/app'"))
         #expect(line.hasSuffix("|| exec \"${SHELL:-/bin/sh}\" -l"))
