@@ -52,6 +52,14 @@ struct ShioMacApp: App {
                     Task { await SyncRefresh.run(ShioModelContainer.shared.mainContext) }
                 }
                 .keyboardShortcut("r", modifiers: .command)
+                Divider()
+                // ⌘W: a split pane is furniture and just closes; closing the
+                // last one frees the renderer and lands on the dashboard while
+                // tmux keeps the session alive, so the rail row stays.
+                Button(model.selectedTab?.isSinglePane == false ? "Close Pane" : "Close Terminal") {
+                    model.leavePlace()
+                }
+                .keyboardShortcut("w", modifiers: .command)
             }
             CommandMenu("Machines") {
                 Button("Add Machine…") { model.showingAddHost = true }
@@ -65,9 +73,12 @@ struct ShioMacApp: App {
                     NotificationCenter.default.post(name: .shioShowWelcome, object: nil)
                 }
             }
-            // Jump straight to a canvas. Mnemonic ⌘⇧+letter — plain ⌘+letter
-            // is taken by Tab/Find/Minimize/SelectAll.
-            CommandMenu("Go") {
+            // Standard Mac shape: View holds what the window shows, Window
+            // holds moving between open things. "Go" and "Places" are gone —
+            // Go mixed view toggles with navigation, and Places named a
+            // concept the interface never says out loud (the rail says REPOS
+            // and SHELLS), so it read as meaningless in the menu bar.
+            CommandGroup(replacing: .sidebar) {
                 Button(model.sidebarCollapsed ? "Show Sidebar" : "Hide Sidebar") {
                     withAnimation(.easeOut(duration: 0.15)) { model.sidebarCollapsed.toggle() }
                 }
@@ -77,6 +88,8 @@ struct ShioMacApp: App {
                 }
                 .keyboardShortcut("i", modifiers: .command)
                 Divider()
+                // What the canvas is showing — the Finder "as Icons / as List"
+                // slot, which is exactly what these are.
                 Button("Dashboard") { model.canvas = .dashboard }
                     .keyboardShortcut("p", modifiers: [.command, .shift])
                 Button("Terminal") { model.showTerminal() }
@@ -85,24 +98,26 @@ struct ShioMacApp: App {
                     .keyboardShortcut("m", modifiers: [.command, .shift])
                 Button("Files") { model.canvas = .files }
                     .keyboardShortcut("f", modifiers: [.command, .shift])
-            }
-            CommandMenu("Places") {
-                // ⌘W: furniture closes (a split pane); a place is LEFT — the
-                // renderer frees, tmux keeps it alive, the rail row remains.
-                Button(model.selectedTab?.isSinglePane == false ? "Close Pane" : "Leave Place") {
-                    model.leavePlace()
-                }
-                .keyboardShortcut("w", modifiers: .command)
                 Divider()
-                Button("Next Place") { model.selectAdjacentPlace(1) }
+            }
+            // Moving between the things you have open, where every Mac app
+            // keeps ⌘1–9 and next/previous.
+            CommandGroup(after: .windowList) {
+                Divider()
+                Button("Next Repo or Shell") { model.selectAdjacentPlace(1) }
                     .keyboardShortcut("]", modifiers: [.command, .shift])
-                Button("Previous Place") { model.selectAdjacentPlace(-1) }
+                Button("Previous Repo or Shell") { model.selectAdjacentPlace(-1) }
                     .keyboardShortcut("[", modifiers: [.command, .shift])
                 Divider()
-                // ⌘1–9 mirror the rail top-to-bottom (repos → shells).
+                // ⌘1–9 mirror the rail top-to-bottom (repos, then shells), and
+                // are labelled with the row's own name. A menu of "Rail Item 4"
+                // makes you count; a menu of "shio.sh" does not.
+                let places = model.railMap().places
                 ForEach(1...9, id: \.self) { n in
-                    Button("Place \(n)") { model.selectPlace(at: n - 1) }
-                        .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
+                    if places.indices.contains(n - 1) {
+                        Button(places[n - 1].displayName) { model.selectPlace(at: n - 1) }
+                            .keyboardShortcut(KeyEquivalent(Character("\(n)")), modifiers: .command)
+                    }
                 }
             }
             CommandGroup(after: .textEditing) {
@@ -650,5 +665,18 @@ struct RailMap {
     var places: [Place] = []
     /// Mirror-free places for next/previous cycling.
     var cycle: [Place] = []
+}
+
+extension RailMap.Place {
+    /// What the rail row says. The Window menu labels ⌘1–9 with these rather
+    /// than a position, so the menu names the repo or machine you land on
+    /// instead of asking you to count rows.
+    @MainActor var displayName: String {
+        switch self {
+        case .repo(let r):    return r.name
+        case .machine(let h): return MacSelfHost.isThisMac(h) ? "This Mac" : h.name
+        case .shell(let t):   return t.title
+        }
+    }
 }
 
