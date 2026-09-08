@@ -220,12 +220,24 @@ struct TerminalScene: View {
         .overlay(alignment: .bottom) { Rectangle().fill(ShioTheme.line).frame(height: 1) }
     }
 
+    /// The project this terminal belongs to, for its identity tint.
+    private var activeProject: Project? {
+        store.activeSession?.projectID.flatMap { modelContext.model(for: $0) as? Project }
+    }
+
     /// Presence on this terminal — ⎇ repo at rest, or % for a loose shell.
     /// Mirrors the Mac terminal header.
+    ///
+    /// The glyph carries the project's identity tint so which project you are
+    /// typing into is answerable without reading. Terminals are identical dark
+    /// rectangles, and a prompt pasted into the wrong one doesn't error the way
+    /// a wrong command does — an agent just does the wrong work in the wrong
+    /// repo. Identity only, never status: git state keeps the loud colours.
     private var presenceGlyph: some View {
         Text(store.activeSession?.projectID == nil ? "%" : "⎇")
             .font(.system(size: 13, design: .monospaced))
-            .foregroundStyle(ShioTheme.textTertiary)
+            .foregroundStyle(activeProject.map { ProjectIdentity.color(for: $0.name) }
+                             ?? ShioTheme.textTertiary)
     }
 
     /// "tmux · this mac" — the standing transport, the machine.

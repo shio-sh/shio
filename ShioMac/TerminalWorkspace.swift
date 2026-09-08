@@ -128,10 +128,26 @@ struct TerminalWorkspaceView: View {
 
     private func terminalHead(_ tab: WorkspaceTab) -> some View {
         MacCanvasHeader(title: tab.title, sub: sub(for: tab)) {
-            // ⎇ quiet repo / % shell — a static idle mark for this terminal.
-            Text(tab.isShellTab ? "%" : "⎇")
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(ShioTheme.textTertiary)
+            // ⎇ quiet repo / % shell — a static idle mark for this terminal,
+            // carrying the project's identity tint so which project you're
+            // typing into is answerable without reading. Panes are identical
+            // dark rectangles, and a prompt pasted into the wrong one doesn't
+            // error the way a wrong command does. Identity only, never status.
+            HStack(spacing: 6) {
+                Text(tab.isShellTab ? "%" : "⎇")
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(tab.isShellTab ? ShioTheme.textTertiary
+                                     : (model.selectedProject.map { ProjectIdentity.color(for: $0.name) }
+                                        ?? ShioTheme.textTertiary))
+                // Laptop for this Mac, server for anything reached over the
+                // network. A mistake costs differently in the two places, and
+                // the subtitle spells it out — but shape reads faster than text
+                // in peripheral vision, which is when it matters.
+                Image(systemName: isRemote(tab) ? "server.rack" : "laptopcomputer")
+                    .font(.system(size: 9))
+                    .foregroundStyle(ShioTheme.textTertiary)
+                    .accessibilityLabel(isRemote(tab) ? "Remote machine" : "This Mac")
+            }
         } trailing: {
             // The escape hatch's small in-place affordance — shell places only.
             if tab.isShellTab {
@@ -147,6 +163,13 @@ struct TerminalWorkspaceView: View {
                 model.inspectorOpen.toggle()
             }
         }
+    }
+
+    /// Is this pane on a machine other than this Mac? `.shell` and `.project`
+    /// own a local PTY; only `.ssh` crosses the network.
+    private func isRemote(_ tab: WorkspaceTab) -> Bool {
+        if case .ssh = tab.root.firstLeafPane?.content { return true }
+        return false
     }
 
     /// Quiet terminal-ish metadata: "tmux · this mac" — carrying the
