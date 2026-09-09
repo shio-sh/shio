@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 /// Every project at once — the dashboard zoomed out.
 ///
@@ -14,6 +15,14 @@ struct ProjectsOverview: View {
     let open: (Project) -> Void
     let addProject: () -> Void
 
+    @Environment(\.modelContext) private var context
+    /// Held rather than deleted on the spot so the confirmation can name the
+    /// project and say what goes with it. Removal lives here, inside the one
+    /// view both the Mac and the iPad use, so neither platform can end up
+    /// without it again — which is exactly how the Mac shipped unable to
+    /// delete a project at all.
+    @State private var removeTarget: Project?
+
     /// Two columns on a Mac or iPad canvas; one when it's narrow.
     private let columns = [GridItem(.adaptive(minimum: 260, maximum: 420), spacing: 10)]
 
@@ -22,12 +31,34 @@ struct ProjectsOverview: View {
             LazyVGrid(columns: columns, spacing: 10) {
                 ForEach(items) { item in
                     ProjectOverviewCard(item: item) { open(item.project) }
+                        .contextMenu {
+                            Button("Remove from Shio…", systemImage: "trash", role: .destructive) {
+                                removeTarget = item.project
+                            }
+                        }
                 }
                 addCard
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 16)
             .frame(maxWidth: 1180, alignment: .leading)
+        }
+        .confirmationDialog(
+            removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove project?",
+            isPresented: Binding(get: { removeTarget != nil },
+                                 set: { if !$0 { removeTarget = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                if let project = removeTarget {
+                    ModelCascade.delete(project: project, context: context)
+                    try? context.save()
+                }
+                removeTarget = nil
+            }
+            Button("Cancel", role: .cancel) { removeTarget = nil }
+        } message: {
+            Text("Shio forgets this project, its repos and where they live. No folder, file or session on any machine is touched. This syncs to your other devices.")
         }
     }
 

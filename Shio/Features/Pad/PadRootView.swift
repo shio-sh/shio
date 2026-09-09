@@ -529,6 +529,11 @@ private struct PadTerminalView: View {
     let inspectorOpen: Bool
     let toggleInspector: () -> Void
 
+    /// The iPad could open sessions and never close one: `SessionStore.close`
+    /// had a single call site in the whole app and it was the iPhone terminal,
+    /// so sessions accumulated for the life of the process.
+    @State private var closing = false
+
     var body: some View {
         VStack(spacing: 0) {
             head
@@ -551,6 +556,15 @@ private struct PadTerminalView: View {
                     }
                 }
             }
+        }
+        .confirmationDialog("Close this terminal?", isPresented: $closing,
+                            titleVisibility: .visible) {
+            Button("Close", role: .destructive) {
+                Task { await SessionStore.shared.close(session) }
+            }
+            Button("Cancel", role: .cancel) { closing = false }
+        } message: {
+            Text("Shio disconnects from this session. Anything running keeps running on the machine, and reopening the repo rejoins it.")
         }
         .onAppear { SessionStore.shared.activeSession = session }
         .task(id: session.id) {
@@ -585,6 +599,16 @@ private struct PadTerminalView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Inspector")
+
+            Button { closing = true } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(ShioTheme.textSecondary)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close this terminal")
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)

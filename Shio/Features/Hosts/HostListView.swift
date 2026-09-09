@@ -25,6 +25,10 @@ struct HostListView: View {
     @AppStorage("shio.proMode.enabled", store: UserDefaults(suiteName: ShioModelContainer.appGroup))
     private var proModeEnabled: Bool = false
 
+    /// A machine holds the checkouts that place your repos on it, so removing
+    /// one is not the small act the swipe makes it look like.
+    @State private var removeTarget: Host?
+
     var body: some View {
         VStack(spacing: 0) {
             KeyReinstallBanner()
@@ -45,7 +49,7 @@ struct HostListView: View {
                         // "Remove" (not "Delete") — drops it from Shio
                         // only; the machine itself is untouched.
                         .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) { remove(host) } label: {
+                            Button(role: .destructive) { removeTarget = host } label: {
                                 Label("Remove", systemImage: "trash")
                             }
                             .tint(ShioTheme.danger)
@@ -58,6 +62,20 @@ struct HostListView: View {
             }
         }
         .background(ShioTheme.background)
+        .confirmationDialog(
+            removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove machine?",
+            isPresented: Binding(get: { removeTarget != nil },
+                                 set: { if !$0 { removeTarget = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                if let h = removeTarget { remove(h) }
+                removeTarget = nil
+            }
+            Button("Cancel", role: .cancel) { removeTarget = nil }
+        } message: {
+            Text("Shio forgets this machine and where your repos sit on it. The machine itself is untouched, and its files and sessions are unaffected. This syncs to your other devices.")
+        }
         .shioNavTitle("Machines")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

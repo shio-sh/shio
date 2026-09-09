@@ -17,6 +17,20 @@ enum ModelCascade {
         context.delete(host)
     }
 
+    /// Remove one repo and the checkouts that place it on machines.
+    ///
+    /// Nothing on disk is touched — a checkout is only Shio's note of where a
+    /// folder lives. Until now there was no caller for this at all: a repo
+    /// could be added on any platform and removed on none, so a mistyped path
+    /// or an abandoned experiment was permanent.
+    @MainActor
+    static func delete(repo: Repo, context: ModelContext) {
+        for checkout in repo.checkouts ?? [] {
+            context.delete(checkout)
+        }
+        context.delete(repo)
+    }
+
     /// Remove a project with its repos and checkouts.
     @MainActor
     static func delete(project: Project, context: ModelContext) {

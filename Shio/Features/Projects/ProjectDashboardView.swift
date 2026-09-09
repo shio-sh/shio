@@ -25,6 +25,14 @@ struct ProjectDashboardView: View {
     /// it opens the repair sheet instead — the Mac had no route to this at all
     /// before, which left an unplaced repo as a dead row.
     @State private var repoNeedingHome: Repo?
+    /// A repo the user asked to remove. Held rather than deleted on the spot so
+    /// the confirmation can name it: removing a repo takes its checkouts on
+    /// every machine with it, and it syncs to every device.
+    @State private var removeTarget: Repo?
+    /// A checkout whose folder moved. Editing the path is the only way back
+    /// from a repo that points at a directory which no longer exists.
+    @State private var repathTarget: ProjectCheckout?
+    @State private var repathDraft = ""
 
     var body: some View {
         ScrollView {
@@ -56,6 +64,36 @@ struct ProjectDashboardView: View {
                 renameTarget = nil
             }
             Button("Cancel", role: .cancel) { renameTarget = nil }
+        }
+        .alert("Where is it now?", isPresented: Binding(
+            get: { repathTarget != nil },
+            set: { if !$0 { repathTarget = nil } })) {
+            TextField("Full path", text: $repathDraft)
+            Button("Save") {
+                let p = repathDraft.trimmingCharacters(in: .whitespaces)
+                if let c = repathTarget, !p.isEmpty { c.path = p; try? context.save() }
+                repathTarget = nil
+            }
+            Button("Cancel", role: .cancel) { repathTarget = nil }
+        } message: {
+            Text("The full path to this repo on that machine. Shio only records where it is; nothing on the machine is moved.")
+        }
+        .confirmationDialog(
+            removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove repo?",
+            isPresented: Binding(get: { removeTarget != nil },
+                                 set: { if !$0 { removeTarget = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Remove", role: .destructive) {
+                if let repo = removeTarget {
+                    ModelCascade.delete(repo: repo, context: context)
+                    try? context.save()
+                }
+                removeTarget = nil
+            }
+            Button("Cancel", role: .cancel) { removeTarget = nil }
+        } message: {
+            Text("Shio forgets this repo and where it lives on every machine. The folder and its contents are not touched. This syncs to your other devices.")
         }
         .sheet(item: $repoNeedingHome) { repo in
             RepoRepairSheet(repo: repo) { _ in openRepo(repo) }
@@ -148,6 +186,20 @@ struct ProjectDashboardView: View {
                     }
                 }
             }
+        }
+        // Moving a folder used to strand a repo permanently: nothing wrote a
+        // checkout's path after it was created, and the repo could not be
+        // removed either, so the only exit was deleting the whole project.
+        if !checkouts.isEmpty {
+            Menu("Change folder") {
+                ForEach(checkouts, id: \.persistentModelID) { c in
+                    Button(machineLabel(c)) { repathDraft = c.path; repathTarget = c }
+                }
+            }
+        }
+        Divider()
+        Button("Remove from Shio…", systemImage: "trash", role: .destructive) {
+            removeTarget = row.repo
         }
     }
 

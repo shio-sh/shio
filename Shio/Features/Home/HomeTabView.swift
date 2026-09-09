@@ -13,6 +13,11 @@ struct HomeTabView: View {
     @State private var selectedProject: Project?
     private let status = ProjectStatusStore.shared
 
+    /// Held rather than removed on the tap. Deleting a project takes its repos
+    /// with it and syncs that to every device, which is too much to do without
+    /// asking.
+    @State private var removeTarget: Project?
+
     var body: some View {
         NavigationStack {
             Group {
@@ -29,13 +34,27 @@ struct HomeTabView: View {
                                     open: { selectedProject = project }
                                 )
                                 .contextMenu {
-                                    Button(role: .destructive) { remove(project) } label: {
+                                    Button(role: .destructive) { removeTarget = project } label: {
                                         Label("Remove", systemImage: "trash")
                                     }
                                 }
                             }
                         }
                         .padding(.vertical, 6)
+                    }
+                    .confirmationDialog(
+                        removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove project?",
+                        isPresented: Binding(get: { removeTarget != nil },
+                                             set: { if !$0 { removeTarget = nil } }),
+                        titleVisibility: .visible
+                    ) {
+                        Button("Remove", role: .destructive) {
+                            if let p = removeTarget { remove(p) }
+                            removeTarget = nil
+                        }
+                        Button("Cancel", role: .cancel) { removeTarget = nil }
+                    } message: {
+                        Text("Shio forgets this project, its repos and where they live. Nothing on your machines is touched. This syncs to your other devices.")
                     }
                     .refreshable {
                         refreshStatus()

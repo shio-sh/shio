@@ -26,6 +26,10 @@ struct MacMachinesView: View {
     /// appeared nowhere in the app at all.
     private var devices: [Host] { hosts.filter { !$0.isConnectable } }
 
+    /// A machine carries the checkouts that place repos on it, so its removal
+    /// is not the small act a context-menu item implies.
+    @State private var removeTarget: Host?
+
     var body: some View {
         VStack(spacing: 0) {
             MacCanvasHeader(title: "Machines", sub: subline) {
@@ -68,12 +72,26 @@ struct MacMachinesView: View {
                                 sub: "\(host.username)@\(host.hostname) · \(host.kind.rawValue)",
                                 reach: reach(host))
                     .contextMenu {
-                        Button("Remove from Shio", role: .destructive) { remove(host) }
+                        Button("Remove from Shio…", role: .destructive) { removeTarget = host }
                     }
                 }
                 devicesGroup
             }
             .padding(8)
+            .confirmationDialog(
+                removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove machine?",
+                isPresented: Binding(get: { removeTarget != nil },
+                                     set: { if !$0 { removeTarget = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Remove", role: .destructive) {
+                    if let h = removeTarget { remove(h) }
+                    removeTarget = nil
+                }
+                Button("Cancel", role: .cancel) { removeTarget = nil }
+            } message: {
+                Text("Shio forgets this machine and where your repos sit on it. The machine itself is untouched. This syncs to your other devices.")
+            }
         }
         .frame(width: 232)
         .frame(maxHeight: .infinity, alignment: .top)
@@ -196,7 +214,7 @@ struct MacMachinesView: View {
                         ShioButton(openTitle, .primary, icon: "terminal", compact: true, action: open)
                             .fixedSize()
                         if let host {
-                            ShioButton("Remove", .secondary, compact: true) { remove(host) }
+                            ShioButton("Remove", .secondary, compact: true) { removeTarget = host }
                                 .fixedSize()
                         }
                     }
