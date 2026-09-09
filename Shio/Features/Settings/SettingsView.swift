@@ -105,6 +105,10 @@ struct SettingsView: View {
                     }
                 }
 
+                Section("Your data") {
+                    YourDataSection()
+                }
+
                 Section("Advanced") {
                     Toggle(isOn: $proModeEnabled) {
                         Label("Pro Mode", systemImage: "wrench.adjustable.fill")

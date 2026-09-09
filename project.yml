@@ -272,6 +272,9 @@ targets:
       # Shared project dashboard (the bento) — ONE body for the Mac and iPad
       # canvases; each platform's builder + closures feed it.
       - path: Shio/Features/Projects/ProjectDashboardView.swift
+      # Export-and-erase, shared so the Mac and iOS cannot end up offering
+      # different answers to "what do you have on me, and how do I get it back".
+      - path: Shio/Features/Settings/YourDataSection.swift
       # The repair sheet the dashboard opens for a repo that isn't checked out
       # on any machine — shared with iOS, which reaches it from ProjectView.
       - path: Shio/Features/Projects/RepoRepairSheet.swift

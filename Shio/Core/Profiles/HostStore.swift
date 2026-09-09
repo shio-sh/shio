@@ -56,7 +56,7 @@ enum ShioModelContainer {
         cloudConfig = ModelConfiguration(cloudKitDatabase: .private("iCloud.sh.shio.app"))
         #endif
         do {
-            let container = try ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, Skill.self, configurations: cloudConfig)
+            let container = try ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, configurations: cloudConfig)
             log.info("ModelContainer: CloudKit sync ACTIVE (iCloud.sh.shio.app)")
             return container
         } catch {
@@ -73,7 +73,7 @@ enum ShioModelContainer {
         #else
         let localConfig = ModelConfiguration(cloudKitDatabase: .none)
         #endif
-        if let container = try? ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, Skill.self, configurations: localConfig) {
+        if let container = try? ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, configurations: localConfig) {
             log.info("ModelContainer: local-only store (no CloudKit)")
             return container
         }
@@ -81,7 +81,7 @@ enum ShioModelContainer {
         // 3. Fall back to in-memory. The user's data won't persist, but
         //    they can still use the app, and Settings shows the error.
         let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        if let container = try? ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, Skill.self, configurations: inMemoryConfig) {
+        if let container = try? ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, configurations: inMemoryConfig) {
             loadFailureReason = "Couldn't open the on-disk store. Your machines won't be saved between launches. Delete and reinstall Shio to reset."
             return container
         }

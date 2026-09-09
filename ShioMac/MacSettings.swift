@@ -50,6 +50,9 @@ struct MacSettingsView: View {
                 TextField("Default shell", text: $shell, prompt: Text(ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"))
                     .font(.system(.body, design: .monospaced))
             }
+            Section("Your data") {
+                YourDataSection()
+            }
             Section("Power") {
                 Toggle("Keep this Mac awake while a device is attached over SSH", isOn: $keepAwake)
                 Text("Holds off system sleep only while a device is attached over SSH — released the moment it disconnects. The display still sleeps.")

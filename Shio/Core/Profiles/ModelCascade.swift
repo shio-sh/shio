@@ -17,14 +17,9 @@ enum ModelCascade {
         context.delete(host)
     }
 
-    /// Remove a project with its repos, checkouts, and project-scoped skills.
-    /// Skills are deleted outright — `.nullify` would otherwise turn them into
-    /// GLOBAL skills, applying them to every other project.
+    /// Remove a project with its repos and checkouts.
     @MainActor
     static func delete(project: Project, context: ModelContext) {
-        for skill in project.skills ?? [] {
-            context.delete(skill)
-        }
         for checkout in project.allCheckouts {
             context.delete(checkout)
         }
