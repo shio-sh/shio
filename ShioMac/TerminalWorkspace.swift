@@ -270,10 +270,16 @@ private struct TerminalSearchBar: View {
                 .onKeyPress(.escape) { close(); return .handled }
             Button { surface?.searchNavigate(next: false) } label: { Image(systemName: "chevron.up") }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Previous match")
+                .help("Previous match (⇧⌘G)")
             Button { surface?.searchNavigate(next: true) } label: { Image(systemName: "chevron.down") }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Next match")
+                .help("Next match (⌘G)")
             Button { close() } label: { Image(systemName: "xmark") }
                 .buttonStyle(.plain).foregroundStyle(.secondary)
+                .accessibilityLabel("Close find bar")
+                .help("Close find bar (esc)")
         }
         .font(.system(size: 12))
         .padding(.horizontal, 10).padding(.vertical, 7)

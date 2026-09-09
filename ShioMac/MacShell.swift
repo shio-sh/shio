@@ -193,7 +193,9 @@ struct SectionSearchField: View {
                 .onKeyPress(.escape) { close(); return .handled }
             if !model.searchQuery.isEmpty {
                 Button { model.searchQuery = "" } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                    .help("Clear search").foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)

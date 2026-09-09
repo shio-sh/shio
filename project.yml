@@ -275,6 +275,9 @@ targets:
       # Export-and-erase, shared so the Mac and iOS cannot end up offering
       # different answers to "what do you have on me, and how do I get it back".
       - path: Shio/Features/Settings/YourDataSection.swift
+      # Editing a machine's connection details — write-once until now, so a
+      # typo in a username meant deleting the machine and every checkout on it.
+      - path: Shio/Features/Hosts/EditHostSheet.swift
       # The repair sheet the dashboard opens for a repo that isn't checked out
       # on any machine — shared with iOS, which reaches it from ProjectView.
       - path: Shio/Features/Projects/RepoRepairSheet.swift

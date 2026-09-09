@@ -28,6 +28,7 @@ struct HostListView: View {
     /// A machine holds the checkouts that place your repos on it, so removing
     /// one is not the small act the swipe makes it look like.
     @State private var removeTarget: Host?
+    @State private var editTarget: Host?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,6 +54,9 @@ struct HostListView: View {
                                 Label("Remove", systemImage: "trash")
                             }
                             .tint(ShioTheme.danger)
+                            Button { editTarget = host } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
                         }
                     }
                 }
@@ -62,6 +66,14 @@ struct HostListView: View {
             }
         }
         .background(ShioTheme.background)
+        .alert("Couldn't sync", isPresented: Binding(
+            get: { SyncRefresh.lastFailure != nil },
+            set: { if !$0 { SyncRefresh.clearFailure() } })) {
+            Button("OK") { SyncRefresh.clearFailure() }
+        } message: {
+            Text(SyncRefresh.lastFailure ?? "")
+        }
+        .sheet(item: $editTarget) { EditHostSheet(host: $0) }
         .confirmationDialog(
             removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove machine?",
             isPresented: Binding(get: { removeTarget != nil },

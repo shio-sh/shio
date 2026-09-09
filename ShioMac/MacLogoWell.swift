@@ -25,16 +25,24 @@ struct MacLogoWell: View {
             )
             .overlay(alignment: .bottomTrailing) {
                 if showsBadge {
-                    Image(systemName: imageData == nil ? "pencil.circle.fill" : "xmark.circle.fill")
-                        .font(.system(size: 17))
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(ShioTheme.textSecondary, ShioTheme.surface)
-                        .offset(x: 4, y: 4)
-                        .onTapGesture { imageData == nil ? choose() : onPick(nil) }
+                    // A Button, not a tap gesture on an Image: the gesture
+                    // version could not be focused with a keyboard or reached
+                    // by VoiceOver at all.
+                    Button { imageData == nil ? choose() : onPick(nil) } label: {
+                        Image(systemName: imageData == nil ? "pencil.circle.fill" : "xmark.circle.fill")
+                            .font(.system(size: 17))
+                            .symbolRenderingMode(.palette)
+                            .foregroundStyle(ShioTheme.textSecondary, ShioTheme.surface)
+                            .offset(x: 4, y: 4)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(imageData == nil ? "Choose a logo" : "Remove the logo")
                 }
             }
             .contentShape(Rectangle())
             .onTapGesture { choose() }
+            .accessibilityLabel(name.isEmpty ? "Project logo" : "\(name) logo")
+            .accessibilityHint("Choose a logo, or drag an image here")
             .help("Click to choose a logo, or drag an image here")
             .contextMenu {
                 Button(imageData == nil ? "Set Logo…" : "Change Logo…") { choose() }

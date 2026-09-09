@@ -29,6 +29,7 @@ struct MacMachinesView: View {
     /// A machine carries the checkouts that place repos on it, so its removal
     /// is not the small act a context-menu item implies.
     @State private var removeTarget: Host?
+    @State private var editTarget: Host?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -72,12 +73,15 @@ struct MacMachinesView: View {
                                 sub: "\(host.username)@\(host.hostname) · \(host.kind.rawValue)",
                                 reach: reach(host))
                     .contextMenu {
+                        Button("Edit…") { editTarget = host }
+                        Divider()
                         Button("Remove from Shio…", role: .destructive) { removeTarget = host }
                     }
                 }
                 devicesGroup
             }
             .padding(8)
+            .sheet(item: $editTarget) { EditHostSheet(host: $0) }
             .confirmationDialog(
                 removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove machine?",
                 isPresented: Binding(get: { removeTarget != nil },

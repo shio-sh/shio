@@ -424,6 +424,10 @@ private struct RemoteFilesBrowser: View {
     let host: Host
     @State private var vm: FilesViewModel
     @State private var busy = false
+    /// Opening a remote file used to fail to a bare `return`: the spinner
+    /// stopped and nothing else happened, forever, with no way to tell a
+    /// permission problem from a dropped connection.
+    @State private var openError: String?
 
     init(host: Host, model: MacTerminalModel) {
         self.host = host
@@ -452,6 +456,12 @@ private struct RemoteFilesBrowser: View {
         }
         .background(ShioTheme.background)
         .task { if vm.entries.isEmpty { await vm.start() } }
+        .alert("Couldn't open that file", isPresented: Binding(
+            get: { openError != nil }, set: { if !$0 { openError = nil } })) {
+            Button("OK") { openError = nil }
+        } message: {
+            Text(openError ?? "")
+        }
         .onDisappear { Task { await vm.stop() } }
     }
 
@@ -500,10 +510,15 @@ private struct RemoteFilesBrowser: View {
     private func openRemoteFile(_ file: SFTPFile) async {
         busy = true
         defer { busy = false }
-        guard let data = try? await vm.read(file) else { return }
-        let dest = FileManager.default.temporaryDirectory.appendingPathComponent(file.name)
-        try? data.write(to: dest)
-        NSWorkspace.shared.open(dest)
+        do {
+            let data = try await vm.read(file)
+            let dest = FileManager.default.temporaryDirectory
+                .appendingPathComponent(file.name)
+            try data.write(to: dest)
+            NSWorkspace.shared.open(dest)
+        } catch {
+            openError = "\(file.name) could not be opened. \(error.localizedDescription)"
+        }
     }
 }
 

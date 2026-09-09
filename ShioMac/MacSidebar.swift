@@ -129,6 +129,8 @@ struct MacRailToggleButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(model.sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
+        .help(model.sidebarCollapsed ? "Show sidebar (⌘\\)" : "Hide sidebar (⌘\\)")
         .onHover { hovering = $0 }
         .help(model.sidebarCollapsed ? "Show sidebar (⌘\\)" : "Hide sidebar (⌘\\)")
     }

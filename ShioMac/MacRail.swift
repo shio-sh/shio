@@ -343,6 +343,8 @@ private struct ShellRailRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Close this terminal")
+                    .help("Close terminal (⌘W)")
                     .help("Leave. The row folds away (⌘W)")
                 }
             }

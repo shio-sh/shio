@@ -176,6 +176,8 @@ private struct PaneHost: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Close this pane")
+                    .help("Close pane (⌘W)")
                     .help("Close this pane (⌘W when focused)")
                     .padding(6)
                 }

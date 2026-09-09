@@ -67,10 +67,29 @@ struct ShioMacApp: App {
             }
             // A first run you can only ever see once is a first run nobody can
             // check. Help ▸ Welcome is where Mac apps put this.
+            // Replacing .help removes the search field and everything else
+            // macOS puts there, so whatever goes in has to carry the whole
+            // menu. It held one item: no shortcuts reference, no way to reach
+            // the troubleshooting page, no way to report anything.
             CommandGroup(replacing: .help) {
+                Button("Shio Help") {
+                    NSWorkspace.shared.open(URL(string: "https://shio.sh/faq")!)
+                }
+                .keyboardShortcut("?", modifiers: .command)
+                Button("Keyboard Shortcuts") {
+                    NSWorkspace.shared.open(URL(string: "https://shio.sh/shortcuts")!)
+                }
+                Button("Projects and Machines") {
+                    NSWorkspace.shared.open(URL(string: "https://shio.sh/projects")!)
+                }
+                Divider()
                 Button("Show Welcome") {
                     UserDefaults.standard.removeObject(forKey: MacOnboarding.completedKey)
                     NotificationCenter.default.post(name: .shioShowWelcome, object: nil)
+                }
+                Divider()
+                Button("Report an Issue…") {
+                    NSWorkspace.shared.open(URL(string: "https://github.com/shio-sh/shio/issues/new")!)
                 }
             }
             // Standard Mac shape: View holds what the window shows, Window

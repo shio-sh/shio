@@ -54,6 +54,7 @@ struct DiagnosticsView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .disabled(isRunning)
+                .accessibilityLabel("Run the checks again")
             }
         }
         .task { await refresh() }

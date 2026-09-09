@@ -103,6 +103,7 @@ struct AddProjectSheet: View {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(ShioTheme.textTertiary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Remove the logo")
                 }
             }
             .padding(.vertical, 4)

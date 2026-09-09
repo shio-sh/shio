@@ -42,6 +42,13 @@ struct HomeTabView: View {
                         }
                         .padding(.vertical, 6)
                     }
+                    .alert("Couldn't sync", isPresented: Binding(
+                        get: { SyncRefresh.lastFailure != nil },
+                        set: { if !$0 { SyncRefresh.clearFailure() } })) {
+                        Button("OK") { SyncRefresh.clearFailure() }
+                    } message: {
+                        Text(SyncRefresh.lastFailure ?? "")
+                    }
                     .confirmationDialog(
                         removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove project?",
                         isPresented: Binding(get: { removeTarget != nil },
