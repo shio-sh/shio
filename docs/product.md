@@ -1,127 +1,48 @@
 # Shio — product north star
 
-Internal reference. The "what and why" we build against. For brand voice see the
-manifesto on the site; for public copy see shio.sh. Decisions here were made with
-Amrith on 2026-05-30.
+Internal reference. The what and the why we build against. Public copy lives on shio.sh; visual rules live in [`design-tokens.md`](design-tokens.md); voice lives in [`brand.md`](brand.md).
+
+Rewritten September 2026, when the scope was cut. The version this replaces is in [`archive/`](archive/).
 
 ## What Shio is
 
-Shio is the terminal for the agent era that lives in your pocket. One place to run
-and watch the coding agents working across every machine you own, from your phone,
-so you can leave the desk while the work keeps moving.
+Shio is a terminal you can use as your only terminal, that also happens to be on your phone.
 
-We are the **head, not the harness**. We do not run the agents and we do not run a
-cloud. The agents run where they already run, on your hardware. Shio is how you
-reach, watch, and steer them from anywhere.
+Two claims, in that order. The first is the hard one and everything depends on it: if Shio is not good enough to be someone's daily driver on a Mac, the phone is a novelty. The second is what nothing else does well.
+
+## What it is not
+
+Cut deliberately, and written down so it stays cut.
+
+- **Not an agent supervisor.** Away-push when an agent stops, lock-screen approve and deny, a supervision console. Built, then removed. It made Shio a worse terminal and a mediocre dashboard simultaneously, and every agent vendor now ships their own. Agents are a thing that runs *in* Shio, like any other program.
+- **Not a hosted service.** No Shio server, no account, no relay. This is a constraint on the product, not a feature to advertise. It means some things are harder (reaching a machine behind NAT needs Tailscale) and we accept that.
+- **Not a file manager, note app, or IDE.** Adjacent surfaces are how a terminal turns into a worse version of four apps.
 
 ## Who it is for
 
-People running coding agents hard on machines they own (the agent-maxxer), who do
-not want to be chained to a desk to keep that work moving. Secondary: anyone who
-wants their machines and the work on them reachable from a phone.
+People who live in a terminal on a Mac and own the machines they work on. The phone is not a replacement for the desk. It is for the twenty minutes between places, when a build is running or an agent is halfway through something and you want to see it without opening a laptop.
 
-## The moat
+## The wedge
 
-1. **Universal.** Any agent (Claude Code, Codex, local models, anything), any
-   machine (Mac, Linux server, Hetzner box, a Pi), wherever it runs. The
-   first-party apps (Claude, Codex) are each locked to one agent and one cloud.
-   We are the universal one.
-2. **Sovereign.** Your machines, your keys, no account, no Shio cloud. Nothing of
-   yours runs on or routes through our infrastructure.
-3. **Mobile-first.** Everyone is building terminals for agents at the desk (cmux,
-   Warp). Almost no one is building for the moment you step away. That is our
-   front door.
+Cross-platform terminals exist. Mobile SSH clients exist. What none of them do is make the *same work* present on all three devices, because they all model a connection rather than a project.
 
-These compound. A better, mobile, vendor-neutral mousetrap is something neither the
-desktop terminals nor the single-vendor apps can be.
+1. **Projects, not hosts.** A project holds its repos, the machines they sit on, and the shells opened for them. You reach for the thing you're doing, not the box it runs on. This is the only structural idea in the product and it should be the last thing cut.
+2. **The session outlives the device.** tmux holds it open on the machine. Close the lid, open the phone, the output that arrived while you were gone is there.
+3. **A real terminal on a phone.** libghostty compiled natively, so vim and htop and lazygit render rather than degrade. Most mobile SSH clients fail here, and it is immediately obvious when they do.
+4. **Yours.** Your machines, your keys, your iCloud. Nothing routes through us because there is no us to route through.
 
-## What we are building (v1, the full universal cut)
+## What "good enough to be the daily driver" means
 
-Three parts, one product, all shipping in v1.
+The bar, concretely. Failing any of these makes the rest irrelevant:
 
-1. **Shio (iPhone + iPad)** — the hero. Opens to your **projects**: the repos you
-   chose to expose, not every repo. Each project holds **sessions**: persistent,
-   tmux-backed terminals, some running agents. You get a notification and a Live
-   Activity when an agent needs you or finishes. Tap in to watch the live terminal,
-   unblock, steer, or take the wheel. Branch and PR status shown per project.
-2. **The Shio helper** — a small, open-source, cross-platform program that runs on
-   any host you own (Mac, Linux, Pi). It lets you pick which repos to expose,
-   brokers the connection (direct, Tailscale fallback), and is the always-awake
-   watcher that detects a blocked or finished agent and pushes to your phone.
-   **Shio for Mac is the polished app wrapper of this helper.**
-3. **Continuity** — the same sessions, live on your phone and waiting at your desk.
+- Cold start to a usable prompt faster than the terminal it replaces.
+- No perceptible input latency, locally or over SSH on a decent link.
+- Escape sequences, colors, ligatures and mouse reporting correct enough that TUIs do not notice they are being hosted.
+- Copy, paste, selection, scrollback and every keyboard chord behave the way a desktop terminal does.
+- It does not lose your session, and when the network drops it comes back on its own.
 
-### The detection bet (hybrid)
+## Open questions
 
-The universal baseline is **watching the agent's terminal output** to recognize when
-it is waiting: approval prompts, questions, idle. This works with any agent on any
-host, no integration required, and is the moat. On top, **per-agent hooks** for the
-big agents (Claude Code, Codex) give precise, reliable state where they exist.
-Output-watching keeps us universal; hooks make the common cases bulletproof.
-
-### Where work runs
-
-On your machines, never ours. The phone reaches live sessions over SSH (direct, or
-Tailscale when direct cannot). The helper owns the away-case: it is the thing awake
-on the host that notices and pushes when the app is not connected. APNs (Apple's
-push) is the only thing in the middle, and it carries a notification, not your work.
-
-## The foundation (already built in the iOS app)
-
-v1 reshapes and extends what exists rather than starting over: libghostty + Metal
-terminal (External IO backend), multi-session via SessionStore, SwiftNIO SSH client,
-tmux session resume, Live Activities and Dynamic Island, SwiftData host profiles,
-FaceID app lock, widgets, Handoff. The main new work: hosts become **projects**, a
-cross-platform **helper**, **agent-awareness and detection**, and the **supervision
-flows** (notify, glance, take over).
-
-## Principles, and what we deliberately do NOT build
-
-- **Head, not harness.** Never our own coding agent. We run whatever you run.
-- **No cloud of ours.** We never execute or store your code.
-- **Light orchestration.** Projects, sessions, agent-state, notifications,
-  take-over, continuity. That is the surface. No workflow engine, no worktree
-  manager, no GitHub-sync service of our own. ("It's a terminal emulator, bro" is
-  the guardrail.)
-- **Embody universality, do not name competitors.** Be conspicuously universal; let
-  the contrast speak.
-- **Beauty is the bar.** Native, fast, restrained. The craft is the differentiator a
-  serious developer feels.
-
-## Openness and model
-
-**Fully open and free** — the helper, the apps, all of it. We play for reach, trust,
-and reputation. The outcome (sponsorship, acqui-hire, or simply being the best tool
-in the category) comes later. No account, no telemetry, no paywall in the way. Long
-game.
-
-## Positioning
-
-- Lead **universal-first**: one place for every agent on every machine you own.
-- The payoff is **freedom**: leave the desk, the work keeps moving, so can you.
-- Built **for the phone first**, because that is the open flank.
-- Embody it; never name names.
-
-## The field (where we stand)
-
-- **cmux** — desktop Mac terminal on libghostty, agent supervision, ~20k stars, no
-  mobile (iOS is a paid promise). Closest analog; owns the desk; will ship iOS
-  eventually, so the mobile clock is real.
-- **pi** — the minimal harness (the thing that runs the agent). A different layer.
-  We are not a harness; we run pi too.
-- **Claude / Codex mobile** — "away from the desk" for their own agent only.
-  Single-vendor, their cloud. Our universality is what they cannot be.
-- **Omnara / Happy / Conductor** — agent remote-controls or desktop orchestrators,
-  mostly behind a relay or cloud. We are the sovereign, real-terminal, mobile-first
-  one.
-
-## Known hard parts (resolve in the build plan)
-
-- One helper that installs cleanly on Mac, Linux, and a Pi, and pairs securely with
-  your phone.
-- Reliable away-push when iOS has backgrounded or killed the app (helper + APNs is
-  the answer; the watcher must be dependable).
-- Output-watching detection that is good enough across agents and locales without
-  false pings; hooks to harden the big ones.
-- Reaching arbitrary hosts from anywhere (the direct / Tailscale path is the hard 5
-  to 15 percent).
+- **Panes.** tmux windows and panes are server-side, so they exist on every device by construction. Shio's own splits live in the Mac's view tree and cannot. Control mode is the path to collapsing the two; the UI restructure is not done.
+- **Saved commands per project.** The two or three things you actually run in a repo. Needs a CloudKit entity, which means a schema deploy, which is irreversible in production. Not started.
+- **What the phone is really for.** Peek by default, or full interaction? Currently full, which may be more than anyone wants at a bus stop.

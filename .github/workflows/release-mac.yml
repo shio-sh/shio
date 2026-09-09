@@ -147,7 +147,7 @@ jobs:
             echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">'
             echo '  <channel>'
             echo '    <title>Shio for Mac</title>'
-            echo '    <description>Updates for Shio, a terminal for the agent era.</description>'
+            echo '    <description>Updates for Shio, a terminal for Mac, iPhone and iPad.</description>'
             echo '    <language>en</language>'
             echo '    <item>'
             echo "      <title>Shio ${VERSION}</title>"

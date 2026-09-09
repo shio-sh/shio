@@ -1,30 +1,44 @@
 # Shio — Brand
 
+Updated September 2026, after the scope cut. See [`product.md`](product.md) for what
+the product is; this file is how it sounds and how it holds its bar.
+
 ## One-line positioning
 
-**Shio is the terminal you'd expect Apple to make. Your Mac, in your pocket.**
+**A terminal that follows you.**
 
 ## Longer positioning
 
-Shio is a premium iOS and iPadOS SSH client built for developers who want their Mac in their pocket — and want it to feel native, calm, and uncompromisingly well-made. Tailscale-native by default, full SSH config available in Pro Mode. No clutter. No subscription. No slop.
+Shio is a terminal for Mac, iPhone and iPad. It runs local shells on your Mac and
+SSHes into machines you own, organises that work by project rather than by host,
+and puts the same session on whichever device you happen to be holding. Free, MIT
+licensed, no account, no server of ours anywhere.
+
+Note the order. The Mac is first because if Shio is not good enough to be someone's
+only terminal there, the phone is a party trick.
 
 ## Why Shio exists
 
-Every iOS terminal in 2026 is one of:
+Desktop terminals do not follow you. Mobile ones are not good enough to be a
+terminal:
 
-- **Cluttered** (Termius): bloated, feature-soup, pushes accounts and subscriptions.
-- **Expensive / pro-coded** (Blink): powerful but priced and positioned only for pros, with reviews falling because of UX neglect.
-- **Suspicious / abandonware** (the long tail): single-developer apps that look like 2014, charge $4.99/month for a libssh2 wrapper, or quietly stopped updating.
-- **Wrong tool** (iSH, a-Shell, etc.): emulating a local Linux on your phone — not what most people want when they say "I want to use my Mac from my phone."
+- **Cluttered** (Termius): feature soup, pushes accounts and subscriptions.
+- **Pro-coded** (Blink): powerful, priced and positioned for a narrow audience,
+  with UX neglect showing in the reviews.
+- **Abandonware** (the long tail): single-developer apps that look like 2014,
+  charge monthly for a libssh2 wrapper, or quietly stopped updating.
+- **Wrong tool** (iSH, a-Shell): emulating a local Linux on your phone, which is
+  not what people mean when they say they want their Mac from their phone.
 
-There is no clean, premium, "just works" option. Shio is that option.
+And on the desktop side, nothing treats the phone as a first-class place the same
+work continues. That gap is the whole product.
 
 ## Brand values
 
 These are the values we hold the bar against in every product, design, and copy decision:
 
 1. **Minimal.** Less is the point. Settings stay short. Onboarding shows only the steps the user actually needs. The default screen is the terminal.
-2. **Premium.** Should feel like it cost $20 even at $2.99 or free. Hand-crafted, considered, intentional.
+2. **Worth paying for, given away.** Shio is free and MIT licensed. It should still feel like something you would have paid for. Craft is the point, not the price tag. Never say "premium" in user-facing copy; earn the impression instead.
 3. **Quiet.** No badges, no banners, no upsells. Shio does not interrupt.
 4. **Crafted.** Type, color, motion, copy, sound, haptics — all signed off. Nothing left "good enough."
 5. **Opinionated.** Defaults matter more than options. Most users never open Settings.
@@ -95,7 +109,7 @@ These are the values we hold the bar against in every product, design, and copy 
 
 - **Mac**, not "host" or "server" or "endpoint" — even though Shio supports any SSH server, the user-facing word is *Mac* in the default flow.
 - **Session**, not "connection" or "tab" — for the active terminal experience.
-- **Pro Mode**, not "Advanced Settings" or "Developer Options" — when we unlock raw SSH/ProxyJump/custom ports.
+- **Pro Mode**, not "Advanced Settings" or "Developer Options", for raw SSH, ProxyJump and custom ports. It is a disclosure level, not a paid tier: everything in Shio is free.
 - **Key**, not "private key" or "SSH key" in everyday UI — qualify only when it could be ambiguous.
 
 ### Names we don't use
@@ -125,10 +139,10 @@ These are the values we hold the bar against in every product, design, and copy 
 
 ### What Shio borrows from
 
-- **Things 3 (Cultured Code)** — the gold standard for "premium iOS app that feels handmade." Minimal type, restrained color, motion as character.
+- **Things 3 (Cultured Code)** — the gold standard for an app that feels handmade. Minimal type, restrained color, motion as character.
 - **Bear** — quiet, focused, treats the user as capable. Settings are scarce; defaults are right.
 - **Linear** — voice and copy as craft. Plain language, never clever.
-- **Cardpointers / Halide / Darkroom** — premium iOS apps with one-time-or-tier pricing that don't apologize for being made well.
+- **Halide / Darkroom** — iOS apps that don't apologize for being made well.
 - **macOS Terminal "Basic" profile** — the visual baseline for what a terminal should look like.
 
 ### What Shio is *not* like
