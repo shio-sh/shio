@@ -111,7 +111,7 @@ struct TabDescriptor: Codable {
 }
 
 /// The terminal canvas: the selected tab's terminal under its 48pt header
-/// (idle glyph + name + quiet "tmux · machine" metadata). The rail owns tab
+/// (idle glyph + name + quiet machine metadata). The rail owns tab
 /// switching; splits stay ⌘D / ⇧⌘D inside the canvas.
 struct TerminalWorkspaceView: View {
     @Bindable var model: MacTerminalModel
@@ -172,12 +172,13 @@ struct TerminalWorkspaceView: View {
         return false
     }
 
-    /// Quiet terminal-ish metadata: "tmux · this mac" — carrying the
-    /// connection state when it isn't the happy path.
+    /// Quiet metadata: the machine, and the connection state when it is not
+    /// the happy path. It used to lead with the process name (zsh, tmux),
+    /// which told the user nothing they could act on.
     private func sub(for tab: WorkspaceTab) -> String {
         switch tab.root.firstLeafPane?.content {
-        case .shell:          return "zsh · this mac"
-        case .project:        return "tmux · this mac"
+        case .shell:          return "this mac"
+        case .project:        return "this mac"
         case .ssh(let s):
             switch s.state {
             case .reconnecting: return "reconnecting… · \(s.hostName)"
@@ -229,6 +230,7 @@ struct TerminalWorkspaceView: View {
                 ShioButton("Reconnect", .primary, icon: "arrow.clockwise") {
                     Task { await session.connect() }
                 }
+                .disabled(session.state == .connecting)
                 .padding(.bottom, 14)
             default:
                 EmptyView()

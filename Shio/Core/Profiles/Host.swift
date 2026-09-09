@@ -19,6 +19,16 @@ final class Host {
         /// The distinction is direction, not importance. Everything that dials
         /// out must filter on `isConnectable`; nothing else needs to care.
         case clientOnly
+
+        /// What to show a person. `rawValue` was being printed straight into
+        /// the UI on every machine row, so users read "directSSH" as a word.
+        var displayName: String {
+            switch self {
+            case .tailscale:  return "Tailscale"
+            case .directSSH:  return "Direct SSH"
+            case .clientOnly: return "This device"
+            }
+        }
     }
 
     enum PersistenceMode: String, Codable, CaseIterable {

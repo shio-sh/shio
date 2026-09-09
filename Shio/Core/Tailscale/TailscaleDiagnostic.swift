@@ -271,7 +271,7 @@ actor TailscaleDiagnostic {
             detail = ConnectErrorTranslator.dnsFailureMessage(host: host)
             remediation = ConnectErrorTranslator.isTailscaleHostname(host) ? .openTailscaleApp : .useIPInstead
         } else if raw.contains("Connection refused") {
-            detail = "\(host) refused the connection on port \(port). Remote Login is probably off — turn it on on your Mac."
+            detail = "\(host) refused the connection on port \(port). Remote Login is probably off — turn it on in System Settings."
             remediation = .openMacSharingSettings(text: "System Settings → General → Sharing → Remote Login")
         } else if raw.contains("Operation timed out") || raw.contains("timeout") {
             detail = "\(host) didn't respond. The Mac may be asleep, or Tailscale may not be routing yet."

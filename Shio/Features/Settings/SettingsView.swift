@@ -62,9 +62,12 @@ struct SettingsView: View {
                 } header: {
                     Text("Terminal")
                 } footer: {
-                    Text("Let tmux describe the session instead of drawing it. "
-                         + "Groundwork for layout that follows you between devices. "
-                         + "Reopen a terminal after changing this.")
+                    // Was a description of the mechanism ("let tmux describe
+                    // the session instead of drawing it") plus a promise about
+                    // unfinished work. Neither told anyone whether to turn it
+                    // on.
+                    Text("Experimental. Makes reconnecting after a dropped connection smoother. "
+                         + "Reopen any terminals you have open after changing this.")
                 }
 
                 Section("Security") {

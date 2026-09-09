@@ -94,6 +94,10 @@ final class MacSSHSession: Identifiable {
     }
 
     func connect() async {
+        // Re-entrancy guard: the Reconnect button was not disabled
+        // while a connection was in flight, so a double click ran two
+        // attempts against the same client.
+        if case .connecting = state { return }
         userInitiatedStop = false
         reconnectAttempt = 0
         reconnectTask?.cancel()

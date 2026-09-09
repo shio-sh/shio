@@ -80,20 +80,28 @@ final class KeyboardAccessoryView: UIInputView {
 
         addSeparator()
 
-        addImmediateKey(label: "←", bytes: "\u{1B}[D")
-        addImmediateKey(label: "↓", bytes: "\u{1B}[B")
-        addImmediateKey(label: "↑", bytes: "\u{1B}[A")
-        addImmediateKey(label: "→", bytes: "\u{1B}[C")
+        addImmediateKey(label: "←", bytes: "\u{1B}[D", spoken: "Left arrow")
+        addImmediateKey(label: "↓", bytes: "\u{1B}[B", spoken: "Down arrow")
+        addImmediateKey(label: "↑", bytes: "\u{1B}[A", spoken: "Up arrow")
+        addImmediateKey(label: "→", bytes: "\u{1B}[C", spoken: "Right arrow")
 
         addSeparator()
 
-        for sym in ["|", "~", "/", "\\", "-", "_", "{", "}", "[", "]"] {
-            addImmediateKey(label: sym, bytes: sym)
+        // Spoken names, because VoiceOver reads bare punctuation as generic
+        // symbol names with no hint that these type into the terminal.
+        let symbols: [(String, String)] = [
+            ("|", "Pipe"), ("~", "Tilde"), ("/", "Slash"), ("\\", "Backslash"),
+            ("-", "Hyphen"), ("_", "Underscore"), ("{", "Left brace"),
+            ("}", "Right brace"), ("[", "Left bracket"), ("]", "Right bracket"),
+        ]
+        for (sym, spoken) in symbols {
+            addImmediateKey(label: sym, bytes: sym, spoken: spoken)
         }
     }
 
-    private func addImmediateKey(label: String, bytes: String) {
+    private func addImmediateKey(label: String, bytes: String, spoken: String? = nil) {
         let key = ImmediateKey(label: label, bytes: bytes)
+        key.accessibilityLabel = spoken ?? label
         key.onTap = { [weak self] bytes in
             Haptics.tap()
             self?.terminalInput?.onBytes?(bytes)
@@ -212,7 +220,8 @@ private final class ImmediateKey: BaseKey {
     required init?(coder: NSCoder) { fatalError() }
 
     @objc private func fire() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        // No haptic here: the `onTap` closure calls Haptics.tap(), and firing
+        // one in both places double-buzzed every single keystroke.
         onTap?(bytes)
     }
 }
@@ -236,12 +245,13 @@ private final class ModifierKey: BaseKey {
     required init?(coder: NSCoder) { fatalError() }
 
     @objc private func fireTap() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         onTap?()
     }
     @objc private func fireLongPress(_ gr: UILongPressGestureRecognizer) {
         guard gr.state == .began else { return }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        // Long-press locks a modifier, which is a bigger event than a tap, and
+        // the closure does not raise one of its own.
+        Haptics.medium()
         onLongPress?()
     }
 

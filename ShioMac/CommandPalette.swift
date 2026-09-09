@@ -148,11 +148,11 @@ struct CommandPalette: View {
         var c: [ShioCommand] = []
 
         // Terminal
-        c.append(.init(title: "New Shell Here", subtitle: "an extra shell on this machine",
+        c.append(.init(title: "New Terminal Here", subtitle: "an extra shell on this machine",
                        symbol: "plus.square", shortcut: "⌘T") { model.newShellHere() })
         c.append(.init(title: "Split Right", symbol: "rectangle.split.2x1", shortcut: "⌘D") { model.splitFocused(.horizontal) })
         c.append(.init(title: "Split Down", symbol: "rectangle.split.1x2", shortcut: "⇧⌘D") { model.splitFocused(.vertical) })
-        c.append(.init(title: "Close Terminal", subtitle: "tmux keeps it alive",
+        c.append(.init(title: "Close Terminal", subtitle: "Anything running keeps running",
                        symbol: "xmark.square", shortcut: "⌘W") { model.leavePlace() })
         c.append(.init(title: "Clear Terminal", symbol: "clear", shortcut: "⌃L") {
             NSApp.sendAction(#selector(GhosttyMacSurface.terminalClearScreen(_:)), to: nil, from: nil)

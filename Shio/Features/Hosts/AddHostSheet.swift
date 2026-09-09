@@ -233,8 +233,8 @@ private struct DirectSSHAddView: View {
                 // placeholder with no transport yet (SSH-only). Shio's
                 // resilience is SSH + tmux + smart auto-reconnect; see
                 // SessionViewModel. Re-add when/if a Mosh transport lands.
-                Picker("Persistence", selection: $persistenceMode) {
-                    Text("Tmux auto-resume").tag(Host.PersistenceMode.tmuxAutoResume)
+                Picker("Sessions", selection: $persistenceMode) {
+                    Text("Auto-resume").tag(Host.PersistenceMode.tmuxAutoResume)
                     Text("None").tag(Host.PersistenceMode.plain)
                 }
             }

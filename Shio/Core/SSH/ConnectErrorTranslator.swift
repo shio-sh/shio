@@ -46,7 +46,10 @@ enum ConnectErrorTranslator {
             return "\(host) didn't respond within \(connectTimeoutSeconds)s. The Mac may be asleep, or Tailscale may not be connecting."
         }
 
-        return raw
+        // Anything we do not recognise used to be returned verbatim, so a user
+        // could be shown a raw NIO or Network framework string. Say something
+        // true and actionable instead; the raw text still reaches the log.
+        return "Couldn't connect to \(host). Check it's on and reachable, then try again."
     }
 
     /// Returns true if the error description matches a DNS resolution failure.

@@ -243,7 +243,7 @@ struct TerminalScene: View {
     /// "tmux · this mac" — the standing transport, the machine.
     private var terminalSub: String? {
         guard let session = store.activeSession else { return nil }
-        return "tmux · \(session.viewModel.hostName)"
+        return "\(session.viewModel.hostName)"
     }
 
     /// The ⋯ menu. Switching lives in the map (tap the title) — this keeps
@@ -407,6 +407,7 @@ struct TerminalScene: View {
                 ShioButton("Reconnect", .primary, fullWidth: true) {
                     Task { await viewModel?.start() }
                 }
+                .disabled(viewModel?.state.isBusy ?? false)
                 ShioButton("Diagnose", .secondary, fullWidth: true) {
                     showingDiagnose = true
                 }

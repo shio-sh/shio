@@ -69,7 +69,7 @@ struct MacSettingsView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
             Section {
-                Text("Changes apply to new terminals. (Per-key remapping is coming — for now use the Terminal and Tabs menus to see shortcuts.)")
+                Text("Changes apply to new terminals. (Per-key remapping isn't available yet. The Terminal menu lists the current shortcuts.)")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }

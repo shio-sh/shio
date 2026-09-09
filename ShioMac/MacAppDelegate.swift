@@ -33,7 +33,7 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
         alert.informativeText =
             "Shio is keeping this Mac awake so your other devices can reach it. "
             + "Quitting releases that, and the Mac may sleep and drop off your phone.\n\n"
-            + "Anything running in a tmux session keeps running, and will still be "
+            + "Anything you have running keeps running, and will still be "
             + "there when the Mac is awake again."
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")

@@ -62,12 +62,12 @@ final class SSHClient: @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .channelClosed:               return "The SSH channel closed unexpectedly."
-            case .shellRequestFailed:          return "The remote host wouldn't open a shell."
-            case .ptyRequestFailed:            return "The remote host wouldn't open a PTY."
+            case .shellRequestFailed:          return "This machine wouldn't start a shell for Shio. Try reconnecting."
+            case .ptyRequestFailed:            return "This machine wouldn't start a terminal for Shio. Try reconnecting."
             case .noAuthenticationConfigured:  return "This Mac has no authentication set up. Add a password or SSH key in its profile."
-            case .connectionFailed(let why):   return "Couldn't reach this Mac. \(why)"
+            case .connectionFailed(let why):   return "Couldn't reach this machine. \(why)"
             case .authenticationFailed:        return "Authentication failed — the server rejected the key(s) and password offered. Make sure this device's key is in the host's ~/.ssh/authorized_keys."
-            case .notConnected:                return "Not connected."
+            case .notConnected:                return "Not connected. Tap Reconnect to try again."
             case .keychainUnavailable(let why):return "Couldn't read your SSH key — \(why)"
             case .keychainFailed(let why):     return "Keychain error — \(why)"
             case .sshKeyMissing:               return "No SSH key has been generated yet. Open Settings → SSH Key to set one up."

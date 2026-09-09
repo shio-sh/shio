@@ -20,6 +20,12 @@ struct FileBrowserView: View {
         _vm = State(initialValue: FilesViewModel(host: host, startPath: startPath))
     }
 
+    /// The only action in Shio that destroys something real. Removing a
+    /// project or a machine forgets a local record you can recreate; this
+    /// erases a file on the user's own machine and cannot be undone, and it
+    /// was the one destructive action with no confirmation.
+    @State private var deleteTarget: SFTPFile?
+
     var body: some View {
         content
             .background(ShioTheme.background)
@@ -46,6 +52,25 @@ struct FileBrowserView: View {
                 let picked = items
                 photoSelection = []
                 Task { await uploadPhotos(picked) }
+            }
+            .confirmationDialog(
+                deleteTarget.map { "Delete \($0.name)?" } ?? "Delete?",
+                isPresented: Binding(get: { deleteTarget != nil },
+                                     set: { if !$0 { deleteTarget = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let file = deleteTarget {
+                        Haptics.medium()
+                        Task { await vm.delete(file) }
+                    }
+                    deleteTarget = nil
+                }
+                Button("Cancel", role: .cancel) { deleteTarget = nil }
+            } message: {
+                Text(deleteTarget?.isDirectory == true
+                     ? "This deletes the folder and everything in it on \(vm.hostName). It cannot be undone."
+                     : "This deletes the file on \(vm.hostName). It cannot be undone.")
             }
             .alert("New folder", isPresented: $showingNewFolder) {
                 TextField("Name", text: $newFolderName)
@@ -154,7 +179,7 @@ struct FileBrowserView: View {
                 .buttonStyle(.plain)
                 .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                     Button(role: .destructive) {
-                        Task { await vm.delete(file) }
+                        deleteTarget = file
                     } label: { Label("Delete", systemImage: "trash") }
                     Button {
                         renameText = file.name

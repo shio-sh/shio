@@ -208,7 +208,7 @@ private struct RepoEditor: View {
                 }
             } else {
                 Section("Machine") {
-                    Picker("Host", selection: $selectedHost) {
+                    Picker("Machine", selection: $selectedHost) {
                         ForEach(hosts.connectable.dedupedByIdentity) { host in
                             Text(host.name).tag(host as Host?)
                         }

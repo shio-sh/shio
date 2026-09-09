@@ -545,6 +545,19 @@ private struct PadTerminalView: View {
                 if case .connecting = session.viewModel.state {
                     ProgressView().tint(ShioTheme.textPrimary)
                 }
+                if case .reconnecting = session.viewModel.state {
+                    // iPhone and Mac both show this; the iPad showed nothing,
+                    // so a dropped connection simply looked frozen.
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small).tint(ShioTheme.textSecondary)
+                        Text("Reconnecting…")
+                            .font(.system(size: 12))
+                            .foregroundStyle(ShioTheme.textSecondary)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(Capsule().fill(ShioTheme.surface))
+                    .overlay(Capsule().stroke(ShioTheme.line))
+                }
                 if case .disconnected(let reason) = session.viewModel.state {
                     VStack(spacing: 10) {
                         Text(reason ?? "Disconnected")
@@ -553,6 +566,7 @@ private struct PadTerminalView: View {
                         ShioButton("Reconnect", .primary, compact: true) {
                             Task { await session.viewModel.start() }
                         }
+                        .disabled(session.viewModel.state.isBusy)
                     }
                 }
             }
@@ -564,7 +578,7 @@ private struct PadTerminalView: View {
             }
             Button("Cancel", role: .cancel) { closing = false }
         } message: {
-            Text("Shio disconnects from this session. Anything running keeps running on the machine, and reopening the repo rejoins it.")
+            Text("Shio disconnects from this terminal. Anything running keeps running on the machine, and reopening the repo rejoins it.")
         }
         .onAppear { SessionStore.shared.activeSession = session }
         .task(id: session.id) {
@@ -620,7 +634,7 @@ private struct PadTerminalView: View {
     }
 
     private var sub: String {
-        "tmux · \(session.viewModel.hostName)"
+        "\(session.viewModel.hostName)"
     }
 }
 
@@ -695,7 +709,7 @@ private struct PadInspector: View {
                 repoGroup(repo)
             }
         } else {
-            Text("No project yet")
+            Text("No projects yet")
                 .font(.system(size: 11.5))
                 .foregroundStyle(ShioTheme.textTertiary)
         }

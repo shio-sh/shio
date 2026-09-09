@@ -26,20 +26,41 @@ struct EditHostSheet: View {
     @State private var addressChanged = false
     @State private var saveError: String?
 
+    /// Which field has the keyboard. No sheet in the iOS app focused anything,
+    /// so every one of them needed a tap before you could type, and Return did
+    /// nothing between fields.
+    private enum Field: Hashable { case name, hostname, username, port, proxy }
+    @FocusState private var focused: Field?
+
     var body: some View {
         NavigationStack {
             Form {
                 Section("Machine") {
                     TextField("Display name", text: $displayName)
+                        .focused($focused, equals: .name)
+                        .submitLabel(.next)
+                        .onSubmit { focused = .hostname }
                     plainField("Hostname or IP", $hostname)
+                        .focused($focused, equals: .hostname)
+                        .submitLabel(.next)
+                        .onSubmit { focused = .username }
                     plainField("Username", $username)
-                    plainField("Port", $port)
+                        .focused($focused, equals: .username)
+                        .submitLabel(.next)
+                        .onSubmit { focused = .port }
+                    plainField("Port", $port, numeric: true)
+                        .focused($focused, equals: .port)
+                        .submitLabel(.done)
+                        .onSubmit { if isValid { save() } }
                 }
 
                 Section("Advanced") {
                     plainField("ProxyJump (optional)", $proxyJump)
+                        .focused($focused, equals: .proxy)
+                        .submitLabel(.done)
+                        .onSubmit { if isValid { save() } }
                     Picker("Sessions", selection: $persistenceMode) {
-                        Text("Keep running with tmux").tag(Host.PersistenceMode.tmuxAutoResume)
+                        Text("Auto-resume").tag(Host.PersistenceMode.tmuxAutoResume)
                         Text("Plain shell").tag(Host.PersistenceMode.plain)
                     }
                 }
@@ -77,7 +98,12 @@ struct EditHostSheet: View {
         } message: {
             Text(saveError ?? "")
         }
-        .onAppear(perform: load)
+        .onAppear {
+            load()
+            // The first field takes the keyboard, so the sheet is typeable the
+            // moment it appears.
+            focused = .name
+        }
         .onChange(of: hostname) { _, _ in noteAddressChange() }
         .onChange(of: port) { _, _ in noteAddressChange() }
     }
@@ -86,11 +112,13 @@ struct EditHostSheet: View {
     /// autocorrect. Hostnames and usernames are the two things iOS most likes
     /// to "fix". The modifiers are iOS-only and this view ships on the Mac too.
     @ViewBuilder
-    private func plainField(_ title: String, _ text: Binding<String>) -> some View {
+    private func plainField(_ title: String, _ text: Binding<String>,
+                            numeric: Bool = false) -> some View {
         #if os(iOS)
         TextField(title, text: text)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
+            .keyboardType(numeric ? .numberPad : .default)
         #else
         TextField(title, text: text)
             .autocorrectionDisabled()

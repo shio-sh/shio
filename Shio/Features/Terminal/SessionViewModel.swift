@@ -26,6 +26,16 @@ final class SessionViewModel {
         case connected
         case reconnecting
         case disconnected(reason: String?)
+
+        /// A connection attempt is already in flight. Reconnect buttons read
+        /// this to disable themselves, so an impatient double tap cannot start
+        /// a second attempt against the same client.
+        var isBusy: Bool {
+            switch self {
+            case .connecting, .reconnecting: return true
+            case .idle, .connected, .disconnected: return false
+            }
+        }
     }
 
     let terminal: LibGhosttyTerminalController
@@ -288,7 +298,7 @@ final class SessionViewModel {
             // any other drop so it retries with backoff and the Live Activity
             // stops claiming the session is connected. Deferred by a hop so the
             // session is not released while it is still running this callback.
-            let why = reason ?? "tmux exited"
+            let why = reason ?? "The connection closed"
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.controlWatchdog?.cancel()
@@ -338,7 +348,7 @@ final class SessionViewModel {
             self.controlWatchdog = nil
             self.control = nil
             self.restoreBuffer = nil
-            self.handleUnexpectedDisconnect(reason: "tmux never reported an active pane")
+            self.handleUnexpectedDisconnect(reason: "Lost the connection while starting up")
         }
     }
 
@@ -516,6 +526,11 @@ final class SessionViewModel {
     // MARK: - Lifecycle
 
     func start() async {
+        // A second call while one is already in flight used to run two connect
+        // attempts against the same client. None of the Reconnect buttons were
+        // disabled either, so an impatient double tap was enough.
+        if case .connecting = state { return }
+        if case .reconnecting = state { return }
         userInitiatedStop = false
         reconnectAttempt = 0
         reconnectTask?.cancel()

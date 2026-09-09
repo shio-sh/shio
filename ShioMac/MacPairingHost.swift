@@ -234,7 +234,7 @@ struct MacPairingView: View {
                             .font(.system(.caption, design: .monospaced)).foregroundStyle(.tertiary)
                     }
                 }
-                Label("Needs Remote Login on (System Settings → General → Sharing).",
+                Label("Needs Remote Login on this Mac (System Settings → General → Sharing).",
                       systemImage: "info.circle")
                     .font(.caption).foregroundStyle(.secondary)
             case .paired(let who):

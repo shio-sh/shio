@@ -44,7 +44,7 @@ struct ShioMacApp: App {
                 // The escape hatch: an EXTRA indexed shell on the current
                 // place's machine ("This Mac · 2") — its rail row lives
                 // exactly as long as it does.
-                Button("New Shell Here") { model.newShellHere() }
+                Button("New Terminal Here") { model.newShellHere() }
                     .keyboardShortcut("t", modifiers: .command)
                 Button("Command Palette…") { model.showingCommandPalette.toggle() }
                     .keyboardShortcut("k", modifiers: .command)

@@ -15,7 +15,7 @@ struct ShioRepoRow: View {
                 Text(row.name).font(.system(size: 13)).foregroundStyle(ShioTheme.textPrimary).lineLimit(1)
                 Spacer(minLength: 8)
                 if hovering {
-                    Text(row.isPlaced ? "open ›" : "place ›")
+                    Text(row.isPlaced ? "open ›" : "set up here ›")
                         .font(.system(size: 12)).foregroundStyle(ShioTheme.textSecondary)
                 }
             }

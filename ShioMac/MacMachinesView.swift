@@ -70,7 +70,7 @@ struct MacMachinesView: View {
                 ForEach(remotes) { host in
                     machineItem(.host(host.persistentModelID),
                                 name: host.name,
-                                sub: "\(host.username)@\(host.hostname) · \(host.kind.rawValue)",
+                                sub: "\(host.username)@\(host.hostname) · \(host.kind.displayName)",
                                 reach: reach(host))
                     .contextMenu {
                         Button("Edit…") { editTarget = host }
@@ -188,7 +188,7 @@ struct MacMachinesView: View {
                 machineDetail(name: host.name, reachable: reach(host) != .asleep,
                               rows: [("host", "\(host.username)@\(host.hostname)"),
                                      ("port", "\(host.port)"),
-                                     ("kind", host.kind.rawValue),
+                                     ("kind", host.kind.displayName),
                                      ("last connected", shioShortAge(host.lastConnectedAt).isEmpty ? "never" : shioShortAge(host.lastConnectedAt))],
                               openTitle: "Connect", open: { connect(host) },
                               host: host)

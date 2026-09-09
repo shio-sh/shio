@@ -63,7 +63,10 @@ enum ShioModelContainer {
             // Don't hide why sync didn't come up — this is almost always a
             // signing/entitlement/container-id mismatch or no iCloud account.
             log.error("ModelContainer: CloudKit init FAILED, falling back to local. error=\(String(describing: error))")
-            loadFailureReason = "iCloud sync is off — \(error.localizedDescription). Check that this build is signed with the iCloud capability and you're signed into iCloud. Data is saved locally meanwhile."
+            // The old text asked the user to check that the build was signed
+            // with the iCloud capability, which is a developer instruction
+            // nobody using the app can act on. The detail is in the log above.
+            loadFailureReason = "iCloud sync is off, so your machines and projects are only saved on this device. Check you're signed into iCloud, then reopen Shio."
         }
 
         // 2. Local persistent store (no sync). Keeps the app fully usable even
