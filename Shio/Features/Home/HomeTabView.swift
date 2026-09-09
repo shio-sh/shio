@@ -18,6 +18,10 @@ struct HomeTabView: View {
     /// asking.
     @State private var removeTarget: Project?
 
+    /// Owned by this view, so it cannot stick around globally or fire on an
+    /// unrelated screen later.
+    @State private var syncFailure: String?
+
     var body: some View {
         NavigationStack {
             Group {
@@ -43,11 +47,10 @@ struct HomeTabView: View {
                         .padding(.vertical, 6)
                     }
                     .alert("Couldn't sync", isPresented: Binding(
-                        get: { SyncRefresh.lastFailure != nil },
-                        set: { if !$0 { SyncRefresh.clearFailure() } })) {
-                        Button("OK") { SyncRefresh.clearFailure() }
+                        get: { syncFailure != nil }, set: { if !$0 { syncFailure = nil } })) {
+                        Button("OK") { syncFailure = nil }
                     } message: {
-                        Text(SyncRefresh.lastFailure ?? "")
+                        Text(syncFailure ?? "")
                     }
                     .confirmationDialog(
                         removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove project?",
@@ -65,7 +68,7 @@ struct HomeTabView: View {
                     }
                     .refreshable {
                         refreshStatus()
-                        await SyncRefresh.run(context)
+                        syncFailure = await SyncRefresh.run(context)
                     }
                 }
             }

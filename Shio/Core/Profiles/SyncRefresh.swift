@@ -1,31 +1,38 @@
 import Foundation
 import SwiftData
+import OSLog
 
-/// Manual "refresh" for the iCloud-synced lists — backs pull-to-refresh on iOS
-/// and ⌘R on Mac.
+/// Pull-to-refresh, and the Mac's ⌘R.
 ///
-/// SwiftData's `@Query` already updates live as CloudKit imports arrive, and
-/// there is no public "pull remote changes now" hook on the CloudKit-mirrored
-/// store. So a refresh does the one genuinely useful thing it can: flush local
-/// pending writes (`save`) so they export to CloudKit promptly, then hold the
+/// Flushes pending writes so they export to CloudKit promptly, then holds the
 /// spinner briefly so the gesture reads as deliberate. Incoming changes from
-/// other devices still land on their own via CloudKit's push/poll.
+/// other devices still land on their own.
+///
+/// The failure is **returned**, not stored. An earlier version kept it in a
+/// static on this enum and bound SwiftUI alerts to it, which cannot work:
+/// nothing observes a plain static, so no body ever re-evaluated and the alert
+/// never appeared. It was also process-wide, so a failure raised on one screen
+/// could surface on an unrelated one later, or get stuck with no view able to
+/// clear it. Returning it makes the failure belong to the refresh that caused
+/// it and to the view that asked for it.
 enum SyncRefresh {
-    /// Non-nil when the last refresh failed. The gesture's whole job is to
-    /// flush pending writes, so a failure that only reached the log meant the
-    /// spinner spun, stopped, and told you it had worked.
-    @MainActor private(set) static var lastFailure: String?
+    private static let log = Logger(subsystem: "sh.shio.app", category: "sync")
 
+    /// Returns a message when the flush failed, nil when it worked.
     @MainActor
-    static func run(_ context: ModelContext) async {
+    @discardableResult
+    static func run(_ context: ModelContext) async -> String? {
+        var failure: String?
         do {
             try context.save()
-            lastFailure = nil
         } catch {
-            lastFailure = error.localizedDescription
+            failure = error.localizedDescription
+            // Logged as well as returned. Not every caller has somewhere to
+            // put an alert — the Mac's ⌘R is a menu command — and a failure
+            // that reaches neither the screen nor the log is invisible.
+            log.error("refresh: save failed: \(error.localizedDescription, privacy: .public)")
         }
         try? await Task.sleep(for: .milliseconds(700))
+        return failure
     }
-
-    @MainActor static func clearFailure() { lastFailure = nil }
 }

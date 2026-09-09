@@ -24,6 +24,7 @@ struct EditHostSheet: View {
     @State private var proxyJump: String = ""
     @State private var persistenceMode: Host.PersistenceMode = .tmuxAutoResume
     @State private var addressChanged = false
+    @State private var saveError: String?
 
     var body: some View {
         NavigationStack {
@@ -46,11 +47,11 @@ struct EditHostSheet: View {
                 if addressChanged {
                     Section {
                         Text("""
-                        You changed the address or port. Shio pinned this \
-                        machine's host key the first time it connected; \
-                        pointing at a different machine will look like a key \
-                        change and be refused, which is the warning working, \
-                        not a bug.
+                        You changed the address. Host keys are pinned per \
+                        address, so Shio has nothing pinned for the new one \
+                        and will trust whatever answers the first time it \
+                        connects, exactly as it did when you first added this \
+                        machine. Make sure the address is right.
                         """)
                         .font(.footnote)
                         .foregroundStyle(.secondary)
@@ -69,6 +70,12 @@ struct EditHostSheet: View {
                     Button("Save") { save() }.disabled(!isValid)
                 }
             }
+        }
+        .alert("Couldn't save", isPresented: Binding(
+            get: { saveError != nil }, set: { if !$0 { saveError = nil } })) {
+            Button("OK") { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
         }
         .onAppear(perform: load)
         .onChange(of: hostname) { _, _ in noteAddressChange() }
@@ -110,17 +117,27 @@ struct EditHostSheet: View {
     }
 
     private func save() {
+        // The new hostname is computed first: the fallback used to read
+        // `host.hostname` one line before it was overwritten, so clearing the
+        // display name while changing the address named the machine after the
+        // address it no longer pointed at.
+        let newHostname = hostname.trimmingCharacters(in: .whitespaces)
         let trimmedName = displayName.trimmingCharacters(in: .whitespaces)
-        host.name = trimmedName.isEmpty ? host.hostname : trimmedName
-        host.hostname = hostname.trimmingCharacters(in: .whitespaces)
+        host.name = trimmedName.isEmpty ? newHostname : trimmedName
+        host.hostname = newHostname
         host.username = username.trimmingCharacters(in: .whitespaces)
         if let p = Int(port) { host.port = p }
         let jump = proxyJump.trimmingCharacters(in: .whitespaces)
         host.proxyJump = jump.isEmpty ? nil : jump
         host.persistenceMode = persistenceMode
-        // Surfaced by the caller if it fails; a silent save that lost an edit
-        // would look like the form simply ignored you.
-        try? context.save()
-        dismiss()
+        do {
+            try context.save()
+            dismiss()
+        } catch {
+            // Was a discarded `try` with a comment claiming the caller handled
+            // it. No caller did, so a failed save dismissed the sheet as though
+            // it had worked and the correction was gone.
+            saveError = error.localizedDescription
+        }
     }
 }

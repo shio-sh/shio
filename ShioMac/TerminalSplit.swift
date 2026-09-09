@@ -159,7 +159,11 @@ private struct PaneHost: View {
             }
             .overlay(alignment: .topTrailing) {
                 // The way OUT of a split — visible on hover, per pane.
-                if !tab.isSinglePane && hovering {
+                // Present whenever the pane is splittable, faded unless
+                // hovered. Gating on `hovering` removed it from the hierarchy
+                // for anyone not using a mouse, which is precisely the group
+                // the accessibility label was for.
+                if !tab.isSinglePane {
                     Button { tab.close(paneID: pane.id) } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 9, weight: .semibold))
@@ -177,8 +181,8 @@ private struct PaneHost: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Close this pane")
-                    .help("Close pane (⌘W)")
                     .help("Close this pane (⌘W when focused)")
+                    .opacity(hovering ? 1 : 0)
                     .padding(6)
                 }
             }

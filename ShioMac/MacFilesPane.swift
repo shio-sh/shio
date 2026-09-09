@@ -512,8 +512,19 @@ private struct RemoteFilesBrowser: View {
         defer { busy = false }
         do {
             let data = try await vm.read(file)
-            let dest = FileManager.default.temporaryDirectory
-                .appendingPathComponent(file.name)
+            // The name comes from the remote listing, so it is not ours to
+            // trust: `appendingPathComponent` does not resolve `..`, and a
+            // crafted name would land the write outside the temp directory
+            // before being handed to the system to open. Strip separators and
+            // give every download its own directory, which also stops two
+            // files with the same basename clobbering each other.
+            let safeName = file.name
+                .replacingOccurrences(of: "/", with: "_")
+                .replacingOccurrences(of: ":", with: "_")
+            let box = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+            try FileManager.default.createDirectory(at: box, withIntermediateDirectories: true)
+            let dest = box.appendingPathComponent(safeName.isEmpty ? "download" : safeName)
             try data.write(to: dest)
             NSWorkspace.shared.open(dest)
         } catch {

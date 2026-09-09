@@ -13,11 +13,20 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
-    /// Ask before quitting while this Mac is the thing holding a session open
-    /// for another device. Silent on every other occasion, because a warning
-    /// that always fires is one people learn to dismiss without reading.
+    /// Ask before quitting while this Mac is holding a session open for
+    /// another device — but only when a person chose to quit.
+    ///
+    /// The first version ran a blocking modal for EVERY termination. macOS
+    /// gives an app a short window to answer the quit event on logout,
+    /// restart or a system update, so blocking there makes the system report
+    /// that Shio prevented the shutdown and cancels it. It also fired when the
+    /// last window was closed, since this app terminates with its last window,
+    /// which meant clicking the red button raised a dialog nobody asked for.
+    ///
+    /// So: only for an explicit ⌘Q or Quit menu item, and non-blocking, using
+    /// `.terminateLater` with a sheet rather than freezing the main thread.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard PowerKeeper.shared.isHolding else { return .terminateNow }
+        guard PowerKeeper.shared.isHolding, isUserInitiatedQuit() else { return .terminateNow }
 
         let alert = NSAlert()
         alert.messageText = "Quit Shio and let this Mac sleep?"
@@ -29,7 +38,30 @@ final class MacAppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "Quit")
         alert.addButton(withTitle: "Cancel")
         alert.alertStyle = .warning
-        return alert.runModal() == .alertFirstButtonReturn ? .terminateNow : .terminateCancel
+
+        if let window = sender.keyWindow ?? sender.windows.first(where: \.isVisible) {
+            alert.beginSheetModal(for: window) { response in
+                sender.reply(toApplicationShouldTerminate: response == .alertFirstButtonReturn)
+            }
+            return .terminateLater
+        }
+        // No window to hang a sheet on (the app is already windowless), so
+        // there is nothing to interrupt: let it go.
+        return .terminateNow
+    }
+
+    /// True when the quit came from the keyboard or the menu rather than from
+    /// the system. A logout or restart arrives with no current event.
+    private func isUserInitiatedQuit() -> Bool {
+        guard let event = NSApp.currentEvent else { return false }
+        switch event.type {
+        case .keyDown where event.modifierFlags.contains(.command):
+            return true
+        case .leftMouseUp, .leftMouseDown, .otherMouseUp, .applicationDefined:
+            return true
+        default:
+            return false
+        }
     }
 
     /// Re-open the main window when the dock asks (after the window was closed).

@@ -334,7 +334,11 @@ private struct ShellRailRow: View {
                     .foregroundStyle(isSel ? ShioTheme.accent : ShioTheme.textPrimary)
                     .lineLimit(1)
                 Spacer(minLength: 6)
-                if hovering {
+                // Present always, faded unless hovered. It used to exist only
+                // while a mouse was over the row, so a keyboard or VoiceOver
+                // user could never reach it and the label described a view
+                // that was not rendered.
+                Group {
                     Button { model.closeTab(tab.id) } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 9, weight: .semibold))
@@ -343,10 +347,10 @@ private struct ShellRailRow: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Close this terminal")
-                    .help("Close terminal (⌘W)")
+                    .accessibilityLabel("Leave this terminal. It keeps running")
                     .help("Leave. The row folds away (⌘W)")
                 }
+                .opacity(hovering ? 1 : 0)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 7)

@@ -30,6 +30,10 @@ struct HostListView: View {
     @State private var removeTarget: Host?
     @State private var editTarget: Host?
 
+    /// Owned by this view, so it cannot stick around globally or fire on an
+    /// unrelated screen later.
+    @State private var syncFailure: String?
+
     var body: some View {
         VStack(spacing: 0) {
             KeyReinstallBanner()
@@ -54,26 +58,32 @@ struct HostListView: View {
                                 Label("Remove", systemImage: "trash")
                             }
                             .tint(ShioTheme.danger)
-                            Button { editTarget = host } label: {
-                                Label("Edit", systemImage: "pencil")
+                            // Only machines you can actually dial. Your own
+                            // phone appears in this list with an empty
+                            // username, so the edit sheet could never validate
+                            // and any name change was overwritten on the next
+                            // launch by the self-host bootstrap.
+                            if host.isConnectable {
+                                Button { editTarget = host } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
                             }
                         }
                     }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
-                .refreshable { await SyncRefresh.run(context) }
+                .refreshable { syncFailure = await SyncRefresh.run(context) }
             }
         }
         .background(ShioTheme.background)
-        .alert("Couldn't sync", isPresented: Binding(
-            get: { SyncRefresh.lastFailure != nil },
-            set: { if !$0 { SyncRefresh.clearFailure() } })) {
-            Button("OK") { SyncRefresh.clearFailure() }
-        } message: {
-            Text(SyncRefresh.lastFailure ?? "")
-        }
         .sheet(item: $editTarget) { EditHostSheet(host: $0) }
+        .alert("Couldn't sync", isPresented: Binding(
+            get: { syncFailure != nil }, set: { if !$0 { syncFailure = nil } })) {
+            Button("OK") { syncFailure = nil }
+        } message: {
+            Text(syncFailure ?? "")
+        }
         .confirmationDialog(
             removeTarget.map { "Remove \($0.name) from Shio?" } ?? "Remove machine?",
             isPresented: Binding(get: { removeTarget != nil },
