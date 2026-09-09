@@ -4,6 +4,8 @@ import SwiftUI
 /// Pro Mode (one-time disclosure).
 struct SettingsView: View {
 
+    @AppStorage(TmuxControlSession.enabledKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
+    private var controlMode: Bool = false
     @AppStorage("shio.proMode.enabled", store: UserDefaults(suiteName: ShioModelContainer.appGroup))
     private var proModeEnabled: Bool = false
 
@@ -55,6 +57,16 @@ struct SettingsView: View {
                         Label("About Shio", systemImage: "info.circle")
                     }
                 }
+                Section {
+                    Toggle("tmux control mode", isOn: $controlMode)
+                } header: {
+                    Text("Terminal")
+                } footer: {
+                    Text("Let tmux describe the session instead of drawing it. "
+                         + "Groundwork for layout that follows you between devices. "
+                         + "Reopen a terminal after changing this.")
+                }
+
                 Section("Security") {
                     Toggle(isOn: $appLockEnabled) {
                         Label(appLockToggleTitle, systemImage: appLockToggleIcon)

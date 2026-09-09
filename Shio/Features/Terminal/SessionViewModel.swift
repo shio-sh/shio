@@ -71,11 +71,27 @@ final class SessionViewModel {
     // MARK: Resize debounce
     /// Latest grid size waiting to be pushed to the remote PTY.
     private var pendingResize: (cols: Int, rows: Int)?
+    /// The last size the view reported, kept after `pendingResize` is consumed.
+    /// A control-mode client renders for itself, so tmux knows no size until it
+    /// is told one on attach.
+    private var lastSize: (cols: Int, rows: Int)?
     /// Coalesces the burst of resize callbacks that fire during rotation,
     /// split-view drags, and keyboard show/hide. libghostty re-renders
     /// locally on every change immediately; we only debounce the SIGWINCH to
     /// the remote so the shell/TUI isn't thrashed mid-animation.
     private var resizeDebounce: Task<Void, Never>?
+
+    // MARK: Control mode
+    /// Live when this connection is speaking `tmux -CC` instead of raw bytes.
+    ///
+    /// Opt-in for now (Settings → Terminal). The transport is the risky half of
+    /// control mode and this proves it against a real session before the UI is
+    /// restructured around tmux's panes; with one pane the two paths should be
+    /// indistinguishable, which is exactly what makes it testable.
+    private var control: TmuxControlSession?
+    /// Which pane's bytes belong on screen. Until the UI models panes, that is
+    /// whichever tmux says is active.
+    private var renderedPaneID: String?
 
     // MARK: Session identity
     /// Set by `SessionStore` so the Live Activity can be keyed by the owning
@@ -140,13 +156,84 @@ final class SessionViewModel {
 
     private func wire() {
         terminal.onInput = { [weak self] data in
-            self?.client?.write(data)
+            guard let self else { return }
+            // In control mode the channel carries a protocol, not a keystream,
+            // so raw bytes would be read as tmux commands. Before the first
+            // layout arrives there is no pane to type into, and dropping the
+            // keystroke is the only safe answer — writing it raw would hand
+            // whatever was typed to tmux as a command line.
+            if let control = self.control {
+                guard let pane = self.renderedPaneID else { return }
+                control.sendKeys(Array(data.utf8), toPane: pane)
+            } else {
+                self.client?.write(data)
+            }
         }
         terminal.onResize = { [weak self] cols, rows in
             self?.scheduleResize(cols: cols, rows: rows)
         }
         terminal.onLoadFailure = { [weak self] message in
             self?.state = .disconnected(reason: message)
+        }
+    }
+
+    /// Point the SSH channel at the control-mode protocol instead of the
+    /// renderer. tmux stops drawing a screen and starts describing one, so the
+    /// bytes on the wire are events — pane output, window changes — rather than
+    /// something a terminal can render directly.
+    private func setUpControlMode(client: SSHClient) {
+        let session = TmuxControlSession()
+        control = session
+        renderedPaneID = nil
+
+        session.send = { [weak client] line in client?.write(line) }
+
+        session.onPaneOutput = { [weak self] pane, bytes in
+            guard let self else { return }
+            // Until the UI models panes, only the active one is on screen.
+            // Output from a background pane is tmux keeping other clients in
+            // sync and must not be interleaved into this view.
+            guard pane == self.renderedPaneID else { return }
+            let data = Data(bytes)
+            self.terminal.write(data)
+            self.detectLatestURL(in: Self.stripANSI(String(decoding: data, as: UTF8.self)))
+        }
+
+        session.onStarted = { [weak self] in
+            guard let self else { return }
+            // tmux sizes itself to this client only when told, and describes its
+            // panes only when asked. Neither happens on its own.
+            if let size = self.lastSize { session.resize(cols: size.cols, rows: size.rows) }
+            session.requestLayout()
+        }
+
+        session.onLayoutChanged = { [weak self] in
+            guard let self, let active = self.control?.activePaneID else { return }
+            guard self.renderedPaneID != active else { return }
+            self.renderedPaneID = active
+            // Attaching to a session that already exists delivers no screen at
+            // all — tmux forwards what happens next, not what is already there.
+            // Asking for the pane's contents is what makes a phone join the
+            // Mac's work mid-flight instead of opening on a blank rectangle.
+            self.control?.capturePane(active)
+        }
+
+        session.onPaneRestore = { [weak self] pane, lines in
+            guard let self, pane == self.renderedPaneID else { return }
+            // tmux pads the capture out to the pane's height; those trailing
+            // blanks would push the prompt up off the bottom and leave the
+            // cursor stranded below it.
+            var body = lines
+            while let last = body.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
+                body.removeLast()
+            }
+            self.terminal.write(Data("\u{1B}[H\u{1B}[2J".utf8))
+            self.terminal.write(Data(body.joined(separator: "\r\n").utf8))
+        }
+
+        session.onExit = { [weak self] reason in
+            guard let self else { return }
+            self.state = .disconnected(reason: reason ?? "tmux exited")
         }
     }
 
@@ -228,11 +315,16 @@ final class SessionViewModel {
     /// sends a single window-change to the remote.
     private func scheduleResize(cols: Int, rows: Int) {
         pendingResize = (cols, rows)
+        lastSize = (cols, rows)
         resizeDebounce?.cancel()
         resizeDebounce = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard let self, !Task.isCancelled, let size = self.pendingResize else { return }
-            self.client?.resize(cols: size.cols, rows: size.rows)
+            if let control = self.control {
+                control.resize(cols: size.cols, rows: size.rows)
+            } else {
+                self.client?.resize(cols: size.cols, rows: size.rows)
+            }
             self.pendingResize = nil
         }
     }
@@ -342,6 +434,13 @@ final class SessionViewModel {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                 guard let self else { return }
+                // In control mode the wire carries the protocol, not a screen.
+                // Writing it straight to the renderer would paint "%output %3
+                // …" as literal text.
+                if let control = self.control {
+                    control.receive([UInt8](data))
+                    return
+                }
                 self.terminal.write(data)
                 let str = String(data: data, encoding: .utf8)
                 if self.persistenceMode == .tmuxAutoResume, !self.tmuxFallbackTriggered,
@@ -384,9 +483,19 @@ final class SessionViewModel {
             // NON-interactive shell — bypassing .zshrc/.bashrc so a user's
             // auto-tmux can't preempt Shio's session. Fresh name, mouse on, and
             // status off all take effect; a new tab is reliably a fresh session.
-            let bootstrap = persistenceMode == .tmuxAutoResume
-                ? TmuxResume.execLine(named: tmuxSessionName, startDir: startDirectory, cloneURL: cloneURL)
-                : nil
+            let useControl = persistenceMode == .tmuxAutoResume && TmuxControlSession.isEnabled
+            let bootstrap: String?
+            if useControl {
+                bootstrap = TmuxResume.execLine(named: tmuxSessionName, startDir: startDirectory,
+                                                cloneURL: cloneURL, controlMode: true)
+                setUpControlMode(client: client)
+            } else {
+                control = nil
+                renderedPaneID = nil
+                bootstrap = persistenceMode == .tmuxAutoResume
+                    ? TmuxResume.execLine(named: tmuxSessionName, startDir: startDirectory, cloneURL: cloneURL)
+                    : nil
+            }
             try await client.requestShell(command: bootstrap)
             // The user may have closed the session while the connect was in
             // flight — don't resurrect it under them.

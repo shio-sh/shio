@@ -12,9 +12,14 @@ import Foundation
 @MainActor
 struct TmuxControlSessionTests {
 
+    /// A session past the handshake. tmux answers the attach with one empty
+    /// block before it has been asked anything, and every reply after that is
+    /// matched to a command by position, so a session that has not seen its
+    /// preamble is off by one for the rest of its life.
     private func session() -> TmuxControlSession {
         let s = TmuxControlSession()
         s.send = { _ in }
+        s.receive(Array("%begin 1 1 0\n%end 1 1 0\n".utf8))
         return s
     }
 
@@ -100,6 +105,7 @@ struct TmuxControlSessionTests {
         let s = session()
         var layoutChanges = 0
         s.onLayoutChanged = { layoutChanges += 1 }
+        s.requestLayout()
 
         s.receive(Array("""
         %begin 1 1 1
@@ -124,8 +130,10 @@ struct TmuxControlSessionTests {
         #expect(parsed?.activePaneID == "%9")
     }
 
-    /// A user's own command comes back through the same %begin/%end door, so
-    /// anything that isn't shaped like a layout must not be mistaken for one.
+    /// A user's own command comes back through the same %begin/%end door as a
+    /// layout listing, and a `capture-pane` reply is arbitrary text that no
+    /// amount of shape-sniffing can tell apart. Replies are matched to requests
+    /// by order instead.
     @Test func doesNotMistakeOrdinaryCommandOutputForLayout() {
         let s = session()
         var results: [[String]] = []
@@ -138,10 +146,68 @@ struct TmuxControlSessionTests {
         #expect(results[0].first == "total 24")
     }
 
+    /// Output that happens to look like a pane listing is still just output
+    /// when nothing asked for a layout.
+    @Test func doesNotAdoptLayoutShapedOutputNobodyAskedFor() {
+        let s = session()
+        s.receive(Array("%begin 1 2 1\n@1 editor %1 1\n%end 1 2 1\n".utf8))
+        #expect(s.windows.isEmpty)
+        #expect(s.activePaneID == nil)
+    }
+
+    /// Attaching to a session that already exists delivers no screen content,
+    /// so the pane has to be asked for its contents or the terminal opens blank.
+    @Test func capturesAPaneAndDeliversItToThatPane() {
+        let s = session()
+        var sent = ""
+        s.send = { sent = $0 }
+        var restored: (String, [String])?
+        s.onPaneRestore = { restored = ($0, $1) }
+
+        s.capturePane("%4")
+        #expect(sent.contains("capture-pane -p -e -J -t %4"))
+
+        s.receive(Array("%begin 1 5 1\nlast line\nprompt %\n%end 1 5 1\n".utf8))
+        #expect(restored?.0 == "%4")
+        #expect(restored?.1 == ["last line", "prompt %"])
+    }
+
+    /// Two commands in flight must not swap answers: the capture is the second
+    /// reply, not the first.
+    @Test func matchesRepliesToRequestsInOrder() {
+        let s = session()
+        var layouts = 0
+        var restored: [String]?
+        s.onLayoutChanged = { layouts += 1 }
+        s.onPaneRestore = { _, lines in restored = lines }
+
+        s.requestLayout()
+        s.capturePane("%2")
+
+        s.receive(Array("%begin 1 6 1\n@1 shell %2 1\n%end 1 6 1\n".utf8))
+        s.receive(Array("%begin 1 7 1\nscreen text\n%end 1 7 1\n".utf8))
+
+        #expect(layouts == 1)
+        #expect(s.activePaneID == "%2")
+        #expect(restored == ["screen text"])
+    }
+
+    /// A failed capture leaves the screen alone rather than painting the error
+    /// over it.
+    @Test func ignoresAFailedCapture() {
+        let s = session()
+        var restored = false
+        s.onPaneRestore = { _, _ in restored = true }
+        s.capturePane("%9")
+        s.receive(Array("%begin 1 8 1\ncan't find pane: %9\n%error 1 8 1\n".utf8))
+        #expect(!restored)
+    }
+
     @Test func surfacesCommandErrors() {
         let s = session()
         var sawError = false
         s.onCommandResult = { _, error in sawError = error }
+        s.sendKeys(Array("x".utf8), toPane: "%1")
         s.receive(Array("%begin 1 3 1\nno such window\n%error 1 3 1\n".utf8))
         #expect(sawError)
     }
@@ -176,11 +242,48 @@ struct TmuxControlSessionTests {
     /// invisible and the terminal is silently empty — the exact failure that
     /// stopped the phone joining the Mac's session.
     @Test func attachCommandCanFindTmuxOnABarePath() {
-        let cmd = TmuxControlSession.attachCommand(session: "shio-Infer")
+        let cmd = TmuxResume.execLine(named: "shio-Infer", controlMode: true)
         #expect(cmd.hasPrefix("PATH="))
         for dir in TmuxResume.commonBinDirs { #expect(cmd.contains(dir)) }
         #expect(cmd.contains("-CC new-session -A -s shio-Infer"))
         #expect(cmd.contains("exec \"${SHELL:-/bin/sh}\" -l"))
+    }
+
+    /// Control mode is the same line with one flag. The start directory and the
+    /// clone guard are the whole reason a project opens in its own repo, and a
+    /// separate builder for control mode is how that quietly stops happening.
+    @Test func controlModeKeepsTheStartDirectoryAndTheCloneGuard() {
+        let cmd = TmuxResume.execLine(named: "shio-Infer", startDir: "/Users/a/Infer",
+                                      cloneURL: "https://github.com/a/Infer.git",
+                                      controlMode: true)
+        #expect(cmd.contains("-CC new-session"))
+        #expect(cmd.contains("git clone"))
+        #expect(cmd.contains("-c '/Users/a/Infer'"))
+        #expect(cmd.contains("set mouse on"))
+
+        let plain = TmuxResume.execLine(named: "shio-Infer", startDir: "/Users/a/Infer",
+                                        cloneURL: "https://github.com/a/Infer.git")
+        #expect(!plain.contains("-CC"))
+        #expect(cmd.replacingOccurrences(of: "-CC ", with: "") == plain)
+    }
+
+    /// The first block tmux sends is its answer to the attach, not to anything
+    /// Shio asked. Mistaking it for a reply shifts every later one by one.
+    @Test func treatsTheAttachPreambleAsTheStartSignal() {
+        let s = TmuxControlSession()
+        s.send = { _ in }
+        var started = 0
+        var results = 0
+        s.onStarted = { started += 1 }
+        s.onCommandResult = { _, _ in results += 1 }
+
+        s.receive(Array("%begin 1 1 0\n%end 1 1 0\n".utf8))
+        #expect(started == 1)
+        #expect(results == 0)
+
+        s.receive(Array("%begin 1 2 1\nhello\n%end 1 2 1\n".utf8))
+        #expect(started == 1)
+        #expect(results == 1)
     }
 }
 
@@ -256,6 +359,18 @@ struct TmuxControlSessionLiveTests {
         session.receive(collected.drain())
 
         #expect(sawOutputForPane, "keystrokes should produce output on the pane they were sent to")
+
+        // The capture is what a second device sees when it joins a session that
+        // is already running. Against real tmux it must come back holding the
+        // text that is already on screen, or a phone attaches to a blank pane.
+        var captured: [String] = []
+        session.onPaneRestore = { id, lines in if id == pane { captured = lines } }
+        session.capturePane(pane)
+        try await Task.sleep(for: .milliseconds(900))
+        session.receive(collected.drain())
+
+        #expect(captured.contains { $0.contains("shio-control-ok") },
+                "capture-pane should return what is already on the pane")
 
         stdout.fileHandleForReading.readabilityHandler = nil
     }

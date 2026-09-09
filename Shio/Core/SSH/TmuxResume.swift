@@ -85,7 +85,14 @@ enum TmuxResume {
     /// user's `.zshrc`/`.bashrc` and any auto-tmux there can't preempt Shio.
     /// `command -v tmux` guards a fallback to a plain login shell when tmux
     /// isn't installed. No trailing newline (it's the command, not typed input).
-    static func execLine(named name: String, startDir: String? = nil, cloneURL: String? = nil) -> String {
+    ///
+    /// `controlMode` swaps in `tmux -CC`, where tmux stops drawing a screen and
+    /// starts describing one. It is the same line otherwise — same PATH repair,
+    /// same clone guard, same start directory, same options — because any
+    /// divergence between the two would be a second way for the start directory
+    /// or the clone to quietly not happen.
+    static func execLine(named name: String, startDir: String? = nil, cloneURL: String? = nil,
+                         controlMode: Bool = false) -> String {
         var cmd = ""
         if let cloneURL, !cloneURL.isEmpty, let startDir, !startDir.isEmpty {
             cmd += "[ -d \(SSHClient.shellQuotedPath(startDir)) ] || git clone \(singleQuoted(cloneURL)) \(SSHClient.shellQuotedPath(startDir)); "
@@ -98,7 +105,7 @@ enum TmuxResume {
         // promise quietly not working. Linux distros ship tmux in /usr/bin and
         // were unaffected, which is why it hid for so long.
         cmd += "PATH=\"$PATH:\(Self.commonBinDirs.joined(separator: ":"))\"; "
-        cmd += "command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s \(name)"
+        cmd += "command -v tmux >/dev/null 2>&1 && exec tmux \(controlMode ? "-CC " : "")new-session -A -s \(name)"
         if let startDir, !startDir.isEmpty {
             cmd += " -c \(SSHClient.shellQuotedPath(startDir))"
         }

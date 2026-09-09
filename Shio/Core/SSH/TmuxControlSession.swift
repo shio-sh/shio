@@ -15,7 +15,6 @@ import Foundation
 /// actually follow you between devices, and it deletes Shio's parallel split
 /// tree rather than maintaining two hierarchies that disagree.
 ///
-/// Not wired into the app yet. Deliberately.
 @MainActor
 final class TmuxControlSession {
 
@@ -29,6 +28,13 @@ final class TmuxControlSession {
     var onExit: ((_ reason: String?) -> Void)?
     /// A command's response block, delivered whole. `error` mirrors `%error`.
     var onCommandResult: ((_ lines: [String], _ error: Bool) -> Void)?
+    /// A pane's current screen, in response to `capturePane`. Attaching to a
+    /// session that already exists sends NO screen content — tmux only forwards
+    /// what happens next — so without this a phone joining the Mac's session
+    /// stares at a blank terminal until something moves.
+    var onPaneRestore: ((_ paneID: String, _ lines: [String]) -> Void)?
+    /// tmux answered the attach and is ready for commands.
+    var onStarted: (() -> Void)?
 
     /// Everything this session must send to the remote. Set by the transport.
     var send: ((String) -> Void)?
@@ -53,18 +59,32 @@ final class TmuxControlSession {
     private var blockLines: [String] = []
     private var inBlock = false
 
+    /// What each outstanding command asked for. tmux answers commands strictly
+    /// in order and echoes no identifier we can predict, so the reply is matched
+    /// by position rather than by parsing what came back — the block for a
+    /// `capture-pane` is arbitrary text and cannot be recognised by shape.
+    private enum Reply {
+        case layout
+        case capture(paneID: String)
+        case passthrough
+    }
+    private var pending: [Reply] = []
+    /// tmux answers the attach itself with one empty block before it has been
+    /// asked anything. Everything is sent after that, so it is also the signal
+    /// that ordered matching can start.
+    private var started = false
+
+    /// Opt-in while the transport earns trust. Lives here rather than on a
+    /// view model so both targets can read it — the Mac's settings cannot see
+    /// iOS-only types.
+    static let enabledKey = "shio.terminal.controlMode"
+    static var isEnabled: Bool {
+        UserDefaults(suiteName: ShioModelContainer.appGroup)?.bool(forKey: enabledKey) ?? false
+    }
+
     init() {}
 
     // MARK: driving it
-
-    /// The command that starts control mode. Goes through the same exec channel
-    /// as the plain bootstrap, so it needs the same PATH treatment — a
-    /// non-interactive shell cannot see Homebrew's tmux without it.
-    static func attachCommand(session: String) -> String {
-        "PATH=\"$PATH:\(TmuxResume.commonBinDirs.joined(separator: ":"))\"; "
-        + "command -v tmux >/dev/null 2>&1 && exec tmux -CC new-session -A -s \(session)"
-        + " || exec \"${SHELL:-/bin/sh}\" -l"
-    }
 
     /// Feed bytes as they arrive. Safe to call with any chunking.
     func receive(_ bytes: [UInt8]) {
@@ -78,20 +98,35 @@ final class TmuxControlSession {
     func sendKeys(_ bytes: [UInt8], toPane paneID: String) {
         guard !bytes.isEmpty else { return }
         let hex = bytes.map { String(format: "%02x", $0) }.joined(separator: " ")
-        send?("send-keys -t \(paneID) -H \(hex)\n")
+        run("send-keys -t \(paneID) -H \(hex)", expecting: .passthrough)
+    }
+
+    /// Send a command and remember what its reply is for.
+    private func run(_ command: String, expecting reply: Reply) {
+        pending.append(reply)
+        send?(command + "\n")
     }
 
     /// Tell tmux how big this client's screen is. In control mode the client
     /// renders, so tmux has no idea unless it is told.
     func resize(cols: Int, rows: Int) {
         guard cols > 0, rows > 0 else { return }
-        send?("refresh-client -C \(cols)x\(rows)\n")
+        run("refresh-client -C \(cols)x\(rows)", expecting: .passthrough)
     }
 
     /// Ask for the current window and pane layout. Used on attach, and after any
     /// structural notification, so the model never drifts from tmux's truth.
     func requestLayout() {
-        send?("list-panes -s -F '#{window_id} #{window_name} #{pane_id} #{pane_active}'\n")
+        run("list-panes -s -F '#{window_id} #{window_name} #{pane_id} #{pane_active}'",
+            expecting: .layout)
+    }
+
+    /// Ask for a pane's visible screen so a newly attached client can draw what
+    /// is already there. `-e` keeps colour and style, `-J` rejoins lines tmux
+    /// wrapped, so what comes back is what the pane looks like rather than a
+    /// plain-text approximation of it.
+    func capturePane(_ paneID: String) {
+        run("capture-pane -p -e -J -t \(paneID)", expecting: .capture(paneID: paneID))
     }
 
     // MARK: events
@@ -112,16 +147,7 @@ final class TmuxControlSession {
             inBlock = false
             let lines = blockLines
             blockLines = []
-            // A layout listing and a user command come back through the same
-            // door, so the shape decides: only rows that parse as panes are
-            // treated as layout.
-            if !error, let parsed = Self.parseLayout(lines) {
-                windows = parsed.windows
-                activePaneID = parsed.activePaneID
-                onLayoutChanged?()
-            } else {
-                onCommandResult?(lines, error)
-            }
+            deliver(lines, error: error)
 
         // Anything structural invalidates the model. Rather than patching it
         // notification by notification (and drifting the first time tmux does
@@ -141,9 +167,30 @@ final class TmuxControlSession {
         }
     }
 
+    /// Hand a finished block to whoever asked for it.
+    private func deliver(_ lines: [String], error: Bool) {
+        guard started else {
+            started = true
+            onStarted?()
+            return
+        }
+        switch pending.isEmpty ? .passthrough : pending.removeFirst() {
+        case .layout:
+            guard !error, let parsed = Self.parseLayout(lines) else { return }
+            windows = parsed.windows
+            activePaneID = parsed.activePaneID
+            onLayoutChanged?()
+        case .capture(let paneID):
+            guard !error else { return }
+            onPaneRestore?(paneID, lines)
+        case .passthrough:
+            onCommandResult?(lines, error)
+        }
+    }
+
     /// Parse `list-panes` rows into windows. Returns nil when the lines are not
-    /// a layout listing, which is how a normal command's output is told apart
-    /// from one of ours.
+    /// a layout listing, so a malformed or unexpected reply is ignored rather
+    /// than half-applied.
     static func parseLayout(_ lines: [String]) -> (windows: [Window], activePaneID: String?)? {
         var order: [String] = []
         var byID: [String: Window] = [:]
