@@ -4,7 +4,7 @@
 
 <h1 align="center"><code>shio</code></h1>
 
-<p align="center"><em>A terminal that follows you.</em></p>
+<p align="center"><em>The terminal for structured work.</em></p>
 
 <p align="center">
   Native on Mac, iPhone, and iPad. SSH into machines you own.
