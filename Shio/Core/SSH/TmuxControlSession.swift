@@ -69,10 +69,12 @@ final class TmuxControlSession {
         case passthrough
     }
     private var pending: [Reply] = []
-    /// tmux answers the attach itself with one empty block before it has been
-    /// asked anything. Everything is sent after that, so it is also the signal
-    /// that ordered matching can start.
-    private var started = false
+    /// Whether the reply stream has been synchronised. Until it has, blocks are
+    /// discarded rather than matched.
+    private var synced = false
+    /// Whether tmux has answered the handshake. A control channel that never
+    /// syncs is not a control channel.
+    var isSynced: Bool { synced }
 
     /// Opt-in while the transport earns trust. Lives here rather than on a
     /// view model so both targets can read it — the Mac's settings cannot see
@@ -85,6 +87,25 @@ final class TmuxControlSession {
     init() {}
 
     // MARK: driving it
+
+    /// A string tmux will echo back verbatim, marking where our replies begin.
+    static let readyMarker = "shio-control-ready"
+
+    /// Synchronise with tmux, then report ready. Call once the channel is open.
+    ///
+    /// Replies are matched to commands by position, so the count of blocks that
+    /// arrive before the first of ours has to be exactly right — and it is not
+    /// knowable. The attach line chains tmux options onto `new-session`, and
+    /// tmux answers EVERY command in that chain with its own empty block: the
+    /// real line produces five, not one. Counting them means the option chain
+    /// can never change without silently shifting every reply by one, which
+    /// looks like a terminal that never draws and never accepts a keystroke.
+    ///
+    /// So instead of counting, ask tmux to say something only we would say, and
+    /// throw away everything before it.
+    func start() {
+        send?("display-message -p \(Self.readyMarker)\n")
+    }
 
     /// Feed bytes as they arrive. Safe to call with any chunking.
     func receive(_ bytes: [UInt8]) {
@@ -169,8 +190,9 @@ final class TmuxControlSession {
 
     /// Hand a finished block to whoever asked for it.
     private func deliver(_ lines: [String], error: Bool) {
-        guard started else {
-            started = true
+        guard synced else {
+            guard lines.contains(Self.readyMarker) else { return }
+            synced = true
             onStarted?()
             return
         }

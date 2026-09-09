@@ -12,14 +12,14 @@ import Foundation
 @MainActor
 struct TmuxControlSessionTests {
 
-    /// A session past the handshake. tmux answers the attach with one empty
-    /// block before it has been asked anything, and every reply after that is
-    /// matched to a command by position, so a session that has not seen its
-    /// preamble is off by one for the rest of its life.
+    /// A session past the handshake. Replies are matched to commands by
+    /// position, so a session that has not synchronised is off by one for the
+    /// rest of its life.
     private func session() -> TmuxControlSession {
         let s = TmuxControlSession()
         s.send = { _ in }
-        s.receive(Array("%begin 1 1 0\n%end 1 1 0\n".utf8))
+        s.start()
+        s.receive(Array("%begin 1 1 0\n\(TmuxControlSession.readyMarker)\n%end 1 1 0\n".utf8))
         return s
     }
 
@@ -267,23 +267,41 @@ struct TmuxControlSessionTests {
         #expect(cmd.replacingOccurrences(of: "-CC ", with: "") == plain)
     }
 
-    /// The first block tmux sends is its answer to the attach, not to anything
-    /// Shio asked. Mistaking it for a reply shifts every later one by one.
-    @Test func treatsTheAttachPreambleAsTheStartSignal() {
+    /// The attach line chains tmux options onto `new-session`, and tmux answers
+    /// every command in that chain with its own block. The real line produces
+    /// five. Counting them would mean the option chain could never change
+    /// without shifting every later reply by one — a terminal that never draws
+    /// and never takes a keystroke, for a reason nothing points at.
+    @Test func synchronisesPastHoweverManyBlocksTheAttachProduces() {
         let s = TmuxControlSession()
         s.send = { _ in }
         var started = 0
         var results = 0
         s.onStarted = { started += 1 }
         s.onCommandResult = { _, _ in results += 1 }
+        s.start()
 
-        s.receive(Array("%begin 1 1 0\n%end 1 1 0\n".utf8))
+        for _ in 0..<5 { s.receive(Array("%begin 1 1 0\n%end 1 1 0\n".utf8)) }
+        #expect(started == 0)
+        #expect(results == 0)
+
+        s.receive(Array("%begin 1 6 1\n\(TmuxControlSession.readyMarker)\n%end 1 6 1\n".utf8))
         #expect(started == 1)
         #expect(results == 0)
 
-        s.receive(Array("%begin 1 2 1\nhello\n%end 1 2 1\n".utf8))
-        #expect(started == 1)
+        s.receive(Array("%begin 1 7 1\nhello\n%end 1 7 1\n".utf8))
         #expect(results == 1)
+    }
+
+    /// Nothing tmux says before the marker is an answer to Shio, so a layout
+    /// listing that arrives early belongs to somebody else's command.
+    @Test func ignoresEverythingBeforeItHasSynchronised() {
+        let s = TmuxControlSession()
+        s.send = { _ in }
+        s.start()
+        s.requestLayout()
+        s.receive(Array("%begin 1 1 1\n@1 shell %1 1\n%end 1 1 1\n".utf8))
+        #expect(s.windows.isEmpty)
     }
 }
 
@@ -311,7 +329,13 @@ struct TmuxControlSessionLiveTests {
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: tmux)
+        // The real attach line, options and all. The option chain is exactly
+        // what makes the preamble unpredictable, so the live test has to carry
+        // it or it proves the easy case.
         proc.arguments = ["-C", "new-session", "-s", name]
+            + TmuxResume.attachOptions
+                .split(separator: " ")
+                .map { $0 == "\\;" ? ";" : String($0) }
         let stdin = Pipe(), stdout = Pipe()
         proc.standardInput = stdin
         proc.standardOutput = stdout
@@ -328,6 +352,8 @@ struct TmuxControlSessionLiveTests {
 
         let session = TmuxControlSession()
         session.send = { stdin.fileHandleForWriting.write(Data($0.utf8)) }
+        var started = false
+        session.onStarted = { started = true }
 
         // Pump tmux's output into the session on a background reader.
         let collected = OutputBox()
@@ -337,9 +363,12 @@ struct TmuxControlSessionLiveTests {
             collected.append([UInt8](data))
         }
 
-        // Give tmux a moment to come up, then ask what it has.
+        // Give tmux a moment to come up, then synchronise past whatever the
+        // option chain produced before asking it anything.
+        session.start()
         try await Task.sleep(for: .milliseconds(700))
         session.receive(collected.drain())
+        #expect(started, "the ready marker should have arrived from real tmux")
         session.requestLayout()
         try await Task.sleep(for: .milliseconds(700))
         session.receive(collected.drain())

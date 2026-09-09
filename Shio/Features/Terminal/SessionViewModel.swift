@@ -92,6 +92,10 @@ final class SessionViewModel {
     /// Which pane's bytes belong on screen. Until the UI models panes, that is
     /// whichever tmux says is active.
     private var renderedPaneID: String?
+    /// Bytes seen before the handshake completed, kept so they can still be
+    /// drawn if it turns out nothing is speaking the protocol.
+    private var controlWarmup: [UInt8] = []
+    private var controlHandshake: Task<Void, Never>?
 
     // MARK: Session identity
     /// Set by `SessionStore` so the Live Activity can be keyed by the owning
@@ -201,6 +205,8 @@ final class SessionViewModel {
 
         session.onStarted = { [weak self] in
             guard let self else { return }
+            self.controlHandshake?.cancel()
+            self.controlWarmup = []
             // tmux sizes itself to this client only when told, and describes its
             // panes only when asked. Neither happens on its own.
             if let size = self.lastSize { session.resize(cols: size.cols, rows: size.rows) }
@@ -234,6 +240,28 @@ final class SessionViewModel {
         session.onExit = { [weak self] reason in
             guard let self else { return }
             self.state = .disconnected(reason: reason ?? "tmux exited")
+        }
+    }
+
+    /// Give up on control mode if nothing answers the handshake.
+    ///
+    /// The attach line falls back to a plain login shell when tmux is missing,
+    /// and a plain shell's output fed to a protocol parser renders as nothing at
+    /// all. A blank terminal that reports no error is the worst failure Shio
+    /// has: it looks like the network, or the host, or the app. So when the
+    /// handshake does not land, stop parsing and draw what actually arrived.
+    private func startControlHandshakeWatchdog() {
+        controlHandshake?.cancel()
+        controlHandshake = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard let self, !Task.isCancelled,
+                  let control = self.control, !control.isSynced else { return }
+            self.control = nil
+            self.renderedPaneID = nil
+            let buffered = self.controlWarmup
+            self.controlWarmup = []
+            if !buffered.isEmpty { self.terminal.write(Data(buffered)) }
+            self.terminal.write(Data("\r\n\u{1B}[33m[shio] tmux control mode didn't answer — plain shell.\u{1B}[0m\r\n".utf8))
         }
     }
 
@@ -438,6 +466,10 @@ final class SessionViewModel {
                 // Writing it straight to the renderer would paint "%output %3
                 // …" as literal text.
                 if let control = self.control {
+                    // Until tmux has answered, keep a copy: if the handshake
+                    // never lands, these bytes are a plain shell's output and
+                    // are the only thing the user has.
+                    if !control.isSynced { self.controlWarmup += [UInt8](data) }
                     control.receive([UInt8](data))
                     return
                 }
@@ -497,6 +529,12 @@ final class SessionViewModel {
                     : nil
             }
             try await client.requestShell(command: bootstrap)
+            // tmux is talking now. Find where its answers to Shio begin before
+            // trusting any of them.
+            if useControl {
+                control?.start()
+                startControlHandshakeWatchdog()
+            }
             // The user may have closed the session while the connect was in
             // flight — don't resurrect it under them.
             if userInitiatedStop || Task.isCancelled {
@@ -618,6 +656,11 @@ final class SessionViewModel {
         reconnectTask = nil
         resizeDebounce?.cancel()
         resizeDebounce = nil
+        controlHandshake?.cancel()
+        controlHandshake = nil
+        control = nil
+        renderedPaneID = nil
+        controlWarmup = []
         await client?.disconnect()
         client = nil
         state = .idle
