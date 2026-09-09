@@ -40,7 +40,12 @@ enum MacLocalLaunch {
         // status bar, which the SSH path never shows) and `set -sg escape-time 0`
         // (the escape-key lag fix). One constant, so the two paths can't diverge
         // again.
-        let script = #"[ -z "$SHIO_BUNDLED_TMUX" ] || PATH="$PATH:$SHIO_BUNDLED_TMUX"; [ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR"; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR"\#(TmuxResume.attachOptions) || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
+        //
+        // The clone ends in `|| { ...; exec shell; }` rather than falling
+        // through on `;`. A failed clone used to be followed straight into
+        // tmux, which repainted the screen and scrolled the error away, so the
+        // user got a working terminal in the wrong directory and no reason why.
+        let script = #"[ -z "$SHIO_BUNDLED_TMUX" ] || PATH="$PATH:$SHIO_BUNDLED_TMUX"; [ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR" || { printf '\n\033[31m[shio] git clone failed.\033[0m Check the URL, and that this Mac has access to the repository.\n'; exec "$SHIO_SHELL" -l; }; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR"\#(TmuxResume.attachOptions) || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
         let command = "\(shell) -lc '\(script)'"
 
         // Start in the repo's *parent* so the cwd is valid even before a clone

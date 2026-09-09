@@ -154,7 +154,7 @@ jobs:
             echo "      <pubDate>${PUBDATE}</pubDate>"
             echo "      <sparkle:version>${BUILD}</sparkle:version>"
             echo "      <sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>"
-            echo '      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>'
+            echo '      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>'
             echo "      <enclosure url=\"${DMG_URL}\" ${SIG_LEN} type=\"application/octet-stream\" />"
             echo '    </item>'
             echo '  </channel>'

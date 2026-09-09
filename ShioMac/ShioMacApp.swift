@@ -90,8 +90,11 @@ struct ShioMacApp: App {
                 Divider()
                 // What the canvas is showing — the Finder "as Icons / as List"
                 // slot, which is exactly what these are.
+                // ⇧0, not ⌘0: the Terminal menu already owns ⌘0 for Actual
+                // Size, which is reset-zoom muscle memory everywhere. Two menu
+                // items sharing one chord means only one of them ever fires.
                 Button("All Projects") { model.showAllProjects() }
-                    .keyboardShortcut("0", modifiers: .command)
+                    .keyboardShortcut("0", modifiers: [.command, .shift])
                 Button("Dashboard") { model.canvas = .dashboard }
                     .keyboardShortcut("p", modifiers: [.command, .shift])
                 Button("Terminal") { model.showTerminal() }

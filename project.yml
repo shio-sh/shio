@@ -6,7 +6,7 @@ options:
     # macOS floor is 14.0 (Sonoma) — the lowest SwiftData supports, which the org
     # layer is built on. Covers Sonoma/Sequoia/Tahoe. (Was 26.0, which locked out
     # everything below Tahoe — i.e. essentially every current Mac.)
-    macOS: "14.0"
+    macOS: "15.0"   # ShioMac overrides this too; kept in step so they cannot drift
   developmentLanguage: en
   groupSortPosition: top
   generateEmptyDirectories: true
@@ -338,6 +338,16 @@ targets:
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: VRNNS4H6XH
         CODE_SIGN_ENTITLEMENTS: ShioMac/ShioMac.entitlements
+      configs:
+        # Substituted into ShioMac.entitlements. This was hardcoded to
+        # `development`, which a Developer ID build cannot carry, so the export
+        # silently STRIPPED the push entitlement rather than failing. With no
+        # push entitlement CloudKit cannot wake the Mac, so sync was never live
+        # there: changes from a phone only appeared on the next manual fetch.
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
 
   # ── Tests ──────────────────────────────────────────────────────────────
   # ShioKitTests: the shared platform-agnostic core (parsers, classifiers,

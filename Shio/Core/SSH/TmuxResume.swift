@@ -69,8 +69,7 @@ enum TmuxResume {
     static func resumeCommand(named name: String, startDir: String? = nil, cloneURL: String? = nil) -> String {
         var cmd = ""
         if let cloneURL, !cloneURL.isEmpty, let startDir, !startDir.isEmpty {
-            // `[ -d dir ] || git clone url dir` — clone only if missing.
-            cmd += "[ -d \(SSHClient.shellQuotedPath(startDir)) ] || git clone \(singleQuoted(cloneURL)) \(SSHClient.shellQuotedPath(startDir)); "
+            cmd += cloneGuard(startDir: startDir, cloneURL: cloneURL)
         }
         cmd += "tmux new-session -A -s \(name)"
         if let startDir, !startDir.isEmpty {
@@ -95,7 +94,7 @@ enum TmuxResume {
                          controlMode: Bool = false) -> String {
         var cmd = ""
         if let cloneURL, !cloneURL.isEmpty, let startDir, !startDir.isEmpty {
-            cmd += "[ -d \(SSHClient.shellQuotedPath(startDir)) ] || git clone \(singleQuoted(cloneURL)) \(SSHClient.shellQuotedPath(startDir)); "
+            cmd += cloneGuard(startDir: startDir, cloneURL: cloneURL)
         }
         // The exec channel runs NON-interactively, so PATH is the bare system
         // default (/usr/bin:/bin:/usr/sbin:/sbin) — the login shell's PATH never
@@ -141,6 +140,24 @@ enum TmuxResume {
     /// Remote control: **Mirror** — tmux's native behavior. Every device that
     /// attaches the same `shio-<name>` session sees it live and shares control.
     static var sessionOptions: String { attachOptions }
+
+    /// The `git clone` that runs when a project is opened for the first time.
+    ///
+    /// The separator matters. This used to end in `;`, which runs the next
+    /// command regardless — so a clone that failed (bad URL, private repo, no
+    /// git auth on that host) was followed straight into tmux, which repainted
+    /// the screen and scrolled the error away before anyone could read it. The
+    /// user saw a working terminal in the wrong directory and no explanation.
+    ///
+    /// Now a failed clone says so in red and drops to a login shell instead of
+    /// starting a session, so the error is the last thing on screen.
+    private static func cloneGuard(startDir: String, cloneURL: String) -> String {
+        let dir = SSHClient.shellQuotedPath(startDir)
+        let msg = "\\n\\033[31m[shio] git clone failed.\\033[0m Check the URL, "
+                + "and that this machine has access to the repository.\\n"
+        return "[ -d \(dir) ] || git clone \(singleQuoted(cloneURL)) \(dir) || "
+             + "{ printf '\(msg)'; exec \"${SHELL:-/bin/sh}\" -l; }; "
+    }
 
     private static func singleQuoted(_ s: String) -> String {
         "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"

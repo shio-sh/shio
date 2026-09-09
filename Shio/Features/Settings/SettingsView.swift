@@ -157,6 +157,17 @@ struct SettingsView: View {
 }
 
 private struct AboutView: View {
+    /// Read from the bundle, never typed. A hardcoded "v1.0" is right for
+    /// exactly one release and then quietly lies on every one after it, which
+    /// is the version people quote in bug reports.
+    private static var versionLine: String {
+        let info = Bundle.main.infoDictionary
+        let short = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String
+        guard let build, build != short else { return "v\(short)" }
+        return "v\(short) (\(build))"
+    }
+
     var body: some View {
         VStack(spacing: ShioSpace.md) {
             Text("塩")
@@ -165,11 +176,11 @@ private struct AboutView: View {
             Text("shio")
                 .font(ShioFont.wordmark(size: 32))
                 .foregroundStyle(ShioTheme.textPrimary)
-            Text("A real terminal for Mac, iPhone, and iPad.")
+            Text("A terminal for Mac, iPhone, and iPad.")
                 .font(ShioFont.callout)
                 .foregroundStyle(ShioTheme.textSecondary)
             Spacer()
-            Text("v1.0")
+            Text(Self.versionLine)
                 .font(ShioFont.footnote)
                 .foregroundStyle(ShioTheme.textTertiary)
         }
