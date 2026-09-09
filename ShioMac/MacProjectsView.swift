@@ -19,7 +19,18 @@ struct MacDashboardCanvas: View {
 
     var body: some View {
         Group {
-            if let project = model.selectedProject {
+            if model.showingAllProjects, !projects.isEmpty {
+                VStack(spacing: 0) {
+                    overviewHead
+                    ProjectsOverview(
+                        items: projects
+                            .sorted { ($0.lastOpenedAt ?? .distantPast) > ($1.lastOpenedAt ?? .distantPast) }
+                            .map { ProjectOverviewItem.make(project: $0, rows: ProjectRows.rows(for: $0)) },
+                        open: { model.select(project: $0) },
+                        addProject: { model.showingAddProject = true }
+                    )
+                }
+            } else if let project = model.selectedProject {
                 let rows = ProjectRows.rows(for: project)
                 let glance = ProjectRows.glance(for: project, rows: rows)
                 VStack(spacing: 0) {
@@ -49,21 +60,8 @@ struct MacDashboardCanvas: View {
                     )
                     .id(project.persistentModelID)
                 }
-            } else if projects.isEmpty {
-                emptyState
             } else {
-                // Nothing selected, but projects exist: the dashboard zoomed
-                // out. Not a fifth canvas — the same one, further back.
-                VStack(spacing: 0) {
-                    overviewHead
-                    ProjectsOverview(
-                        items: projects
-                            .sorted { ($0.lastOpenedAt ?? .distantPast) > ($1.lastOpenedAt ?? .distantPast) }
-                            .map { ProjectOverviewItem.make(project: $0, rows: ProjectRows.rows(for: $0)) },
-                        open: { model.select(project: $0) },
-                        addProject: { model.showingAddProject = true }
-                    )
-                }
+                emptyState
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

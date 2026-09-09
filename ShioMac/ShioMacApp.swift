@@ -219,18 +219,26 @@ final class MacTerminalModel {
         }
     }
 
-    /// Step back out to every project. Deselecting IS the zoomed-out state —
-    /// the dashboard renders the overview when nothing is selected, so this
-    /// needs no canvas of its own.
+    /// True while the dashboard is zoomed out to every project.
+    ///
+    /// A separate flag rather than clearing `selectedProject`: nil-ing it wiped
+    /// the rail's context, so the switcher fell back to "New project…" and the
+    /// REPOS group vanished the moment you looked at the overview — or at
+    /// Machines or Files. The project you were last in stays the context; only
+    /// what the canvas draws changes.
+    var showingAllProjects = false
+
+    /// Step back out to every project.
     func showAllProjects() {
         showingProjectMenu = false
-        selectedProject = nil
+        showingAllProjects = true
         canvas = .dashboard
     }
 
     /// Pick a team: land on its dashboard (overview first — his call).
     func select(project: Project) {
         showingProjectMenu = false
+        showingAllProjects = false
         selectedProject = project
         project.lastOpenedAt = .now
         canvas = .dashboard
@@ -620,7 +628,10 @@ final class MacTerminalModel {
         // machine while they exist.
         var claimed = Set<UUID>()
         let shellTabs = tabs.filter(\.isShellTab)
-        for host in Self.fetchHosts().sorted(by: { a, _ in MacSelfHost.isThisMac(a) }) {
+        // Only machines you can dial get a shell row. Your own phone is a
+        // machine and belongs in Machines, but "open a shell on it" does not
+        // exist — iOS runs no SSH server.
+        for host in Self.fetchHosts().connectable.sorted(by: { a, _ in MacSelfHost.isThisMac(a) }) {
             map.shells.append(.machine(host))
             let base = Self.shellTitle(for: host)
             claimed.formUnion(shellTabs.filter { $0.title == base }.map(\.id))

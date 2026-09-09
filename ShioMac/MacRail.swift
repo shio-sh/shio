@@ -127,7 +127,7 @@ struct MacRail: View {
             // project list, which put "step back out" in the same place as the
             // things you step INTO.
             RailRow(title: "Projects", muted: true,
-                    selected: model.canvas == .dashboard && model.selectedProject == nil,
+                    selected: model.canvas == .dashboard && model.showingAllProjects,
                     action: { model.showAllProjects() }) {
                 Image(systemName: "square.grid.2x2")
                     .font(.system(size: 11))
