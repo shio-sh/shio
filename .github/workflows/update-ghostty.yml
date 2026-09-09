@@ -88,18 +88,26 @@ jobs:
         if: steps.rebase.outputs.changed == 'true'
         uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Build GhosttyKit (Nix dev shell, Zig 0.15.2)
+      # The Zig version comes from ghostty's own manifest, never a number
+      # pinned here. Upstream raises minimum_zig_version whenever it likes, and
+      # a hardcoded one turns "ghostty moved" into "the job is broken" — which
+      # is exactly how this step started failing.
+      - name: Build GhosttyKit (Nix dev shell)
         if: steps.rebase.outputs.changed == 'true'
         working-directory: ghostty
         run: |
           set -euo pipefail
-          nix develop --accept-flake-config -c bash -c '
+          WANT="$(sed -n 's/.*\.minimum_zig_version = "\([^"]*\)".*/\1/p' build.zig.zon | head -1)"
+          [ -n "$WANT" ] || { echo "!! could not read minimum_zig_version from build.zig.zon" >&2; exit 1; }
+          echo "ghostty wants zig $WANT"
+          WANT="$WANT" nix develop --accept-flake-config -c bash -c '
             set -e
             ZIG=""
             for d in $(echo "$PATH" | tr ":" "\n"); do
-              if [ -x "$d/zig" ] && [ "$("$d/zig" version 2>/dev/null)" = "0.15.2" ]; then ZIG="$d/zig"; break; fi
+              if [ -x "$d/zig" ] && [ "$("$d/zig" version 2>/dev/null)" = "$WANT" ]; then ZIG="$d/zig"; break; fi
             done
-            [ -n "$ZIG" ] || { echo "!! no zig 0.15.2 on dev-shell PATH" >&2; exit 1; }
+            [ -n "$ZIG" ] || { echo "!! no zig $WANT on the dev-shell PATH" >&2; exit 1; }
+            echo "    using zig: $ZIG"
             exec "$ZIG" build -Demit-macos-app=false
           '
           test -d macos/GhosttyKit.xcframework

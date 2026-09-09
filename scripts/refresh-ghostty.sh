@@ -10,13 +10,14 @@
 # Ghostty already, driven via binding_action, so it needs no patch).
 #
 # The build MUST run inside Ghostty's Nix dev shell: it provides the exact Zig
-# (0.15.2) + a self-contained Apple toolchain that links without the system
+# ghostty asks for + a self-contained Apple toolchain that links without the system
 # Xcode SDK. A raw zig + the macOS 26.x SDK fails to link (.tbd too new).
 #
 # GOTCHA: nix/devShell.nix deliberately prepends /opt/homebrew/bin to PATH, so a
-# bare `zig` inside the dev shell resolves to Homebrew's zig (0.16, which
-# Ghostty REJECTS). We must invoke the flake's nix-store zig 0.15.2 — found by
-# scanning PATH for the 0.15.2 binary — explicitly.
+# bare `zig` inside the dev shell may resolve to Homebrew's zig rather than the
+# one ghostty wants. We read the wanted version out of ghostty's own
+# build.zig.zon and scan PATH for exactly that binary. Never hardcode it: a
+# pinned version turns "upstream moved" into "the build is broken".
 #
 # Usage:
 #   scripts/refresh-ghostty.sh            # build from the fork's CURRENT state + vendor
@@ -73,14 +74,16 @@ fi
 echo "==> Fork state:"
 git --no-pager log --oneline -3
 
-echo "==> Building xcframework in the Nix dev shell (Zig 0.15.2; ~10–30 min first run)…"
-nix develop --accept-flake-config -c bash -c '
+ZIG_WANT="$(sed -n 's/.*\.minimum_zig_version = "\([^"]*\)".*/\1/p' "$GHOSTTY/build.zig.zon" | head -1)"
+[[ -n "$ZIG_WANT" ]] || { echo "!! could not read minimum_zig_version from build.zig.zon" >&2; exit 1; }
+echo "==> Building xcframework in the Nix dev shell (Zig $ZIG_WANT; ~10–30 min first run)…"
+ZIG_WANT="$ZIG_WANT" nix develop --accept-flake-config -c bash -c '
   set -e
   ZIG=""
   for d in $(echo "$PATH" | tr ":" "\n"); do
-    if [ -x "$d/zig" ] && [ "$("$d/zig" version 2>/dev/null)" = "0.15.2" ]; then ZIG="$d/zig"; break; fi
+    if [ -x "$d/zig" ] && [ "$("$d/zig" version 2>/dev/null)" = "$ZIG_WANT" ]; then ZIG="$d/zig"; break; fi
   done
-  if [ -z "$ZIG" ]; then echo "!! could not find zig 0.15.2 on the dev-shell PATH" >&2; exit 1; fi
+  if [ -z "$ZIG" ]; then echo "!! could not find zig $ZIG_WANT on the dev-shell PATH" >&2; exit 1; fi
   echo "    using zig: $ZIG"
   exec "$ZIG" build -Demit-macos-app=false
 '
