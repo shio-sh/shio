@@ -32,8 +32,6 @@ struct MacSettingsView: View {
     @AppStorage(MacSettings.cursorStyleKey) private var cursorStyle: String = "block"
     @AppStorage(MacSettings.themeKey) private var theme: String = ""
     @AppStorage(MacSettings.shellKey) private var shell: String = ""
-    @AppStorage(TmuxControlSession.enabledKey, store: UserDefaults(suiteName: ShioModelContainer.appGroup))
-    private var controlMode: Bool = false
     @AppStorage(PowerKeeper.enabledKey) private var keepAwake: Bool = true
     @AppStorage(PowerKeeper.batteryKey) private var keepAwakeOnBattery: Bool = false
 
@@ -50,15 +48,6 @@ struct MacSettingsView: View {
                 }
                 TextField("Theme", text: $theme, prompt: Text("ghostty theme name (blank = default)"))
                 TextField("Default shell", text: $shell, prompt: Text(ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"))
-                Toggle(isOn: $controlMode) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("tmux control mode")
-                        Text("Let tmux describe the session instead of drawing it. "
-                             + "Groundwork for layout that follows you between devices.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(ShioTheme.textTertiary)
-                    }
-                }
                     .font(.system(.body, design: .monospaced))
             }
             Section("Power") {

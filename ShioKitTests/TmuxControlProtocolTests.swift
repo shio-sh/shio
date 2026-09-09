@@ -33,11 +33,31 @@ struct TmuxControlProtocolTests {
         #expect(events.last == .end(time: 1, number: 2, flags: 0, error: true))
     }
 
-    /// A line inside a block that itself starts with '%' would otherwise be
-    /// mistaken for a notification. Only real verbs may be claimed.
+    /// Everything between %begin and its own %end is content, including lines
+    /// that start with '%'. `capture-pane` returns whatever is on somebody's
+    /// screen, and screens are full of '%': pane ids, zsh prompts, percentages.
     @Test func blockContentIsNotMistakenForNotifications() {
         let events = parse("%begin 1 2 0\n%not-a-real-verb payload\n%end 1 2 0\n")
-        #expect(events.contains(.unhandled("%not-a-real-verb payload")))
+        #expect(events.contains(.blockLine("%not-a-real-verb payload")))
+        #expect(!events.contains(.unhandled("%not-a-real-verb payload")))
+    }
+
+    /// A captured screen containing the literal text of a block terminator must
+    /// not close the block. Doing so delivers a truncated reply and shifts every
+    /// later reply onto the wrong request, which ends as a terminal that never
+    /// draws and never accepts a keystroke.
+    @Test func aBlockIsClosedOnlyByItsOwnTerminator() {
+        let events = parse("%begin 7 42 1\nline one\n%end 1 2 3\nline two\n%end 7 42 1\n")
+        #expect(events.contains(.blockLine("%end 1 2 3")))
+        #expect(events.contains(.blockLine("line two")))
+        #expect(events.filter { if case .end = $0 { return true }; return false }.count == 1)
+    }
+
+    /// Real pane ids lead a `list-panes` line, so a captured screen showing
+    /// tmux's own output is the ordinary case, not a corner one.
+    @Test func keepsCapturedLinesThatLookLikePaneIDs() {
+        let events = parse("%begin 1 2 0\n%0: [80x24] [history 0/2000]\n%end 1 2 0\n")
+        #expect(events.contains(.blockLine("%0: [80x24] [history 0/2000]")))
     }
 
     @Test func parsesStructuralNotifications() {
@@ -193,11 +213,6 @@ struct TmuxControlProtocolTests {
         #expect(outputs[1].contains(0x0D), "the \\015 should decode to a carriage return")
     }
 
-    @Test func attachCommandRequestsControlMode() {
-        let cmd = TmuxControl.attachCommand(session: "shio-Infer")
-        #expect(cmd.contains("-CC"))
-        #expect(cmd.contains("new-session -A -s shio-Infer"))
-    }
 }
 
 /// Drives a REAL `tmux -C` process and parses its live output.

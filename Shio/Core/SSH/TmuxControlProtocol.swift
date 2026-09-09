@@ -70,8 +70,10 @@ enum TmuxControl {
     struct Parser {
         /// Bytes of a line not yet terminated by \n.
         private var pending: [UInt8] = []
-        /// Inside a %begin…%end block, non-notification lines are block content.
-        private var inBlock = false
+        /// The `%begin` currently open, if any. Held whole because it is the
+        /// only way to recognise the block's own terminator: tmux echoes the
+        /// same time, number and flags back on `%end`.
+        private var openBlock: (time: Int, number: Int, flags: Int)?
 
         init() {}
 
@@ -97,11 +99,27 @@ enum TmuxControl {
             var bytes = raw
             if bytes.last == UInt8(ascii: "\r") { bytes.removeLast() }
 
-            // Only a leading '%' can start a notification. Inside a block,
-            // everything else is command output and must pass through
-            // untouched — a `list-windows` line can legitimately contain '%'.
+            // Inside a block, EVERYTHING is command output except that block's
+            // own terminator. tmux does not interleave notifications into a
+            // block, and command output is arbitrary text: `capture-pane`
+            // returns whatever is on somebody's screen, which routinely starts
+            // with '%' (a pane id, a zsh prompt, a percentage). Treating those
+            // as notifications dropped them from the capture, and a screen
+            // holding the literal text "%end 1 2 3" would close the block early
+            // and shift every later reply onto the wrong request.
+            if let open = openBlock {
+                let line = Self.string(bytes)
+                if let close = Self.terminator(line, matching: open) {
+                    openBlock = nil
+                    return [.end(time: open.time, number: open.number, flags: open.flags,
+                                 error: close)]
+                }
+                return [.blockLine(line)]
+            }
+
+            // Outside a block, only a leading '%' can start a notification.
             guard bytes.first == UInt8(ascii: "%") else {
-                return inBlock ? [.blockLine(Self.string(bytes))] : [.unhandled(Self.string(bytes))]
+                return [.unhandled(Self.string(bytes))]
             }
 
             let line = Self.string(bytes)
@@ -117,16 +135,16 @@ enum TmuxControl {
             func rest(from i: Int) -> String { parts.dropFirst(i).joined(separator: " ") }
 
             switch verb {
-            case "%begin", "%end", "%error":
+            case "%begin":
                 let t = Int(arg(1) ?? "") ?? 0
                 let n = Int(arg(2) ?? "") ?? 0
                 let f = Int(arg(3) ?? "") ?? 0
-                if verb == "%begin" {
-                    inBlock = true
-                    return [.begin(time: t, number: n, flags: f)]
-                }
-                inBlock = false
-                return [.end(time: t, number: n, flags: f, error: verb == "%error")]
+                openBlock = (time: t, number: n, flags: f)
+                return [.begin(time: t, number: n, flags: f)]
+
+            // An %end with no %begin open is not ours to close.
+            case "%end", "%error":
+                return [.unhandled(line)]
 
             case "%window-add":            return [.windowAdd(window: arg(1) ?? "")]
             case "%window-close":          return [.windowClose(window: arg(1) ?? "")]
@@ -225,11 +243,23 @@ enum TmuxControl {
         fileprivate static func string(_ bytes: [UInt8]) -> String {
             String(decoding: bytes, as: UTF8.self)
         }
+
+        /// Whether `line` closes `open`, and whether it closed it with an error.
+        /// Returns nil when the line is not this block's terminator, which is
+        /// the common case: it is a line of the block's own content.
+        private static func terminator(_ line: String,
+                                       matching open: (time: Int, number: Int, flags: Int)) -> Bool? {
+            let isEnd = line.hasPrefix("%end ")
+            let isError = line.hasPrefix("%error ")
+            guard isEnd || isError else { return nil }
+            let parts = line.split(separator: " ", omittingEmptySubsequences: false)
+            guard parts.count >= 4,
+                  Int(parts[1]) == open.time,
+                  Int(parts[2]) == open.number,
+                  Int(parts[3]) == open.flags
+            else { return nil }
+            return isError
+        }
     }
 
-    /// The attach command for control mode. `-C` twice (`-CC`) is control mode
-    /// with echo disabled, which is what a programmatic client wants.
-    static func attachCommand(session: String) -> String {
-        "tmux -CC new-session -A -s \(session)\n"
-    }
 }

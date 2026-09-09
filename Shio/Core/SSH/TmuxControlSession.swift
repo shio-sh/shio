@@ -32,9 +32,15 @@ final class TmuxControlSession {
     /// session that already exists sends NO screen content — tmux only forwards
     /// what happens next — so without this a phone joining the Mac's session
     /// stares at a blank terminal until something moves.
-    var onPaneRestore: ((_ paneID: String, _ lines: [String]) -> Void)?
+    /// `lines` is nil when the capture failed, which still has to be reported:
+    /// a caller holding output back until the screen is restored would hold it
+    /// forever otherwise.
+    var onPaneRestore: ((_ paneID: String, _ lines: [String]?) -> Void)?
     /// tmux answered the attach and is ready for commands.
     var onStarted: (() -> Void)?
+    /// A layout request came back unusable. There is no active pane, so nothing
+    /// can be drawn or typed into until one arrives.
+    var onLayoutUnavailable: (() -> Void)?
 
     /// Everything this session must send to the remote. Set by the transport.
     var send: ((String) -> Void)?
@@ -66,12 +72,16 @@ final class TmuxControlSession {
     private enum Reply {
         case layout
         case capture(paneID: String)
+        case resize(cols: Int, rows: Int)
         case passthrough
     }
     private var pending: [Reply] = []
     /// Whether the reply stream has been synchronised. Until it has, blocks are
     /// discarded rather than matched.
     private var synced = false
+    /// tmux before 3.2 spells the client size differently. Learned once, from a
+    /// rejection, rather than by probing the version.
+    private var legacyResizeSyntax = false
     /// Whether tmux has answered the handshake. A control channel that never
     /// syncs is not a control channel.
     var isSynced: Bool { synced }
@@ -118,12 +128,44 @@ final class TmuxControlSession {
     /// need escaping rules that differ per shell.
     func sendKeys(_ bytes: [UInt8], toPane paneID: String) {
         guard !bytes.isEmpty else { return }
-        let hex = bytes.map { String(format: "%02x", $0) }.joined(separator: " ")
-        run("send-keys -t \(paneID) -H \(hex)", expecting: .passthrough)
+        // A paste arrives here as one payload. `String(format:)` per byte is
+        // both slow and locale-aware, and one command line carrying the whole
+        // paste is three bytes of tmux command per byte typed, which a large
+        // paste turns into a single enormous line for tmux to parse.
+        for chunk in stride(from: 0, to: bytes.count, by: Self.keyChunkBytes) {
+            let slice = bytes[chunk..<min(chunk + Self.keyChunkBytes, bytes.count)]
+            run("send-keys -t \(paneID) -H \(Self.hex(slice))", expecting: .passthrough)
+        }
+    }
+
+    /// Bytes per `send-keys`. Each costs three characters of command line, so
+    /// this keeps any one command well inside what tmux parses comfortably
+    /// while still sending an ordinary keystroke as a single command.
+    private static let keyChunkBytes = 1024
+
+    private static let hexDigits: [UInt8] = Array("0123456789abcdef".utf8)
+
+    /// Space-separated lowercase hex, built over a nibble table.
+    static func hex(_ bytes: ArraySlice<UInt8>) -> String {
+        var out = [UInt8]()
+        out.reserveCapacity(bytes.count * 3)
+        for byte in bytes {
+            if !out.isEmpty { out.append(UInt8(ascii: " ")) }
+            out.append(hexDigits[Int(byte >> 4)])
+            out.append(hexDigits[Int(byte & 0x0F)])
+        }
+        return String(decoding: out, as: UTF8.self)
     }
 
     /// Send a command and remember what its reply is for.
+    ///
+    /// Nothing is sent before the handshake. Writes to a channel that is not
+    /// open yet are silently dropped by SSHClient, and a dropped command whose
+    /// tag stayed in the queue would shift every later reply onto the wrong
+    /// request — the same permanent blank terminal the handshake exists to
+    /// prevent, arriving by a different road.
     private func run(_ command: String, expecting reply: Reply) {
+        guard synced else { return }
         pending.append(reply)
         send?(command + "\n")
     }
@@ -132,13 +174,21 @@ final class TmuxControlSession {
     /// renders, so tmux has no idea unless it is told.
     func resize(cols: Int, rows: Int) {
         guard cols > 0, rows > 0 else { return }
-        run("refresh-client -C \(cols)x\(rows)", expecting: .passthrough)
+        if legacyResizeSyntax {
+            run("refresh-client -C \(cols),\(rows)", expecting: .passthrough)
+        } else {
+            run("refresh-client -C \(cols)x\(rows)", expecting: .resize(cols: cols, rows: rows))
+        }
     }
 
     /// Ask for the current window and pane layout. Used on attach, and after any
     /// structural notification, so the model never drifts from tmux's truth.
     func requestLayout() {
-        run("list-panes -s -F '#{window_id} #{window_name} #{pane_id} #{pane_active}'",
+        // The window name goes LAST because it is the only free-form field. A
+        // name with spaces, or an empty one, would otherwise move the fields
+        // that identify the pane, and a listing that fails to parse means no
+        // active pane and a terminal that never draws.
+        run("list-panes -s -F '#{window_id} #{pane_id} #{pane_active} #{window_name}'",
             expecting: .layout)
     }
 
@@ -193,18 +243,34 @@ final class TmuxControlSession {
         guard synced else {
             guard lines.contains(Self.readyMarker) else { return }
             synced = true
+            // Anything queued before this point never reached tmux, so no reply
+            // is coming for it. Starting the queue empty is what keeps replies
+            // lined up with requests from here on.
+            pending = []
             onStarted?()
             return
         }
         switch pending.isEmpty ? .passthrough : pending.removeFirst() {
         case .layout:
-            guard !error, let parsed = Self.parseLayout(lines) else { return }
+            guard !error, let parsed = Self.parseLayout(lines), parsed.activePaneID != nil else {
+                onLayoutUnavailable?()
+                return
+            }
             windows = parsed.windows
             activePaneID = parsed.activePaneID
             onLayoutChanged?()
+
         case .capture(let paneID):
-            guard !error else { return }
-            onPaneRestore?(paneID, lines)
+            onPaneRestore?(paneID, error ? nil : lines)
+
+        case .resize(let cols, let rows):
+            // Older tmux rejects the `WxH` form. Learn that from the rejection
+            // and re-send, rather than leaving tmux believing this client is
+            // some other shape and every TUI wrapping wrong for the session.
+            guard error, !legacyResizeSyntax else { return }
+            legacyResizeSyntax = true
+            run("refresh-client -C \(cols),\(rows)", expecting: .passthrough)
+
         case .passthrough:
             onCommandResult?(lines, error)
         }
@@ -213,25 +279,28 @@ final class TmuxControlSession {
     /// Parse `list-panes` rows into windows. Returns nil when the lines are not
     /// a layout listing, so a malformed or unexpected reply is ignored rather
     /// than half-applied.
+    /// Fields are `#{window_id} #{pane_id} #{pane_active} #{window_name}`, the
+    /// name last because it is the only one that can be empty or contain
+    /// spaces. A row that does not parse is skipped rather than discarding the
+    /// listing: losing one window is recoverable, losing the active pane is a
+    /// terminal that never draws.
     static func parseLayout(_ lines: [String]) -> (windows: [Window], activePaneID: String?)? {
         var order: [String] = []
         var byID: [String: Window] = [:]
         var active: String?
-        var sawAny = false
 
         for line in lines {
-            let parts = line.split(separator: " ").map(String.init)
-            guard parts.count >= 4,
+            let parts = line.split(separator: " ", maxSplits: 3,
+                                   omittingEmptySubsequences: false).map(String.init)
+            guard parts.count >= 3,
                   parts[0].hasPrefix("@"),
-                  parts[parts.count - 2].hasPrefix("%"),
-                  let isActive = Int(parts[parts.count - 1])
-            else { return nil }   // not a layout listing
+                  parts[1].hasPrefix("%"),
+                  let isActive = Int(parts[2])
+            else { continue }
 
-            sawAny = true
             let windowID = parts[0]
-            let paneID = parts[parts.count - 2]
-            // Window names can contain spaces; everything between is the name.
-            let name = parts[1..<(parts.count - 2)].joined(separator: " ")
+            let paneID = parts[1]
+            let name = parts.count > 3 ? parts[3] : ""
 
             if byID[windowID] == nil {
                 order.append(windowID)
@@ -241,7 +310,7 @@ final class TmuxControlSession {
             if isActive == 1 { active = paneID }
         }
 
-        guard sawAny else { return nil }
+        guard !order.isEmpty else { return nil }
         return (order.compactMap { byID[$0] }, active)
     }
 }

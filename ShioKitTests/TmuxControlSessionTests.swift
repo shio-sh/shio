@@ -109,9 +109,9 @@ struct TmuxControlSessionTests {
 
         s.receive(Array("""
         %begin 1 1 1
-        @1 editor %1 0
-        @1 editor %2 1
-        @2 logs %3 0
+        @1 %1 0 editor
+        @1 %2 1 editor
+        @2 %3 0 logs
         %end 1 1 1
 
         """.utf8))
@@ -125,9 +125,26 @@ struct TmuxControlSessionTests {
     }
 
     @Test func keepsWindowNamesContainingSpaces() {
-        let parsed = TmuxControlSession.parseLayout(["@4 my long name %9 1"])
+        let parsed = TmuxControlSession.parseLayout(["@4 %9 1 my long name"])
         #expect(parsed?.windows.first?.name == "my long name")
         #expect(parsed?.activePaneID == "%9")
+    }
+
+    /// The name is last precisely so an empty one cannot move the fields that
+    /// identify the pane. A listing that fails to parse means no active pane,
+    /// and no active pane means a terminal that never draws.
+    @Test func handlesAWindowWithNoName() {
+        let parsed = TmuxControlSession.parseLayout(["@4 %9 1 "])
+        #expect(parsed?.windows.first?.name == "")
+        #expect(parsed?.activePaneID == "%9")
+    }
+
+    /// One unreadable row must not cost the whole listing, and with it the
+    /// active pane.
+    @Test func skipsAMalformedRowRatherThanDiscardingTheListing() {
+        let parsed = TmuxControlSession.parseLayout(["garbage", "@1 %2 1 shell"])
+        #expect(parsed?.windows.count == 1)
+        #expect(parsed?.activePaneID == "%2")
     }
 
     /// A user's own command comes back through the same %begin/%end door as a
@@ -150,7 +167,7 @@ struct TmuxControlSessionTests {
     /// when nothing asked for a layout.
     @Test func doesNotAdoptLayoutShapedOutputNobodyAskedFor() {
         let s = session()
-        s.receive(Array("%begin 1 2 1\n@1 editor %1 1\n%end 1 2 1\n".utf8))
+        s.receive(Array("%begin 1 2 1\n@1 %1 1 editor\n%end 1 2 1\n".utf8))
         #expect(s.windows.isEmpty)
         #expect(s.activePaneID == nil)
     }
@@ -161,7 +178,7 @@ struct TmuxControlSessionTests {
         let s = session()
         var sent = ""
         s.send = { sent = $0 }
-        var restored: (String, [String])?
+        var restored: (String, [String]?)?
         s.onPaneRestore = { restored = ($0, $1) }
 
         s.capturePane("%4")
@@ -169,7 +186,7 @@ struct TmuxControlSessionTests {
 
         s.receive(Array("%begin 1 5 1\nlast line\nprompt %\n%end 1 5 1\n".utf8))
         #expect(restored?.0 == "%4")
-        #expect(restored?.1 == ["last line", "prompt %"])
+        #expect(restored?.1 ?? [] == ["last line", "prompt %"])
     }
 
     /// Two commands in flight must not swap answers: the capture is the second
@@ -184,7 +201,7 @@ struct TmuxControlSessionTests {
         s.requestLayout()
         s.capturePane("%2")
 
-        s.receive(Array("%begin 1 6 1\n@1 shell %2 1\n%end 1 6 1\n".utf8))
+        s.receive(Array("%begin 1 6 1\n@1 %2 1 shell\n%end 1 6 1\n".utf8))
         s.receive(Array("%begin 1 7 1\nscreen text\n%end 1 7 1\n".utf8))
 
         #expect(layouts == 1)
@@ -193,14 +210,95 @@ struct TmuxControlSessionTests {
     }
 
     /// A failed capture leaves the screen alone rather than painting the error
-    /// over it.
-    @Test func ignoresAFailedCapture() {
+    /// over it, but it still has to be reported: a caller holding live output
+    /// back until the screen is restored would hold it forever otherwise.
+    @Test func reportsAFailedCaptureWithoutContent() {
         let s = session()
-        var restored = false
-        s.onPaneRestore = { _, _ in restored = true }
+        var calls: [(String, [String]?)] = []
+        s.onPaneRestore = { calls.append(($0, $1)) }
         s.capturePane("%9")
         s.receive(Array("%begin 1 8 1\ncan't find pane: %9\n%error 1 8 1\n".utf8))
-        #expect(!restored)
+        #expect(calls.count == 1)
+        #expect(calls.first?.1 == nil)
+    }
+
+    /// A layout that cannot yield an active pane has to say so. Nothing can be
+    /// drawn or typed until one arrives, and silence there is a blank terminal
+    /// that still claims to be connected.
+    @Test func reportsWhenTheLayoutCannotBeUsed() {
+        let s = session()
+        var unavailable = 0
+        s.onLayoutUnavailable = { unavailable += 1 }
+
+        s.requestLayout()
+        s.receive(Array("%begin 1 9 1\nno server running\n%error 1 9 1\n".utf8))
+        #expect(unavailable == 1)
+
+        s.requestLayout()   // parses, but nothing is marked active
+        s.receive(Array("%begin 1 10 1\n@1 %1 0 shell\n%end 1 10 1\n".utf8))
+        #expect(unavailable == 2)
+    }
+
+    /// Older tmux rejects the newer size syntax. Learn that from the rejection
+    /// rather than leaving tmux believing the client is a different shape.
+    @Test func retriesResizeWithTheOlderSyntaxWhenRejected() {
+        let s = session()
+        var sent: [String] = []
+        s.send = { sent.append($0) }
+
+        s.resize(cols: 100, rows: 30)
+        #expect(sent.last?.contains("refresh-client -C 100x30") == true)
+
+        s.receive(Array("%begin 1 4 1\nunknown option\n%error 1 4 1\n".utf8))
+        #expect(sent.last?.contains("refresh-client -C 100,30") == true)
+
+        // Once learned, it stays learned.
+        s.receive(Array("%begin 1 5 1\n%end 1 5 1\n".utf8))
+        s.resize(cols: 80, rows: 24)
+        #expect(sent.last?.contains("refresh-client -C 80,24") == true)
+    }
+
+    /// Nothing may be queued before the handshake: SSHClient silently drops
+    /// writes to a channel that is not open, and a dropped command whose tag
+    /// stayed in the queue shifts every later reply onto the wrong request.
+    @Test func sendsNothingBeforeTheHandshake() {
+        let s = TmuxControlSession()
+        var sent = 0
+        s.send = { _ in sent += 1 }
+        s.resize(cols: 80, rows: 24)
+        s.requestLayout()
+        s.sendKeys(Array("ls".utf8), toPane: "%1")
+        s.capturePane("%1")
+        #expect(sent == 0)
+
+        // And once it lands, the queue starts clean.
+        s.start()
+        s.receive(Array("%begin 1 1 0\n\(TmuxControlSession.readyMarker)\n%end 1 1 0\n".utf8))
+        var layouts = 0
+        s.onLayoutChanged = { layouts += 1 }
+        s.requestLayout()
+        s.receive(Array("%begin 1 2 1\n@1 %1 1 shell\n%end 1 2 1\n".utf8))
+        #expect(layouts == 1)
+    }
+
+    /// A paste is one payload here. It must not become one enormous tmux
+    /// command line, and the hex must stay byte-exact when it is split.
+    @Test func splitsALargePasteAcrossCommands() {
+        let s = session()
+        var sent: [String] = []
+        s.send = { sent.append($0) }
+
+        s.sendKeys([UInt8](repeating: 0x61, count: 2500), toPane: "%1")
+
+        #expect(sent.count == 3)
+        #expect(sent.allSatisfy { $0.hasPrefix("send-keys -t %1 -H ") })
+        let bytes = sent.flatMap { line -> [String] in
+            line.dropFirst("send-keys -t %1 -H ".count)
+                .trimmingCharacters(in: .newlines)
+                .split(separator: " ").map(String.init)
+        }
+        #expect(bytes.count == 2500)
+        #expect(bytes.allSatisfy { $0 == "61" })
     }
 
     @Test func surfacesCommandErrors() {
@@ -299,9 +397,9 @@ struct TmuxControlSessionTests {
         let s = TmuxControlSession()
         s.send = { _ in }
         s.start()
-        s.requestLayout()
-        s.receive(Array("%begin 1 1 1\n@1 shell %1 1\n%end 1 1 1\n".utf8))
+        s.receive(Array("%begin 1 1 1\n@1 %1 1 shell\n%end 1 1 1\n".utf8))
         #expect(s.windows.isEmpty)
+        #expect(s.activePaneID == nil)
     }
 }
 
@@ -327,12 +425,17 @@ struct TmuxControlSessionLiveTests {
         }
         let name = "shio-cs-\(UUID().uuidString.prefix(8))"
 
+        // A private server socket. Two of the attach options are server- and
+        // globally-scoped and outlive the session, so running the suite on the
+        // default socket would silently reconfigure every other tmux session on
+        // the machine.
+        let socket = "shio-test-\(UUID().uuidString.prefix(8))"
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: tmux)
         // The real attach line, options and all. The option chain is exactly
         // what makes the preamble unpredictable, so the live test has to carry
         // it or it proves the easy case.
-        proc.arguments = ["-C", "new-session", "-s", name]
+        proc.arguments = ["-L", socket, "-C", "new-session", "-s", name]
             + TmuxResume.attachOptions
                 .split(separator: " ")
                 .map { $0 == "\\;" ? ";" : String($0) }
@@ -345,9 +448,12 @@ struct TmuxControlSessionLiveTests {
             if proc.isRunning { proc.terminate() }
             let kill = Process()
             kill.executableURL = URL(fileURLWithPath: tmux)
-            kill.arguments = ["kill-session", "-t", name]
+            kill.arguments = ["-L", socket, "kill-server"]
             kill.standardError = Pipe()
             try? kill.run(); kill.waitUntilExit()
+            // kill-server leaves the socket file behind. Leave nothing.
+            let dir = "/private/tmp/tmux-\(getuid())/\(socket)"
+            try? FileManager.default.removeItem(atPath: dir)
         }
 
         let session = TmuxControlSession()
@@ -393,7 +499,7 @@ struct TmuxControlSessionLiveTests {
         // is already running. Against real tmux it must come back holding the
         // text that is already on screen, or a phone attaches to a blank pane.
         var captured: [String] = []
-        session.onPaneRestore = { id, lines in if id == pane { captured = lines } }
+        session.onPaneRestore = { id, lines in if id == pane { captured = lines ?? [] } }
         session.capturePane(pane)
         try await Task.sleep(for: .milliseconds(900))
         session.receive(collected.drain())

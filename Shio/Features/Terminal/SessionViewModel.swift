@@ -95,7 +95,15 @@ final class SessionViewModel {
     /// Bytes seen before the handshake completed, kept so they can still be
     /// drawn if it turns out nothing is speaking the protocol.
     private var controlWarmup: [UInt8] = []
-    private var controlHandshake: Task<Void, Never>?
+    /// One timer, re-armed at each stage of bringing control mode up. Every
+    /// stage can stall in a way that renders nothing and reports nothing, which
+    /// is the worst failure this app has.
+    private var controlWatchdog: Task<Void, Never>?
+    /// Output that arrived after a pane was selected but before its screen came
+    /// back. The capture is a server-side snapshot taken a round trip ago, so
+    /// painting it over live output would erase whatever landed in between.
+    private var restoreBuffer: [UInt8]?
+    private var layoutAttempts = 0
 
     // MARK: Session identity
     /// Set by `SessionStore` so the Live Activity can be keyed by the owning
@@ -186,9 +194,16 @@ final class SessionViewModel {
     /// bytes on the wire are events — pane output, window changes — rather than
     /// something a terminal can render directly.
     private func setUpControlMode(client: SSHClient) {
+        // A watchdog armed by a previous connect must not fire against this
+        // one: it would see a session that has not synced yet, tear down a
+        // perfectly healthy connection, and blame control mode for it.
+        controlWatchdog?.cancel()
+        controlWatchdog = nil
         let session = TmuxControlSession()
         control = session
         renderedPaneID = nil
+        restoreBuffer = nil
+        layoutAttempts = 0
 
         session.send = { [weak client] line in client?.write(line) }
 
@@ -198,6 +213,11 @@ final class SessionViewModel {
             // Output from a background pane is tmux keeping other clients in
             // sync and must not be interleaved into this view.
             guard pane == self.renderedPaneID else { return }
+            // Hold anything that arrives while the screen is still coming back.
+            if self.restoreBuffer != nil {
+                self.restoreBuffer?.append(contentsOf: bytes)
+                return
+            }
             let data = Data(bytes)
             self.terminal.write(data)
             self.detectLatestURL(in: Self.stripANSI(String(decoding: data, as: UTF8.self)))
@@ -205,18 +225,31 @@ final class SessionViewModel {
 
         session.onStarted = { [weak self] in
             guard let self else { return }
-            self.controlHandshake?.cancel()
             self.controlWarmup = []
             // tmux sizes itself to this client only when told, and describes its
             // panes only when asked. Neither happens on its own.
-            if let size = self.lastSize { session.resize(cols: size.cols, rows: size.rows) }
-            session.requestLayout()
+            if let size = self.lastSize { self.control?.resize(cols: size.cols, rows: size.rows) }
+            self.control?.requestLayout()
+            self.startPaneWatchdog()
+        }
+
+        session.onLayoutUnavailable = { [weak self] in
+            guard let self, self.renderedPaneID == nil else { return }
+            self.layoutAttempts += 1
+            guard self.layoutAttempts <= 3 else { return }
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                self?.control?.requestLayout()
+            }
         }
 
         session.onLayoutChanged = { [weak self] in
             guard let self, let active = self.control?.activePaneID else { return }
             guard self.renderedPaneID != active else { return }
             self.renderedPaneID = active
+            // Hold live output until the screen comes back, so the restore
+            // cannot paint an older snapshot over newer lines.
+            self.restoreBuffer = []
             // Attaching to a session that already exists delivers no screen at
             // all — tmux forwards what happens next, not what is already there.
             // Asking for the pane's contents is what makes a phone join the
@@ -226,20 +259,44 @@ final class SessionViewModel {
 
         session.onPaneRestore = { [weak self] pane, lines in
             guard let self, pane == self.renderedPaneID else { return }
-            // tmux pads the capture out to the pane's height; those trailing
-            // blanks would push the prompt up off the bottom and leave the
-            // cursor stranded below it.
-            var body = lines
-            while let last = body.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
-                body.removeLast()
+            if let lines {
+                // tmux pads the capture out to the pane's height. Those trailing
+                // blanks would push the prompt off the bottom and strand the
+                // cursor below it, and with styling requested a blank line
+                // still carries escape sequences, so plain whitespace trimming
+                // does not see it as empty.
+                var body = lines
+                while let last = body.last,
+                      Self.stripANSI(last).trimmingCharacters(in: .whitespaces).isEmpty {
+                    body.removeLast()
+                }
+                self.terminal.write(Data("\u{1B}[H\u{1B}[2J".utf8))
+                self.terminal.write(Data(body.joined(separator: "\r\n").utf8))
             }
-            self.terminal.write(Data("\u{1B}[H\u{1B}[2J".utf8))
-            self.terminal.write(Data(body.joined(separator: "\r\n").utf8))
+            // Whatever arrived during the round trip goes on top, in order.
+            // This runs even when the capture failed, or the held output would
+            // never be shown at all.
+            let held = self.restoreBuffer ?? []
+            self.restoreBuffer = nil
+            if !held.isEmpty { self.terminal.write(Data(held)) }
         }
 
         session.onExit = { [weak self] reason in
             guard let self else { return }
-            self.state = .disconnected(reason: reason ?? "tmux exited")
+            // tmux exiting is usually recoverable: the server was restarted, or
+            // another device killed the session. Go through the same path as
+            // any other drop so it retries with backoff and the Live Activity
+            // stops claiming the session is connected. Deferred by a hop so the
+            // session is not released while it is still running this callback.
+            let why = reason ?? "tmux exited"
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.controlWatchdog?.cancel()
+                self.control = nil
+                self.renderedPaneID = nil
+                self.restoreBuffer = nil
+                self.handleUnexpectedDisconnect(reason: why)
+            }
         }
     }
 
@@ -250,18 +307,38 @@ final class SessionViewModel {
     /// all. A blank terminal that reports no error is the worst failure Shio
     /// has: it looks like the network, or the host, or the app. So when the
     /// handshake does not land, stop parsing and draw what actually arrived.
-    private func startControlHandshakeWatchdog() {
-        controlHandshake?.cancel()
-        controlHandshake = Task { [weak self] in
+    private func startHandshakeWatchdog() {
+        controlWatchdog?.cancel()
+        controlWatchdog = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 5_000_000_000)
             guard let self, !Task.isCancelled,
                   let control = self.control, !control.isSynced else { return }
             self.control = nil
             self.renderedPaneID = nil
+            self.restoreBuffer = nil
             let buffered = self.controlWarmup
             self.controlWarmup = []
             if !buffered.isEmpty { self.terminal.write(Data(buffered)) }
-            self.terminal.write(Data("\r\n\u{1B}[33m[shio] tmux control mode didn't answer — plain shell.\u{1B}[0m\r\n".utf8))
+            self.terminal.write(Data("\r\n\u{1B}[33m[shio] tmux control mode didn't answer. Plain shell.\u{1B}[0m\r\n".utf8))
+        }
+    }
+
+    /// The handshake landing is not the same as a usable session. tmux still
+    /// has to describe its panes, and until one is marked active there is
+    /// nothing to draw and nothing to type into. That reply can fail to parse,
+    /// come back as an error, or never arrive, and none of those raise anything
+    /// on their own. Rather than sit on a blank screen that claims to be
+    /// connected, say so and let the normal retry path handle it.
+    private func startPaneWatchdog() {
+        controlWatchdog?.cancel()
+        controlWatchdog = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 8_000_000_000)
+            guard let self, !Task.isCancelled,
+                  self.control != nil, self.renderedPaneID == nil else { return }
+            self.controlWatchdog = nil
+            self.control = nil
+            self.restoreBuffer = nil
+            self.handleUnexpectedDisconnect(reason: "tmux never reported an active pane")
         }
     }
 
@@ -533,7 +610,7 @@ final class SessionViewModel {
             // trusting any of them.
             if useControl {
                 control?.start()
-                startControlHandshakeWatchdog()
+                startHandshakeWatchdog()
             }
             // The user may have closed the session while the connect was in
             // flight — don't resurrect it under them.
@@ -656,8 +733,8 @@ final class SessionViewModel {
         reconnectTask = nil
         resizeDebounce?.cancel()
         resizeDebounce = nil
-        controlHandshake?.cancel()
-        controlHandshake = nil
+        controlWatchdog?.cancel()
+        controlWatchdog = nil
         control = nil
         renderedPaneID = nil
         controlWarmup = []
