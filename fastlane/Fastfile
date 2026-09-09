@@ -134,10 +134,11 @@ platform :mac do
       UI.user_error!("No 'Developer ID Application' identity in the keychain — can't sign the bundled tmux.")
     end
     sh("cd .. && ./scripts/sign-bundled-tmux.sh build/mac/Shio.app #{identity}")
+    # No bundle_id: fastlane's notarize dropped that option, and notarytool
+    # reads the identifier out of the bundle it is handed anyway.
     notarize(
       package: "build/mac/Shio.app",
-      api_key: key,
-      bundle_id: "sh.shio.app.mac"
+      api_key: key
     )
   end
 end
