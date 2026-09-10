@@ -45,7 +45,10 @@ struct TmuxControlSessionTests {
         var bytes: [UInt8] = []
         s.onPaneOutput = { _, b in bytes = b }
         s.receive(Array("%output %1 \\033[31m\\377\n".utf8))
-        #expect(bytes == [0x1B] + Array("[31m".utf8) + [0xFF])
+        var expected: [UInt8] = [0x1B]
+        expected.append(contentsOf: Array("[31m".utf8))
+        expected.append(0xFF)
+        #expect(bytes == expected)
     }
 
     // MARK: input

@@ -99,7 +99,16 @@ struct TmuxControlProtocolTests {
             Issue.record("expected .output, got \(events)"); return
         }
         #expect(pane == "%9")
-        #expect(bytes == Array("hi".utf8) + [0x1B] + Array("[0mthere".utf8) + [0x0D])
+        // Built in steps rather than as one concatenation. As a single
+        // expression the type checker times out on a slower machine — it
+        // compiled here and failed in CI with "unable to type-check this
+        // expression in reasonable time", because every `+` and every literal
+        // is another overload to resolve.
+        var expected = Array("hi".utf8)
+        expected.append(0x1B)
+        expected.append(contentsOf: Array("[0mthere".utf8))
+        expected.append(0x0D)
+        #expect(bytes == expected)
     }
 
     /// tmux escapes backslash itself as \134; decoding must yield one literal
@@ -135,7 +144,10 @@ struct TmuxControlProtocolTests {
             Issue.record("expected .output, got \(events)"); return
         }
         #expect(pane == "%2")
-        #expect(bytes == Array("hi".utf8) + [0x1B] + Array("x".utf8))
+        var expected = Array("hi".utf8)
+        expected.append(0x1B)
+        expected.append(contentsOf: Array("x".utf8))
+        #expect(bytes == expected)
     }
 
     // MARK: streaming
