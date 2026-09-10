@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import Security
 import os.log
 
 /// Centralized SwiftData container.
@@ -55,18 +56,33 @@ enum ShioModelContainer {
         // and moving it would orphan existing installs' data.
         cloudConfig = ModelConfiguration(cloudKitDatabase: .private("iCloud.sh.shio.app"))
         #endif
-        do {
-            let container = try ModelContainer(for: Host.self, Project.self, ProjectCheckout.self, Repo.self, configurations: cloudConfig)
-            log.info("ModelContainer: CloudKit sync ACTIVE (iCloud.sh.shio.app)")
-            return container
-        } catch {
-            // Don't hide why sync didn't come up — this is almost always a
-            // signing/entitlement/container-id mismatch or no iCloud account.
-            log.error("ModelContainer: CloudKit init FAILED, falling back to local. error=\(String(describing: error))")
-            // The old text asked the user to check that the build was signed
-            // with the iCloud capability, which is a developer instruction
-            // nobody using the app can act on. The detail is in the log above.
-            loadFailureReason = "iCloud sync is off, so your machines and projects are only saved on this device. Check you're signed into iCloud, then reopen Shio."
+        // Ask whether this process may use CloudKit at all before trying.
+        //
+        // The `catch` below cannot answer that question. `ModelContainer(...)`
+        // with a CloudKit database does NOT throw when the entitlement is
+        // missing — it initialises perfectly happily, logs "sync ACTIVE", and
+        // then CloudKit terminates the process the moment it is actually used.
+        // So the graceful fallback documented here never ran in the one case it
+        // was written for; the app just died. Checking first makes the fallback
+        // real, and makes the log say the true thing.
+        if hasCloudKitEntitlement {
+            do {
+                let container = try ModelContainer(
+                    for: Host.self, Project.self, ProjectCheckout.self, Repo.self,
+                    configurations: cloudConfig)
+                log.info("ModelContainer: CloudKit sync ACTIVE (iCloud.sh.shio.app)")
+                return container
+            } catch {
+                // Don't hide why sync didn't come up — this is almost always a
+                // signing/entitlement/container-id mismatch or no iCloud account.
+                log.error("ModelContainer: CloudKit init FAILED, falling back to local. error=\(String(describing: error))")
+                // The old text asked the user to check that the build was signed
+                // with the iCloud capability, which is a developer instruction
+                // nobody using the app can act on. The detail is in the log above.
+                loadFailureReason = "iCloud sync is off, so your machines and projects are only saved on this device. Check you're signed into iCloud, then reopen Shio."
+            }
+        } else {
+            log.info("ModelContainer: no CloudKit entitlement — local store only")
         }
 
         // 2. Local persistent store (no sync). Keeps the app fully usable even
@@ -93,6 +109,20 @@ enum ShioModelContainer {
         //    loudly so we catch it in development.
         fatalError("Failed to create any ModelContainer — schema is invalid")
     }()
+
+    /// Does this process actually carry the CloudKit entitlement?
+    ///
+    /// Signed release builds always do. Builds that do not are the interesting
+    /// case: an ad-hoc signed CI build, or a Developer ID build whose App ID
+    /// lost the capability. Those used to reach CloudKit and be killed by it.
+    static var hasCloudKitEntitlement: Bool {
+        guard let task = SecTaskCreateFromSelf(nil),
+              let value = SecTaskCopyValueForEntitlement(
+                task, "com.apple.developer.icloud-services" as CFString, nil)
+        else { return false }
+        guard let services = value as? [String] else { return false }
+        return services.contains("CloudKit") || services.contains("CloudKit-Anonymous")
+    }
 
     #if os(macOS)
     /// Shio's own store location: `~/Library/Application Support/Shio/Shio.store`.

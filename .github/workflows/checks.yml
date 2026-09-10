@@ -131,6 +131,14 @@ jobs:
         run: xcodegen generate
 
       # The Mac suite is the big one and hosts the shared ShioKit tests.
+      #
+      # Signing: the runner has no Apple certificate and no provisioning
+      # profile, so automatic signing fails outright. Ad-hoc (`-`) with the
+      # entitlements dropped is what CI wants — but note it must still be
+      # SIGNED, not merely unsigned: these runners are Apple Silicon, where an
+      # unsigned arm64 binary cannot execute at all, so the test host would be
+      # killed on launch. Dropping entitlements costs nothing here, because the
+      # container falls back CloudKit → local store → in-memory.
       - name: Test ShioMac
         run: |
           set -o pipefail
@@ -140,6 +148,12 @@ jobs:
             -configuration Debug \
             -destination 'platform=macOS' \
             -derivedDataPath build/ci \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_ENTITLEMENTS= \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
             | xcbeautify --renderer github-actions || {
               echo "::error::ShioMac tests failed"; exit 1;
             }
@@ -164,7 +178,12 @@ jobs:
             -configuration Debug \
             -destination "id=${{ steps.sim.outputs.id }}" \
             -derivedDataPath build/ci \
+            CODE_SIGN_STYLE=Manual \
             CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_ENTITLEMENTS= \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER= \
             | xcbeautify --renderer github-actions || {
               echo "::error::iOS tests failed"; exit 1;
             }

@@ -1,4 +1,5 @@
 import Foundation
+@testable import Shio
 
 /// A throwaway `sshd` on a loopback high port, for tests that need a REAL SSH
 /// server rather than a mock.
@@ -37,8 +38,19 @@ final class EphemeralSSHD {
         let priv = home.appendingPathComponent(".ssh/id_ed25519")
         let pub = home.appendingPathComponent(".ssh/id_ed25519.pub")
         guard let pubText = try? String(contentsOf: pub, encoding: .utf8),
-              let privText = try? String(contentsOf: priv, encoding: .utf8),
-              !privText.contains("ENCRYPTED")
+              (try? Data(contentsOf: priv)) != nil
+        else { return nil }
+        // Ask the app's own loader whether the key is actually usable rather
+        // than grepping the file for "ENCRYPTED".
+        //
+        // That marker only appears on legacy PEM keys. A modern OpenSSH key
+        // keeps its cipher inside the base64 body, so the text check said
+        // "usable" for an encrypted ed25519 key — the normal, recommended
+        // setup — and these tests ran and failed with `.passphraseRequired`
+        // instead of skipping. `load()` consults the keychain, so a key whose
+        // passphrase is already remembered still counts as usable and the
+        // tests still run.
+        guard !SystemSSHKeys.load().encryptedNeedingPassphrase.contains("id_ed25519")
         else { return nil }
         return (pubText, priv.path)
     }
