@@ -45,6 +45,53 @@ enum MacSelfHost {
         return cf.takeRetainedValue() as? String
     }
 
+    private static let magicDNSKey = "shio.mac.magicDNSName"
+
+    /// The MagicDNS name this Mac last resolved for itself, remembered across
+    /// launches. Resolving it shells out to `tailscale`, which is far too slow
+    /// to do while deciding which records are ours, so the async upgrade below
+    /// writes it here and the decision reads it from here.
+    private static var cachedMagicDNSName: String? {
+        get { UserDefaults.standard.string(forKey: magicDNSKey) }
+        set { UserDefaults.standard.set(newValue, forKey: magicDNSKey) }
+    }
+
+    /// Every address this Mac answers to: its live IPv4 addresses plus the
+    /// MagicDNS name above.
+    ///
+    /// Recognising a record this Mac wrote on an earlier launch takes the whole
+    /// set, not one address. `reachableHost` prefers the tailnet IP, while the
+    /// MagicDNS upgrade rewrites the stored hostname to the tailnet *name*, so
+    /// a record this Mac wrote itself normally holds an address `reachableHost`
+    /// does not return. Comparing against that single address matched nothing,
+    /// and the duplicate this was meant to heal survived anyway.
+    static var selfAddresses: Set<String> {
+        var addrs = Set(localIPv4Addresses().map { $0.lowercased() })
+        if let name = cachedMagicDNSName, !name.isEmpty { addrs.insert(name.lowercased()) }
+        return addrs
+    }
+
+    /// Is this record THIS Mac, under an identity it no longer has?
+    ///
+    /// Pure and separated from the fetch so it can be tested. The three
+    /// conditions only mean anything together: the computer name alone
+    /// collides (two Macs both called "MacBook-Pro"), name plus login user
+    /// still collides across two people's identically named Macs, and the
+    /// address is what makes it specific. A record holding an address we
+    /// currently answer to, under our computer name and our login, was written
+    /// by us.
+    nonisolated static func isPreviousSelf(recordName: String, recordUser: String,
+                                          recordHostname: String, recordDeviceID: String?,
+                                          computerName: String, loginName: String,
+                                          myDeviceID: String,
+                                          addresses: Set<String>) -> Bool {
+        guard let recordDeviceID, recordDeviceID != myDeviceID else { return false }
+        guard recordName.caseInsensitiveCompare(computerName) == .orderedSame else { return false }
+        guard recordUser == loginName else { return false }
+        let hostname = recordHostname.lowercased()
+        return !hostname.isEmpty && addresses.contains(hostname)
+    }
+
     /// Identity is the stamped `deviceID` ONLY — never the computer name, which
     /// collides (two Macs both default to "MacBook-Pro" and would each see the
     /// other as "this Mac", mis-routing remote projects to a local PTY and
@@ -62,19 +109,27 @@ enum MacSelfHost {
         ProcessInfo.processInfo.hostName.replacingOccurrences(of: ".local", with: "")
     }
 
-    /// Find-or-create the synced Host record for this Mac, refreshing its
-    /// reachable address + name (these can change between launches).
+    /// Find-or-create the one Host record that is this Mac, folding every other
+    /// record that is also this Mac into it.
+    ///
+    /// Runs twice per launch: once from `ensure`, and again once the tailnet
+    /// name resolves. The second pass is not redundant — the first cannot
+    /// recognise a record stored under this Mac's MagicDNS name on a launch
+    /// where that name has not been resolved yet, which is exactly the state a
+    /// fresh install is in.
     @MainActor
-    @discardableResult
-    static func ensure(in context: ModelContext) -> Host {
-        let id = deviceID
+    private static func consolidate(id: String, in context: ModelContext) -> Host {
         let all = (try? context.fetch(FetchDescriptor<Host>())) ?? []
+        let loginName = NSUserName()
+        // Walks the interface list, so it is computed once rather than per record.
+        let addresses = selfAddresses
 
         // Every record that represents THIS Mac: our stamped id, OR an unstamped
         // record naming this Mac (pairing-created / pre-deviceID / a CloudKit
-        // duplicate). There can be several — e.g. the self-host plus the host the
-        // phone made when it QR-paired — and they sync to every device, so the
-        // Mac shows up multiple times in Machines until we collapse them.
+        // duplicate), OR one left behind by a previous identity of this Mac.
+        // There can be several — e.g. the self-host plus the host the phone made
+        // when it QR-paired — and they sync to every device, so the Mac shows up
+        // multiple times in Machines until we collapse them.
         let mine = all.filter {
             $0.deviceID == id
                 || ($0.deviceID == nil
@@ -82,30 +137,22 @@ enum MacSelfHost {
                     // A *different* Mac that happens to share this computer
                     // name (two "MacBook Pro"s) must not get claimed — require
                     // the login user to match too.
-                    && $0.username == NSUserName())
-                // A record left behind by a PREVIOUS identity of this same Mac:
-                // same computer name, same login user, same reachable address.
-                // Only the first two would be unsafe (two Macs can share a
-                // name), so the address is what makes this specific. Without
-                // this a Mac whose id ever changed stayed duplicated forever,
-                // because the branch above only adopts UNstamped records.
-                || ($0.deviceID != nil
-                    && $0.deviceID != id
-                    && $0.name.caseInsensitiveCompare(computerName) == .orderedSame
-                    && $0.username == NSUserName()
-                    && reachableHost != nil
-                    && $0.hostname.caseInsensitiveCompare(reachableHost!) == .orderedSame)
+                    && $0.username == loginName)
+                || isPreviousSelf(recordName: $0.name, recordUser: $0.username,
+                                  recordHostname: $0.hostname, recordDeviceID: $0.deviceID,
+                                  computerName: computerName, loginName: loginName,
+                                  myDeviceID: id, addresses: addresses)
         }
 
         let host: Host
         if let stamped = mine.first(where: { $0.deviceID == id }) {
             host = stamped
         } else if let first = mine.first {
-            host = first                 // adopt an unstamped record …
+            host = first                 // adopt an unstamped or orphaned record …
             host.deviceID = id           // … by claiming it as ours
         } else {
             host = Host(name: computerName, hostname: reachableHost ?? computerName,
-                        port: 22, username: NSUserName(), kind: .directSSH)
+                        port: 22, username: loginName, kind: .directSSH)
             host.deviceID = id
             context.insert(host)
         }
@@ -118,6 +165,16 @@ enum MacSelfHost {
             for checkout in dup.checkouts ?? [] { checkout.host = host }    // project-first inverse
             context.delete(dup)
         }
+        return host
+    }
+
+    /// Find-or-create the synced Host record for this Mac, refreshing its
+    /// reachable address + name (these can change between launches).
+    @MainActor
+    @discardableResult
+    static func ensure(in context: ModelContext) -> Host {
+        let id = deviceID
+        let host = consolidate(id: id, in: context)
 
         // Adopt legacy host-less checkouts that verifiably live on THIS Mac's
         // disk (pre-self-host local projects). Unadopted, they're unreachable
@@ -198,11 +255,15 @@ enum MacSelfHost {
         Task.detached {
             guard let name = tailscaleMagicDNSName() else { return }
             await MainActor.run {
+                cachedMagicDNSName = name
                 let ctx = ShioModelContainer.shared.mainContext
-                guard let host = try? ctx.fetch(
-                    FetchDescriptor<Host>(predicate: #Predicate { $0.deviceID == id })).first,
-                      host.hostname != name else { return }
-                host.hostname = name
+                // Consolidate again now the name is known. Records this Mac
+                // wrote under its tailnet name were invisible to the pass in
+                // `ensure`, which only had the interface addresses to go on —
+                // so a Mac that had changed identity stayed duplicated until
+                // this ran.
+                let host = consolidate(id: id, in: ctx)
+                if host.hostname != name { host.hostname = name }
                 try? ctx.save()
             }
         }
