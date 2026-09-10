@@ -127,6 +127,17 @@ jobs:
         if: steps.ghosttykit.outputs.cache-hit != 'true'
         run: ./scripts/refresh-ghostty.sh --fetch
 
+      # The Mac target references ShioMac/Resources/tmux, which is gitignored
+      # build output: Shio bundles a fallback tmux so it works on a Mac that
+      # never installed one. A fresh clone does not have it and the build fails
+      # on the missing reference, so CI has to produce it exactly as the
+      # release lane does.
+      - name: Bundle the fallback tmux
+        run: |
+          set -euo pipefail
+          brew list tmux >/dev/null 2>&1 || brew install tmux
+          ./scripts/bundle-tmux.sh
+
       - name: Generate the project
         run: xcodegen generate
 
