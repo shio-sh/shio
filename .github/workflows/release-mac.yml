@@ -24,6 +24,10 @@ on:
         description: "Mark the GitHub Release as a pre-release (beta)"
         type: boolean
         default: true
+      allow_missing_push:
+        description: "Ship even if the signed app has no push entitlement (sync will be poll-only)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -102,6 +106,40 @@ jobs:
       # notarize → staple. Output: build/mac/Shio.app (stapled).
       - name: Build, sign, notarize
         run: fastlane mac release
+
+      # What the source declares and what the signed app CARRIES are two
+      # different things. `aps-environment` is granted by the provisioning
+      # profile, so if the App ID has no Push capability, codesign quietly drops
+      # it and the build succeeds anyway. That is how 1.0 shipped: the Mac had
+      # no push entitlement, so CloudKit could never wake it and sync only ever
+      # happened when the app happened to look. Nothing failed. Nothing said a
+      # word. Checking the artifact is the only way to see it.
+      - name: Verify the signed app carries push
+        run: |
+          set -euo pipefail
+          ENTS="$(codesign -d --entitlements - --xml build/mac/Shio.app 2>/dev/null \
+                  | plutil -convert xml1 -o - - 2>/dev/null || true)"
+          echo "$ENTS" | grep -q "aps-environment" && has_push=1 || has_push=0
+          echo "$ENTS" | grep -q "icloud-container-identifiers" && has_ck=1 || has_ck=0
+          echo "push entitlement:   $has_push"
+          echo "iCloud container:   $has_ck"
+
+          if [ "$has_ck" != "1" ]; then
+            echo "::error::the signed app has no iCloud container — it cannot sync at all"
+            exit 1
+          fi
+
+          if [ "$has_push" != "1" ]; then
+            echo "::warning::the signed app has NO push entitlement (aps-environment)."
+            echo "CloudKit cannot wake this app, so sync will only happen while it is"
+            echo "open and looking. Fix: enable Push Notifications on the App ID"
+            echo "sh.shio.app.mac at developer.apple.com, then re-run this workflow."
+            if [ "${{ inputs.allow_missing_push }}" != "true" ]; then
+              echo "::error::refusing to ship without push. Re-run with allow_missing_push if that is deliberate."
+              exit 1
+            fi
+            echo "allow_missing_push was set — shipping anyway."
+          fi
 
       - name: Build + notarize the DMG
         id: pkg

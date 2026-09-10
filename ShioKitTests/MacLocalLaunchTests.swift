@@ -72,6 +72,42 @@ struct MacLocalLaunchTests {
         #expect(launch(path: "/Users/amrith/Infer").workingDirectory == "/Users/amrith")
     }
 
+    /// Counting quotes is a proxy. This is the real check: let a shell tell us
+    /// whether the command parses.
+    ///
+    /// It has to be done the way the bug happened, which is subtler than it
+    /// looks. Handing the whole line to `zsh -n` passes even for the broken
+    /// version, because the OUTER parse is fine — the quotes do balance, just
+    /// not where we meant. The failure lives one level down: the outer shell
+    /// splits the words, the inner shell gets a truncated argument, and it is
+    /// the inner parse that dies. So the probe runs the real outer shell and
+    /// swaps the inner `-lc` for `-nlc`, which parses and exits without
+    /// running anything. No clone, no tmux, no shell spawned for real.
+    ///
+    /// Checked against the broken version: it reproduces
+    /// `parse error near ``n033[31m[shio]'` and this test fails.
+    @Test func aShellCanActuallyParseWhatWeSend() throws {
+        for url in [nil, "https://github.com/shio-sh/shio.git"] {
+            let command = try command(launch(cloneURL: url))
+            let marker = try #require(command.range(of: " -lc '"),
+                                      "the launch is no longer `<shell> -lc '<script>'`; update this probe")
+            let probe = command.replacingCharacters(in: marker, with: " -nlc '")
+
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/bin/sh")
+            proc.arguments = ["-c", probe]
+            let errPipe = Pipe()
+            proc.standardError = errPipe
+            proc.standardOutput = Pipe()
+            try proc.run()
+            let err = String(decoding: errPipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            proc.waitUntilExit()
+
+            #expect(proc.terminationStatus == 0,
+                    "the shell cannot parse the launch command: \(err.trimmingCharacters(in: .whitespacesAndNewlines))")
+        }
+    }
+
     // MARK: Parity with the SSH path
 
     @Test func localLaunchCarriesEveryAttachOption() {

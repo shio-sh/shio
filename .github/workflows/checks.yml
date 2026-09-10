@@ -1,0 +1,170 @@
+name: Checks
+
+# Runs the test suite on every push and pull request.
+#
+# Until this existed, NOTHING ran automatically: the three other workflows
+# release, watch the forks, and propose Ghostty bumps, but none of them ran a
+# single test. The suite was only ever run by hand, which meant a bug could be
+# committed, pushed, built, installed and hit by a person before anything
+# noticed. One shipped that way — a stray single quote in the local launch
+# script that made zsh fail to parse the line, so every local project terminal
+# on the Mac died. The tests would have caught it. Nothing asked them to.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # Newer pushes supersede older ones on the same ref; a queued run for a commit
+  # nobody is waiting on is just latency for the one they are.
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Cheap checks that need no Xcode build. They finish in about a minute and
+  # fail loudly, so an obvious mistake does not wait behind a 15-minute build.
+  invariants:
+    name: Invariants
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # These entitlements are what let the app sync. They have been silently
+      # wrong before: the Mac shipped 1.0 with no aps-environment at all, so
+      # CloudKit could never push to it and sync was poll-only. That one was
+      # stripped at SIGNING time (see the release workflow, which now checks the
+      # signed artifact) — this check catches the other half, someone deleting
+      # or renaming the declaration in the source file.
+      - name: Entitlements declare iCloud and push
+        run: |
+          set -euo pipefail
+          fail=0
+          check() { # file, key, human name
+            if /usr/libexec/PlistBuddy -c "Print :$2" "$1" >/dev/null 2>&1; then
+              echo "  ok    $1 → $3"
+            else
+              echo "  MISS  $1 → $3"; fail=1
+            fi
+          }
+          echo "ShioMac:"
+          check ShioMac/ShioMac.entitlements "aps-environment" "push"
+          check ShioMac/ShioMac.entitlements "com.apple.developer.icloud-container-identifiers" "iCloud container"
+          check ShioMac/ShioMac.entitlements "com.apple.developer.icloud-services" "CloudKit"
+          echo "Shio (iOS):"
+          check Shio/Shio.entitlements "aps-environment" "push"
+          check Shio/Shio.entitlements "com.apple.developer.icloud-container-identifiers" "iCloud container"
+          check Shio/Shio.entitlements "com.apple.developer.icloud-services" "CloudKit"
+          exit $fail
+
+      # The static libs are ~800 MB of build artifact and are deliberately not
+      # in git. Committing one would bloat every clone forever, and git does not
+      # forget.
+      - name: No build artifacts committed
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '\.(a|xcframework/.*\.a)$'; then
+            echo "::error::a static library is tracked in git; those are build artifacts"
+            exit 1
+          fi
+          echo "  ok    no .a files tracked"
+
+      - name: Shell scripts are sane
+        run: |
+          set -euo pipefail
+          brew list shellcheck >/dev/null 2>&1 || brew install shellcheck
+          # Informational on style, failing on real errors only: these scripts
+          # are long-lived and heavily commented, and a style nit should not
+          # block a merge.
+          shellcheck --severity=error scripts/*.sh
+
+      - name: The project still generates
+        run: |
+          set -euo pipefail
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          xcodegen generate
+          test -d Shio.xcodeproj || { echo "::error::xcodegen produced no project"; exit 1; }
+
+  test:
+    name: Build and test
+    runs-on: macos-15
+    steps:
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          # Only for readable logs. Assuming the runner image ships it would
+          # turn a missing formatter into "the tests failed".
+          command -v xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      # The GhosttyKit static libs are a pinned Release artifact, not git
+      # content. Cache them on the pin so the 800 MB download happens once per
+      # bump rather than once per run.
+      - name: Read the GhosttyKit pin
+        id: pin
+        run: |
+          tag="$(grep -m1 '^GHOSTTYKIT_TAG=' scripts/refresh-ghostty.sh | cut -d'"' -f2)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "pinned at $tag"
+
+      - name: Cache GhosttyKit
+        id: ghosttykit
+        uses: actions/cache@v4
+        with:
+          path: Frameworks/GhosttyKit.xcframework
+          key: ghosttykit-${{ steps.pin.outputs.tag }}
+
+      - name: Fetch GhosttyKit
+        if: steps.ghosttykit.outputs.cache-hit != 'true'
+        run: ./scripts/refresh-ghostty.sh --fetch
+
+      - name: Generate the project
+        run: xcodegen generate
+
+      # The Mac suite is the big one and hosts the shared ShioKit tests.
+      - name: Test ShioMac
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Shio.xcodeproj \
+            -scheme ShioMac \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/ci \
+            | xcbeautify --renderer github-actions || {
+              echo "::error::ShioMac tests failed"; exit 1;
+            }
+
+      # Resolved rather than hardcoded: pinning a device name breaks the day the
+      # runner image drops it, and that failure reads as "our tests broke".
+      - name: Pick a simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          id="$(xcrun simctl list devices available -j \
+            | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];print(next(v['udid'] for rt in d for v in d[rt] if 'iPhone' in v['name']))")"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          xcrun simctl list devices available | grep -m1 iPhone
+
+      - name: Test Shio (iOS)
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Shio.xcodeproj \
+            -scheme Shio \
+            -configuration Debug \
+            -destination "id=${{ steps.sim.outputs.id }}" \
+            -derivedDataPath build/ci \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions || {
+              echo "::error::iOS tests failed"; exit 1;
+            }
