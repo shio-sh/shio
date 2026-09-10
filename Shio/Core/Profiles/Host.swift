@@ -150,8 +150,14 @@ extension Array where Element == Host {
     var connectable: [Host] { filter(\.isConnectable) }
 
     var dedupedByIdentity: [Host] {
+        // deviceID first: it is the only field that actually identifies a
+        // machine. Falling straight to name|hostname|username meant the same
+        // Mac seen under two addresses — its Tailscale name from one device and
+        // its local name from another — counted as two machines and showed up
+        // twice in every list.
         func key(_ h: Host) -> String {
-            "\(h.name.lowercased())|\(h.hostname.lowercased())|\(h.username.lowercased())"
+            if let did = h.deviceID, !did.isEmpty { return "id:\(did)" }
+            return "\(h.name.lowercased())|\(h.hostname.lowercased())|\(h.username.lowercased())"
         }
         var keep: [String: Host] = [:]
         for h in self {

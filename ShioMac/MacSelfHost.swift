@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import Darwin
+import IOKit
 
 /// "This Mac" as a real, synced Machine (Host record), so local Mac projects
 /// belong to a machine that *other* devices can SSH into — that's continuity.
@@ -12,12 +13,36 @@ import Darwin
 enum MacSelfHost {
     private static let deviceIDKey = "shio.mac.deviceID"
 
-    /// Stable identity for THIS Mac (generated once, persisted).
+    /// Stable identity for THIS Mac.
+    ///
+    /// This used to be a random UUID living only in UserDefaults, which meant
+    /// the Mac's identity was as durable as a preferences file. Deleting the
+    /// app's defaults, resetting it, or restoring the Mac from a backup gave it
+    /// a brand new id, and `ensure` below only ever adopts records with NO id —
+    /// so the old record survived, synced to every device, and the Mac appeared
+    /// twice forever with nothing able to merge the two.
+    ///
+    /// It is derived from the hardware now, which survives all of that. An
+    /// existing stored value still wins, so installs that already have an
+    /// identity keep it rather than forking once on upgrade.
     static var deviceID: String {
         if let id = UserDefaults.standard.string(forKey: deviceIDKey) { return id }
-        let id = UUID().uuidString
+        let id = hardwareUUID() ?? UUID().uuidString
         UserDefaults.standard.set(id, forKey: deviceIDKey)
         return id
+    }
+
+    /// The Mac's IOPlatformUUID: stable across reinstalls, defaults wipes and
+    /// restores, and different on every machine.
+    private static func hardwareUUID() -> String? {
+        let service = IOServiceGetMatchingService(
+            kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+        guard let cf = IORegistryEntryCreateCFProperty(
+            service, kIOPlatformUUIDKey as CFString, kCFAllocatorDefault, 0)
+        else { return nil }
+        return cf.takeRetainedValue() as? String
     }
 
     /// Identity is the stamped `deviceID` ONLY — never the computer name, which
@@ -58,6 +83,18 @@ enum MacSelfHost {
                     // name (two "MacBook Pro"s) must not get claimed — require
                     // the login user to match too.
                     && $0.username == NSUserName())
+                // A record left behind by a PREVIOUS identity of this same Mac:
+                // same computer name, same login user, same reachable address.
+                // Only the first two would be unsafe (two Macs can share a
+                // name), so the address is what makes this specific. Without
+                // this a Mac whose id ever changed stayed duplicated forever,
+                // because the branch above only adopts UNstamped records.
+                || ($0.deviceID != nil
+                    && $0.deviceID != id
+                    && $0.name.caseInsensitiveCompare(computerName) == .orderedSame
+                    && $0.username == NSUserName()
+                    && reachableHost != nil
+                    && $0.hostname.caseInsensitiveCompare(reachableHost!) == .orderedSame)
         }
 
         let host: Host
