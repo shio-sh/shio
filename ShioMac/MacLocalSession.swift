@@ -45,7 +45,13 @@ enum MacLocalLaunch {
         // through on `;`. A failed clone used to be followed straight into
         // tmux, which repainted the screen and scrolled the error away, so the
         // user got a working terminal in the wrong directory and no reason why.
-        let script = #"[ -z "$SHIO_BUNDLED_TMUX" ] || PATH="$PATH:$SHIO_BUNDLED_TMUX"; [ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR" || { printf '\n\033[31m[shio] git clone failed.\033[0m Check the URL, and that this Mac has access to the repository.\n'; exec "$SHIO_SHELL" -l; }; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR"\#(TmuxResume.attachOptions) || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
+        let script = #"[ -z "$SHIO_BUNDLED_TMUX" ] || PATH="$PATH:$SHIO_BUNDLED_TMUX"; [ -z "$SHIO_CLONE" ] || [ -d "$SHIO_DIR" ] || git clone "$SHIO_CLONE" "$SHIO_DIR" || { printf "\n\033[31m[shio] git clone failed.\033[0m Check the URL, and that this Mac has access to the repository.\n"; exec "$SHIO_SHELL" -l; }; command -v tmux >/dev/null 2>&1 && exec tmux new-session -A -s "$SHIO_TMUX" -c "$SHIO_DIR"\#(TmuxResume.attachOptions) || { cd "$SHIO_DIR" && exec "$SHIO_SHELL" -l; }"#
+        // Single-quoted, so the script itself must contain no single quote.
+        // It did once: the clone-failure message was `printf '...'`, which
+        // closed this quote early and made zsh fail to parse the whole line
+        // with "parse error near `n033[31m[shio]'". That is a PARSE error, so
+        // it broke every local project terminal, not only the ones with a
+        // clone URL. `noSingleQuotes` is asserted by a test.
         let command = "\(shell) -lc '\(script)'"
 
         // Start in the repo's *parent* so the cwd is valid even before a clone
