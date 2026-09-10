@@ -1,6 +1,8 @@
 import Foundation
 import SwiftData
+#if os(macOS)
 import Security
+#endif
 import os.log
 
 /// Centralized SwiftData container.
@@ -115,13 +117,23 @@ enum ShioModelContainer {
     /// Signed release builds always do. Builds that do not are the interesting
     /// case: an ad-hoc signed CI build, or a Developer ID build whose App ID
     /// lost the capability. Those used to reach CloudKit and be killed by it.
+    ///
+    /// macOS only, because `SecTask` is. There is no public way for an iOS
+    /// process to read its own entitlements, and it does not need one: an iOS
+    /// build cannot be installed on a device at all unless its entitlements
+    /// match a provisioning profile, so the question the Mac has to ask cannot
+    /// arise there.
     static var hasCloudKitEntitlement: Bool {
+        #if os(macOS)
         guard let task = SecTaskCreateFromSelf(nil),
               let value = SecTaskCopyValueForEntitlement(
                 task, "com.apple.developer.icloud-services" as CFString, nil)
         else { return false }
         guard let services = value as? [String] else { return false }
         return services.contains("CloudKit") || services.contains("CloudKit-Anonymous")
+        #else
+        return true
+        #endif
     }
 
     #if os(macOS)

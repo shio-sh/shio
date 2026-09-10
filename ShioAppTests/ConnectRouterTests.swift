@@ -16,7 +16,7 @@ struct ConnectRouterTests {
     private func makeContainer() throws -> ModelContainer {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         return try ModelContainer(
-            for: Host.self, Project.self, ProjectCheckout.self, Repo.self, Skill.self,
+            for: Host.self, Project.self, ProjectCheckout.self, Repo.self,
             configurations: config)
     }
 

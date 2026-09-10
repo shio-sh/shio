@@ -12,7 +12,7 @@ struct ConnectRouterDeviceTests {
 
     private func container() throws -> ModelContainer {
         try ModelContainer(for: Shio.Host.self, Project.self, ProjectCheckout.self,
-                           Repo.self, Skill.self,
+                           Repo.self,
                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 
